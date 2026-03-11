@@ -2,6 +2,11 @@
 src/
 test/
 
+# BMAD planning artifacts (not part of npm package)
+_bmad/
+_bmad-output/
+docs/
+
 # TypeScript config
 tsconfig.json
 tsconfig.eslint.json
