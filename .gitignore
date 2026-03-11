@@ -45,6 +45,5 @@ coverage
 .env
 .env.test
 
-# Homebridge debug config (contains local IP addresses and tokens)
-/test/hbConfig/config.json
+# Homebridge debug config (auth.json contains pairing tokens)
 /test/hbConfig/auth.json
