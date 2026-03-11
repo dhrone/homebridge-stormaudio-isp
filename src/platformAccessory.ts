@@ -15,7 +15,7 @@ export class StormAudioAccessory {
     private readonly client: StormAudioClient,
   ) {
     const { Characteristic } = this.platform;
-    const name = this.platform.config.name || 'StormAudio';
+    const name = this.platform.validatedConfig!.name;
 
     // Task 2: Register Television service
     this.tvService =

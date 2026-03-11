@@ -76,6 +76,8 @@ function createMockClient() {
 }
 
 function createMockPlatform(nameOverride?: string) {
+  const name = nameOverride ?? 'StormAudio';
+
   const CharacteristicMock = {
     Name: 'Name',
     ConfiguredName: 'ConfiguredName',
@@ -91,7 +93,8 @@ function createMockPlatform(nameOverride?: string) {
   return {
     Service: ServiceMock,
     Characteristic: CharacteristicMock,
-    config: { name: nameOverride ?? 'StormAudio' },
+    config: { name },
+    validatedConfig: { name },
     log: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -179,6 +182,16 @@ describe('StormAudioAccessory — Television service setup (Task 2)', () => {
     expect(accessory._tvService.setCharacteristic).toHaveBeenCalledWith('Name', 'Theater');
     expect(accessory._tvService.setCharacteristic).toHaveBeenCalledWith('ConfiguredName', 'Theater');
   });
+
+  it('uses default name StormAudio when validatedConfig.name falls back to default', () => {
+    // Simulate platform where config.name was omitted — validateConfig resolves to 'StormAudio'
+    platform = createMockPlatform('StormAudio');
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory._tvService.setCharacteristic).toHaveBeenCalledWith('Name', 'StormAudio');
+    expect(accessory._tvService.setCharacteristic).toHaveBeenCalledWith('ConfiguredName', 'StormAudio');
+  });
 });
 
 describe('StormAudioAccessory — power on/off commands (Task 3)', () => {
@@ -200,6 +213,12 @@ describe('StormAudioAccessory — power on/off commands (Task 3)', () => {
 
   it('onSet(Active.INACTIVE) calls client.setPower(false)', () => {
     activeChar._triggerSet(ActiveEnum.INACTIVE);
+    expect(client.setPower).toHaveBeenCalledWith(false);
+  });
+
+  it('onSet with unexpected value (not ACTIVE) calls setPower(false)', () => {
+    // Any value other than ACTIVE(1) is treated as inactive — documents edge case behavior
+    activeChar._triggerSet(2);
     expect(client.setPower).toHaveBeenCalledWith(false);
   });
 });

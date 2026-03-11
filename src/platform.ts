@@ -102,7 +102,7 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
 
   private client: StormAudioClient | null = null;
-  private validatedConfig: StormAudioConfig | null = null;
+  public readonly validatedConfig: StormAudioConfig | null = null;
 
   constructor(
     public readonly log: Logging,

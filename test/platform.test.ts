@@ -123,15 +123,37 @@ describe('StormAudioPlatform — didFinishLaunching (Task 6)', () => {
     expect(createdAccessory.category).toBe(31); // Categories.TELEVISION
   });
 
-  it('creates StormAudioAccessory with the client', async () => {
-    const { StormAudioAccessory } = await import('../src/platformAccessory');
+  it('calls client.connect() during didFinishLaunching', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
     new StormAudioPlatform(log as never, validConfig as never, api as never);
     api._trigger('didFinishLaunching');
 
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    expect(clientInstance.connect).toHaveBeenCalled();
+  });
+
+  it('registers error listener on client — emit error does not throw', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    // Without an error listener, EventEmitter throws on 'error' emit — crashing the plugin
+    expect(() => clientInstance.emit('error', new Error('test'))).not.toThrow();
+  });
+
+  it('creates StormAudioAccessory with correct accessory and client instances', async () => {
+    const { StormAudioAccessory } = await import('../src/platformAccessory');
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+
+    const createdAccessory = api.platformAccessory.mock.results[0]?.value;
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
     expect(StormAudioAccessory).toHaveBeenCalledWith(
-      expect.anything(), // platform
-      expect.anything(), // accessory
-      expect.anything(), // client
+      expect.anything(), // platform (StormAudioPlatform instance — hard to assert directly)
+      createdAccessory,
+      clientInstance,
     );
   });
 
@@ -203,5 +225,35 @@ describe('StormAudioPlatform — config validation disabled', () => {
     api._trigger('didFinishLaunching');
 
     expect(api.publishExternalAccessories).not.toHaveBeenCalled();
+  });
+});
+
+describe('StormAudioPlatform — configureAccessory', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let log: ReturnType<typeof createMockLog>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = createMockApi();
+    log = createMockLog();
+  });
+
+  it('stores accessory in accessories map by UUID', () => {
+    const platform = new StormAudioPlatform(log as never, validConfig as never, api as never);
+    const mockAccessory = { UUID: 'test-uuid-123', displayName: 'Theater' };
+
+    platform.configureAccessory(mockAccessory as never);
+
+    expect(platform.accessories.has('test-uuid-123')).toBe(true);
+    expect(platform.accessories.get('test-uuid-123')).toBe(mockAccessory);
+  });
+
+  it('logs accessory name when loading from cache', () => {
+    const platform = new StormAudioPlatform(log as never, validConfig as never, api as never);
+    const mockAccessory = { UUID: 'test-uuid', displayName: 'Theater' };
+
+    platform.configureAccessory(mockAccessory as never);
+
+    expect(log.info).toHaveBeenCalledWith('Loading accessory from cache:', 'Theater');
   });
 });
