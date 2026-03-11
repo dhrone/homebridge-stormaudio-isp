@@ -1,0 +1,66 @@
+{
+  "pluginAlias": "StormAudioISP",
+  "pluginType": "platform",
+  "singular": true,
+  "strictValidation": false,
+  "schema": {
+    "type": "object",
+    "required": ["name", "host"],
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "StormAudio",
+        "description": "Display name for this platform instance"
+      },
+      "host": {
+        "title": "Processor Host",
+        "type": "string",
+        "description": "IP address or hostname of the StormAudio ISP processor"
+      },
+      "port": {
+        "title": "Port",
+        "type": "integer",
+        "default": 23,
+        "minimum": 1,
+        "maximum": 65535,
+        "description": "TCP port for the StormAudio ISP API (default: 23)"
+      },
+      "volumeCeiling": {
+        "title": "Volume Ceiling (dB)",
+        "type": "number",
+        "default": -20,
+        "minimum": -100,
+        "maximum": 0,
+        "description": "Maximum volume level in dB (default: -20)"
+      },
+      "volumeFloor": {
+        "title": "Volume Floor (dB)",
+        "type": "number",
+        "default": -100,
+        "minimum": -100,
+        "maximum": 0,
+        "description": "Minimum volume level in dB, must be less than volumeCeiling (default: -100)"
+      },
+      "volumeControl": {
+        "title": "Volume Control",
+        "type": "string",
+        "default": "lightbulb",
+        "oneOf": [
+          { "title": "Lightbulb (brightness slider)", "enum": ["lightbulb"] },
+          { "title": "None (disable volume control)", "enum": ["none"] }
+        ],
+        "description": "HomeKit accessory type used for volume control"
+      },
+      "inputs": {
+        "title": "Input Aliases",
+        "type": "object",
+        "description": "Map of input ID (as string) to display name, e.g. { \"3\": \"TV\", \"5\": \"PS5\" }",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

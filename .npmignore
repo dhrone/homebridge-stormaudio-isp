@@ -1,0 +1,45 @@
+# Source files (compiled dist/ is published)
+src/
+test/
+
+# TypeScript config
+tsconfig.json
+tsconfig.eslint.json
+
+# Linting
+eslint.config.mjs
+.prettierrc
+
+# Test framework config
+vitest.config.ts
+
+# CI/CD
+.github/
+
+# Development tools
+.vscode/
+nodemon.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Coverage
+coverage
+*.lcov
+.nyc_output
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache
+.npm
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv
+.env
+.env.test
