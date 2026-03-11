@@ -277,6 +277,71 @@ describe('StormAudioClient — message parsing', () => {
   });
 });
 
+describe('StormAudioClient — bracketed value parsing (real hardware format)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('parses ssp.vol.[-54.0] and emits volume(-54)', () => {
+    const client = connectClient();
+    let received: number | null = null;
+    client.on('volume', (dB) => { received = dB; });
+    mockSocket.simulateData('ssp.vol.[-54.0]\n');
+    expect(received).toBe(-54);
+  });
+
+  it('parses ssp.input.[4] and emits input(4)', () => {
+    const client = connectClient();
+    let received: number | null = null;
+    client.on('input', (id) => { received = id; });
+    mockSocket.simulateData('ssp.input.[4]\n');
+    expect(received).toBe(4);
+  });
+
+  it('parses ssp.procstate.[2] and emits processorState(Active)', () => {
+    const client = connectClient();
+    let received: ProcessorState | null = null;
+    client.on('processorState', (state) => { received = state; });
+    mockSocket.simulateData('ssp.procstate.[2]\n');
+    expect(received).toBe(ProcessorState.Active);
+  });
+
+  it('parses ssp.procstate.[0] and emits processorState(Sleep)', () => {
+    const client = connectClient();
+    let received: ProcessorState | null = null;
+    client.on('processorState', (state) => { received = state; });
+    mockSocket.simulateData('ssp.procstate.[0]\n');
+    expect(received).toBe(ProcessorState.Sleep);
+  });
+
+  it('parses ssp.mute.[on] and emits mute(true)', () => {
+    const client = connectClient();
+    let received: boolean | null = null;
+    client.on('mute', (muted) => { received = muted; });
+    mockSocket.simulateData('ssp.mute.[on]\n');
+    expect(received).toBe(true);
+  });
+
+  it('non-bracketed values still parse correctly', () => {
+    const client = connectClient();
+    let received: boolean | null = null;
+    client.on('power', (on) => { received = on; });
+    mockSocket.simulateData('ssp.power.on\n');
+    expect(received).toBe(true);
+  });
+});
+
 describe('StormAudioClient — command methods', () => {
   let mockSocket: MockSocket;
   let socketFactory: ReturnType<typeof vi.fn>;

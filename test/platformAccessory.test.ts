@@ -228,8 +228,22 @@ describe('StormAudioAccessory — power on/off commands (Task 3 / Task 5)', () =
 
   it('onSet(Active.ACTIVE) logs warn when ensureActive returns false', async () => {
     client.ensureActive.mockResolvedValue(false);
-    await activeChar._triggerSet(ActiveEnum.ACTIVE);
+    activeChar._triggerSet(ActiveEnum.ACTIVE);
+    await new Promise(r => setTimeout(r, 0)); // flush fire-and-forget promise chain
     expect(platform.log.warn).toHaveBeenCalledWith('[State] Power-on timed out — processor did not reach active state');
+  });
+
+  it('onSet(Active.ACTIVE) logs debug "Command dropped" when ensureActive returns false', async () => {
+    client.ensureActive.mockResolvedValue(false);
+    activeChar._triggerSet(ActiveEnum.ACTIVE);
+    await new Promise(r => setTimeout(r, 0)); // flush fire-and-forget promise chain
+    expect(platform.log.debug).toHaveBeenCalledWith('[State] Command dropped — processor did not reach active state');
+  });
+
+  it('onSet(Active.ACTIVE) skips ensureActive() when processor is already Active', () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    activeChar._triggerSet(ActiveEnum.ACTIVE);
+    expect(client.ensureActive).not.toHaveBeenCalled();
   });
 
   it('onSet(Active.INACTIVE) calls client.setPower(false)', () => {
@@ -328,6 +342,13 @@ describe('StormAudioAccessory — processorState event subscription (Task 6)', (
   it('processorState(Sleep) logs [HomeKit] Processor in sleep mode', () => {
     client._emit('processorState', ProcessorState.Sleep);
     expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Processor in sleep mode');
+  });
+
+  it('processorState(Initializing) does not log any processor-related message', () => {
+    client._emit('processorState', ProcessorState.Initializing);
+    expect(platform.log.debug).not.toHaveBeenCalledWith(
+      expect.stringContaining('[HomeKit] Processor'),
+    );
   });
 });
 

@@ -32,17 +32,19 @@ export class StormAudioAccessory {
     this.tvService.setCharacteristic(Characteristic.ActiveIdentifier, 0);
 
     // Task 3/5: Handle power on/off commands
-    this.tvService.getCharacteristic(Characteristic.Active).onSet(async (value: CharacteristicValue) => {
+    this.tvService.getCharacteristic(Characteristic.Active).onSet((value: CharacteristicValue) => {
       const isOn = value === Characteristic.Active.ACTIVE;
       if (isOn) {
-        // Optimistic update: show ON immediately before awaiting wake sequence
+        // Optimistic update: show ON immediately
         this.tvService
           .getCharacteristic(Characteristic.Active)
           .updateValue(Characteristic.Active.ACTIVE, EXTERNAL_CONTEXT);
-        const active = await this.requiresActive();
-        if (!active) {
-          this.platform.log.warn('[State] Power-on timed out — processor did not reach active state');
-        }
+        // Fire-and-forget: wake processor in background so HAP-NodeJS isn't blocked
+        void this.requiresActive().then((active) => {
+          if (!active) {
+            this.platform.log.warn('[State] Power-on timed out — processor did not reach active state');
+          }
+        });
       } else {
         this.client.setPower(false);
       }

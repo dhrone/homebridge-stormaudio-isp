@@ -45,5 +45,7 @@ coverage
 .env
 .env.test
 
-# Homebridge debug config (auth.json contains pairing tokens)
+# Homebridge debug config (runtime data and pairing tokens)
 /test/hbConfig/auth.json
+/test/hbConfig/accessories/
+/test/hbConfig/persist/

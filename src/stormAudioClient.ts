@@ -177,7 +177,7 @@ export class StormAudioClient extends EventEmitter {
     }
 
     const category = parts[1];
-    const value = parts.slice(2).join('.');
+    const value = parts.slice(2).join('.').replace(/^\[|\]$/g, '');
 
     switch (category) {
       case 'power':

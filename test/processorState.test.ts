@@ -96,6 +96,12 @@ describe('StormAudioClient — getProcessorState and getPower getters (Task 3)',
     mockSocket.simulateData('ssp.power.on\n');
     expect(client.getPower()).toBe(true);
   });
+
+  it('getProcessorState() returns ProcessorState.Initializing after ssp.procstate.1', () => {
+    const client = connectClient();
+    mockSocket.simulateData('ssp.procstate.1\n');
+    expect(client.getProcessorState()).toBe(ProcessorState.Initializing);
+  });
 });
 
 describe('StormAudioClient — ensureActive() (Task 2)', () => {
@@ -201,5 +207,37 @@ describe('StormAudioClient — ensureActive() (Task 2)', () => {
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     vi.advanceTimersByTime(1001);
     await expect(promise).resolves.toBe(false);
+  });
+
+  it('waits through Initializing state and resolves true only on Active', async () => {
+    const client = connectClient();
+    const promise = client.ensureActive();
+    // Processor transitions: Sleep → Initializing (should not resolve)
+    mockSocket.simulateData('ssp.procstate.1\n');
+    // Processor transitions: Initializing → Active (should resolve)
+    mockSocket.simulateData('ssp.procstate.2\n');
+    const result = await promise;
+    expect(result).toBe(true);
+  });
+
+  it('cleans up processorState listener after resolving true', async () => {
+    const client = connectClient();
+    const before = client.listenerCount('processorState');
+    const promise = client.ensureActive();
+    expect(client.listenerCount('processorState')).toBe(before + 1);
+    mockSocket.simulateData('ssp.procstate.2\n');
+    await promise;
+    expect(client.listenerCount('processorState')).toBe(before);
+  });
+
+  it('cleans up processorState listener after timeout', async () => {
+    vi.useFakeTimers();
+    const client = connectClient();
+    const before = client.listenerCount('processorState');
+    const promise = client.ensureActive(1000);
+    expect(client.listenerCount('processorState')).toBe(before + 1);
+    vi.advanceTimersByTime(1001);
+    await promise;
+    expect(client.listenerCount('processorState')).toBe(before);
   });
 });
