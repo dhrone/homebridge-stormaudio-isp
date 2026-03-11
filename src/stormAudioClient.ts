@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import * as net from 'net';
 
+import { PROCESSOR_WAKE_TIMEOUT_MS } from './settings';
 import { ErrorCategory, ProcessorState } from './types';
 import type { StormAudioConfig, StormAudioError, StormAudioEvents, StormAudioState } from './types';
 
@@ -99,6 +100,54 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand(muted ? 'ssp.mute.on\n' : 'ssp.mute.off\n');
   }
 
+  getProcessorState(): ProcessorState {
+    return this.state.processorState;
+  }
+
+  getPower(): boolean {
+    return this.state.power;
+  }
+
+  async ensureActive(timeout = PROCESSOR_WAKE_TIMEOUT_MS): Promise<boolean> {
+    if (this.state.processorState === ProcessorState.Active) {
+      return true;
+    }
+
+    if (this.state.processorState === ProcessorState.Sleep) {
+      this.log.info('[State] Waking processor... waiting for active state');
+      this.sendCommand('ssp.power.on\n');
+    } else {
+      this.log.info('[State] Processor initializing... waiting for active state');
+    }
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      // eslint-disable-next-line prefer-const
+      let timer!: ReturnType<typeof setTimeout>;
+
+      const onStateChange = (state: ProcessorState): void => {
+        if (state === ProcessorState.Active) {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timer);
+          this.removeListener('processorState', onStateChange);
+          this.log.info('[State] Processor active — ready for commands');
+          resolve(true);
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        this.removeListener('processorState', onStateChange);
+        this.log.warn('[State] Processor did not reach active state within timeout');
+        resolve(false);
+      }, timeout);
+
+      this.on('processorState', onStateChange);
+    });
+  }
+
   private sendCommand(command: string): void {
     if (!this.socket || !this.connected) {
       this.log.warn(`[Command] Cannot send ${command.trim()}: not connected`);
@@ -171,6 +220,13 @@ export class StormAudioClient extends EventEmitter {
         const procState = parseInt(value, 10);
         if (procState >= 0 && procState <= 2) {
           this.state.processorState = procState as ProcessorState;
+          if (procState === ProcessorState.Sleep) {
+            this.log.info('[State] Processor entered sleep mode');
+          } else if (procState === ProcessorState.Initializing) {
+            this.log.info('[State] Processor initializing');
+          } else {
+            this.log.info('[State] Processor active');
+          }
           this.emit('processorState', this.state.processorState);
         } else {
           this.log.debug('[Command] Unrecognized message: ' + message);

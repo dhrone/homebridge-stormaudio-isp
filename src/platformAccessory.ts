@@ -2,6 +2,7 @@ import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge
 
 import type { StormAudioPlatform } from './platform';
 import type { StormAudioClient } from './stormAudioClient';
+import { ProcessorState } from './types';
 
 const EXTERNAL_CONTEXT = { source: 'stormaudio' };
 
@@ -30,10 +31,21 @@ export class StormAudioAccessory {
     );
     this.tvService.setCharacteristic(Characteristic.ActiveIdentifier, 0);
 
-    // Task 3: Handle power on/off commands
+    // Task 3/5: Handle power on/off commands
     this.tvService.getCharacteristic(Characteristic.Active).onSet(async (value: CharacteristicValue) => {
       const isOn = value === Characteristic.Active.ACTIVE;
-      this.client.setPower(isOn);
+      if (isOn) {
+        // Optimistic update: show ON immediately before awaiting wake sequence
+        this.tvService
+          .getCharacteristic(Characteristic.Active)
+          .updateValue(Characteristic.Active.ACTIVE, EXTERNAL_CONTEXT);
+        const active = await this.requiresActive();
+        if (!active) {
+          this.platform.log.warn('[State] Power-on timed out — processor did not reach active state');
+        }
+      } else {
+        this.client.setPower(false);
+      }
     });
 
     // Task 4: Register onGet handler for power state
@@ -49,5 +61,23 @@ export class StormAudioAccessory {
         .updateValue(on ? Characteristic.Active.ACTIVE : Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
       this.platform.log.debug('[HomeKit] Power state updated: ' + (on ? 'ON' : 'OFF'));
     });
+
+    // Task 6: Handle processor state events
+    this.client.on('processorState', (state: ProcessorState) => {
+      if (state === ProcessorState.Active) {
+        this.platform.log.debug('[HomeKit] Processor is active — ready for commands');
+      } else if (state === ProcessorState.Sleep) {
+        this.platform.log.debug('[HomeKit] Processor in sleep mode');
+      }
+    });
+  }
+
+  private async requiresActive(): Promise<boolean> {
+    if (this.client.getProcessorState() === ProcessorState.Active) return true;
+    const reached = await this.client.ensureActive();
+    if (!reached) {
+      this.platform.log.debug('[State] Command dropped — processor did not reach active state');
+    }
+    return reached;
   }
 }

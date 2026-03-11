@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import type { StormAudioPlatform } from '../src/platform';
 import { StormAudioAccessory } from '../src/platformAccessory';
+import { ProcessorState } from '../src/types';
 
 // --- Mock Homebridge types ---
 
@@ -71,6 +72,8 @@ function createMockClient() {
     setMute: vi.fn(),
     disconnect: vi.fn(),
     connect: vi.fn(),
+    getProcessorState: vi.fn().mockReturnValue(ProcessorState.Sleep),
+    ensureActive: vi.fn().mockResolvedValue(true),
     _emit: emitter.emit.bind(emitter),
   };
 }
@@ -194,21 +197,39 @@ describe('StormAudioAccessory — Television service setup (Task 2)', () => {
   });
 });
 
-describe('StormAudioAccessory — power on/off commands (Task 3)', () => {
+describe('StormAudioAccessory — power on/off commands (Task 3 / Task 5)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
   let client: ReturnType<typeof createMockClient>;
   let activeChar: ReturnType<typeof createMockCharacteristic>;
 
   beforeEach(() => {
-    const platform = createMockPlatform();
-    const accessory = createMockAccessory();
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
     client = createMockClient();
     new StormAudioAccessory(platform, accessory as never, client as never);
     activeChar = accessory._tvService._getCharacteristicMock('Active')!;
   });
 
-  it('onSet(Active.ACTIVE) calls client.setPower(true)', () => {
+  it('onSet(Active.ACTIVE) calls client.ensureActive() via requiresActive()', () => {
     activeChar._triggerSet(ActiveEnum.ACTIVE);
-    expect(client.setPower).toHaveBeenCalledWith(true);
+    expect(client.ensureActive).toHaveBeenCalled();
+  });
+
+  it('onSet(Active.ACTIVE) does NOT call client.setPower(true)', () => {
+    activeChar._triggerSet(ActiveEnum.ACTIVE);
+    expect(client.setPower).not.toHaveBeenCalledWith(true);
+  });
+
+  it('onSet(Active.ACTIVE) performs optimistic update to ACTIVE before awaiting', () => {
+    activeChar._triggerSet(ActiveEnum.ACTIVE);
+    expect(activeChar._getUpdateValueMock()).toHaveBeenCalledWith(ActiveEnum.ACTIVE, { source: 'stormaudio' });
+  });
+
+  it('onSet(Active.ACTIVE) logs warn when ensureActive returns false', async () => {
+    client.ensureActive.mockResolvedValue(false);
+    await activeChar._triggerSet(ActiveEnum.ACTIVE);
+    expect(platform.log.warn).toHaveBeenCalledWith('[State] Power-on timed out — processor did not reach active state');
   });
 
   it('onSet(Active.INACTIVE) calls client.setPower(false)', () => {
@@ -285,6 +306,28 @@ describe('StormAudioAccessory — power state updates from StormAudio (Task 5)',
     expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Power state updated: ON');
     client._emit('power', false);
     expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Power state updated: OFF');
+  });
+});
+
+describe('StormAudioAccessory — processorState event subscription (Task 6)', () => {
+  let platform: StormAudioPlatform;
+  let client: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+  });
+
+  it('processorState(Active) logs [HomeKit] Processor is active — ready for commands', () => {
+    client._emit('processorState', ProcessorState.Active);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Processor is active — ready for commands');
+  });
+
+  it('processorState(Sleep) logs [HomeKit] Processor in sleep mode', () => {
+    client._emit('processorState', ProcessorState.Sleep);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Processor in sleep mode');
   });
 });
 
