@@ -8,6 +8,8 @@ import type {
   Service,
 } from 'homebridge';
 
+import { StormAudioAccessory } from './platformAccessory';
+import { PLUGIN_NAME } from './settings';
 import { StormAudioClient } from './stormAudioClient';
 import type { StormAudioConfig } from './types';
 
@@ -118,6 +120,12 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
 
     this.log.debug('Finished initializing platform:', this.validatedConfig.name);
 
+    // Task 8: Register shutdown handler
+    this.api.on('shutdown', () => {
+      this.client?.disconnect();
+      this.log.info('[TCP] Connection closed gracefully');
+    });
+
     this.api.on('didFinishLaunching', () => {
       log.debug('Executed didFinishLaunching callback');
       if (this.validatedConfig) {
@@ -127,6 +135,14 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           // Reconnection will be handled in Story 4.1.
         });
         this.client.connect();
+
+        // Task 6: Create and publish external accessory
+        const uuid = this.api.hap.uuid.generate('stormaudio-isp');
+        const accessory = new this.api.platformAccessory(this.validatedConfig.name, uuid);
+        accessory.category = this.api.hap.Categories.TELEVISION;
+        new StormAudioAccessory(this, accessory, this.client);
+        this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
+        this.log.info('[HomeKit] Published StormAudio accessory: ' + this.validatedConfig.name);
       }
     });
   }
