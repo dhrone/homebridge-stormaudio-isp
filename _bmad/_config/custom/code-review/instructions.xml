@@ -1,0 +1,376 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language} and generate all documents in {document_output_language}</critical>
+
+  <critical>TWO-PHASE ITERATIVE CODE REVIEW with model-awareness and lifecycle document integration.</critical>
+  <critical>Phase 1: Test Suite Quality Review — adversarial verification of tests against ACs, edge cases, best practices.</critical>
+  <critical>Phase 2: Full BMAD Code Review — complete adversarial review of implementation, architecture, security.</critical>
+  <critical>Fix ALL issues, then REPEAT both phases until all substantive issues are resolved.</critical>
+  <critical>Do not review files outside the application source. Always exclude _bmad/, _bmad-output/, .cursor/, .windsurf/, .claude/ directories.</critical>
+
+  <step n="1" goal="Load story, check model awareness, discover changes">
+    <action>Use provided {{story_path}} or ask user which story file to review</action>
+    <action>Read COMPLETE story file</action>
+    <action>Set {{story_key}} = extracted key from filename</action>
+    <action>Set {{epic_num}} = first number from story key</action>
+    <action>Parse sections: Story, Acceptance Criteria, Tasks/Subtasks, QA Test Specification, Dev Notes, Dev Agent Record</action>
+
+    <!-- MODEL-AWARENESS CHECK (A2) -->
+    <critical>Fresh-eyes (cross-model) review is the default practice — same-model review has diminishing returns.</critical>
+    <action>Read "Dev Agent Record → Agent Model Used" from the story file</action>
+    <action>Set {{dev_model}} = the model name/version recorded</action>
+    <action>Determine your own model identity (the model currently executing this review)</action>
+    <action>Set {{reviewer_model}} = your model identity</action>
+
+    <check if="{{dev_model}} matches or closely resembles {{reviewer_model}}">
+      <output>**MODEL-AWARENESS WARNING**
+
+        The dev agent used **{{dev_model}}** to implement this story.
+        You are running as **{{reviewer_model}}** — this is the SAME model family.
+
+        Cross-model review catches architectural and type-design issues that same-model self-review misses.
+        Story 1.2 experience: same-model R1-R2 caught implementation bugs but missed crash-on-error-emit and
+        type-safety issues. Cross-model R3 found both immediately.
+
+        **Options:**
+        1. Proceed anyway (I understand diminishing returns of same-model review)
+        2. Switch to a different model for this review (recommended)
+        3. Cancel and restart with a different model
+      </output>
+      <ask>How would you like to proceed?</ask>
+      <check if="user chooses cancel">
+        <action>HALT — user will restart with different model</action>
+      </check>
+    </check>
+
+    <check if="{{dev_model}} does NOT match {{reviewer_model}}">
+      <output>Cross-model review confirmed: dev={{dev_model}}, reviewer={{reviewer_model}}</output>
+    </check>
+
+    <!-- Discover actual changes via git -->
+    <action>Check if git repository detected</action>
+    <check if="git repository exists">
+      <action>Run `git status --porcelain` to find uncommitted changes</action>
+      <action>Run `git diff --name-only` to see modified files</action>
+      <action>Run `git diff --cached --name-only` to see staged files</action>
+      <action>Compile comprehensive file list from git + story File List</action>
+    </check>
+
+    <!-- Cross-reference story File List vs git reality -->
+    <action>Compare story's Dev Agent Record File List with actual git changes</action>
+    <action>Note discrepancies:
+      - Files in git but not in story File List
+      - Files in story File List but no git changes
+    </action>
+
+    <invoke-protocol name="discover_inputs" />
+    <action>Load {project_context} for coding standards (if exists)</action>
+
+    <!-- Load review document -->
+    <action>Set {{review_file}} = {implementation_artifacts}/{{story_key}}-review.md</action>
+    <check if="review file exists">
+      <action>Load existing review document</action>
+    </check>
+    <check if="review file does NOT exist">
+      <action>Log: "No lifecycle review document found — will create one during review"</action>
+    </check>
+
+    <action>Set {{round}} = 1</action>
+    <action>Set {{review_log}} = "" (accumulates round-by-round findings)</action>
+  </step>
+
+  <step n="2" goal="Phase 1 — Test Suite Quality Review">
+    <critical>ADVERSARIAL TEST REVIEW — Find every test gap, every untested path, every lazy shortcut!</critical>
+    <critical>This phase is anchored to the QA Test Specification (if present) and Acceptance Criteria.</critical>
+
+    <output>**--- ROUND {{round}}, Phase 1: Test Suite Quality Review ---**</output>
+
+    <!-- Load QA Test Specification if present -->
+    <action>Check if story has a "## QA Test Specification" section</action>
+    <check if="QA Test Specification exists">
+      <action>Use it as the review anchor — every item in the spec must be covered by actual tests</action>
+    </check>
+    <check if="no QA Test Specification">
+      <action>Generate test expectations from ACs directly (this is a gap — note it as a finding)</action>
+    </check>
+
+    <!-- Test file discovery -->
+    <action>Identify all test files from story File List and git changes</action>
+    <action>Read EVERY test file completely</action>
+
+    <!-- AC-anchored test verification -->
+    <action>For EACH Acceptance Criterion:
+      1. Identify which test(s) cover this AC
+      2. Verify the test actually asserts the AC's requirements (not just a placeholder)
+      3. If NO test covers this AC → HIGH finding: "AC {{n}} has no test coverage"
+      4. If test exists but assertions are weak/incomplete → MEDIUM finding
+    </action>
+
+    <!-- Edge case coverage -->
+    <action>For EACH edge case in QA Test Specification (or derived from ACs):
+      1. Search test files for coverage
+      2. Missing edge case test → MEDIUM finding with specific test description needed
+    </action>
+
+    <!-- Sibling coverage verification -->
+    <critical>When one case in a family of patterns is tested, ALL siblings must be tested.</critical>
+    <action>Identify test families (e.g., testing invalid values for one message type):
+      1. Find all tests that test ONE case in a pattern family
+      2. Identify all siblings that should have equivalent tests
+      3. Missing sibling test → HIGH finding: "Sibling coverage gap: [tested case] has test but [sibling] does not"
+    </action>
+
+    <!-- Listener cleanup verification -->
+    <critical>Any method that registers EventEmitter listeners MUST have a test verifying
+      listenerCount returns to baseline after completion.</critical>
+    <action>Identify all methods in the implementation that call .on(), .once(), .addListener(), or .addEventListener():
+      1. For each: verify a test checks listenerCount before and after
+      2. Missing cleanup test → HIGH finding: "[method] registers listeners but has no listenerCount verification"
+    </action>
+
+    <!-- Mock audit -->
+    <critical>Every mock must be tested with ALL its possible return values.</critical>
+    <action>Identify all mocks/stubs in test files:
+      1. For each mock: determine all possible return values it could produce
+      2. Check that each return value appears in at least one test
+      3. Untested mock return value → MEDIUM finding: "Mock [name] returns [value] but no test exercises this path"
+    </action>
+
+    <!-- Test best practices -->
+    <action>Check for test anti-patterns:
+      - Tests that pass without assertions (empty test bodies)
+      - Tests that only check truthy/falsy instead of specific values
+      - Tests that mock the thing they're testing
+      - Duplicate test descriptions (copy-paste errors)
+      - Missing afterEach cleanup
+      - Tests dependent on execution order
+    </action>
+
+    <action>Compile Phase 1 findings with severity: HIGH / MEDIUM / LOW</action>
+    <action>Set {{phase1_findings}} = compiled findings</action>
+  </step>
+
+  <step n="3" goal="Phase 2 — Full BMAD Code Review">
+    <critical>ADVERSARIAL CODE REVIEW — Validate every claim, challenge every assumption!</critical>
+
+    <output>**--- ROUND {{round}}, Phase 2: Full Code Review ---**</output>
+
+    <!-- Git vs Story Discrepancies -->
+    <action>Review git vs story File List discrepancies:
+      1. Files changed but not in story File List → MEDIUM (incomplete documentation)
+      2. Story lists files but no git changes → HIGH (false claims)
+      3. Uncommitted changes not documented → MEDIUM (transparency)
+    </action>
+
+    <!-- AC Validation -->
+    <action>For EACH Acceptance Criterion:
+      1. Read the AC requirement
+      2. Search implementation files for evidence
+      3. Determine: IMPLEMENTED, PARTIAL, or MISSING
+      4. If MISSING/PARTIAL → HIGH finding with specific gap description
+    </action>
+
+    <!-- Task Completion Audit -->
+    <action>For EACH task marked [x]:
+      1. Read the task description
+      2. Search files for evidence it was actually done
+      3. If marked [x] but NOT DONE → CRITICAL finding
+      4. Record specific proof (file:line)
+    </action>
+
+    <!-- Code Quality Deep Dive -->
+    <action>For EACH implementation file (excluding test files):
+      1. **Security**: injection risks, missing validation, auth issues
+      2. **Performance**: inefficient loops, missing caching, N+1 patterns
+      3. **Error Handling**: missing try/catch, poor error messages, unhandled promise rejections
+      4. **Architecture**: violations of project patterns (socketFactory DI, EXTERNAL_CONTEXT, etc.)
+      5. **Code Quality**: complex functions, magic numbers, poor naming, dead code
+      6. **TypeScript**: type safety, proper use of strict mode, no `any` escape hatches
+    </action>
+
+    <!-- Protocol compliance -->
+    <action>Verify all protocol/API requirements from architecture are implemented:
+      - Command formats correct
+      - Response parsing handles all documented values
+      - Connection lifecycle followed
+    </action>
+
+    <action>Compile Phase 2 findings with severity: CRITICAL / HIGH / MEDIUM / LOW</action>
+    <action>Set {{phase2_findings}} = compiled findings</action>
+  </step>
+
+  <step n="4" goal="Present findings and fix all issues">
+    <action>Merge {{phase1_findings}} and {{phase2_findings}}</action>
+    <action>Categorize: CRITICAL (must fix), HIGH (must fix), MEDIUM (should fix), LOW (nice to fix)</action>
+    <action>Count: {{critical_count}}, {{high_count}}, {{medium_count}}, {{low_count}}</action>
+
+    <output>**CODE REVIEW FINDINGS — Round {{round}}, {user_name}**
+
+      **Story:** {{story_key}}
+      **Reviewer Model:** {{reviewer_model}} | **Dev Model:** {{dev_model}}
+
+      **Phase 1 — Test Suite Quality:**
+      {{phase1_findings summary}}
+
+      **Phase 2 — Full Code Review:**
+      {{phase2_findings summary}}
+
+      **Totals:** {{critical_count}} Critical, {{high_count}} High, {{medium_count}} Medium, {{low_count}} Low
+    </output>
+
+    <!-- Log findings to review document -->
+    <action>Append to {{review_log}}:
+      ### Round {{round}} ({{date}})
+      **Reviewer:** {{reviewer_model}}
+
+      #### Phase 1: Test Suite Quality
+      {{phase1_findings formatted as markdown list}}
+
+      #### Phase 2: Full Code Review
+      {{phase2_findings formatted as markdown list}}
+    </action>
+
+    <check if="critical_count + high_count + medium_count > 0">
+      <ask>I found {{critical_count + high_count + medium_count}} substantive issues. Options:
+
+        1. **Fix all automatically** — I'll fix all CRITICAL, HIGH, and MEDIUM issues now
+        2. **Show details first** — deep dive into specific findings before fixing
+        3. **Fix selectively** — choose which issues to address
+
+        Choose [1], [2], [3], or specify issue numbers:</ask>
+
+      <check if="user chooses 1 or selects issues to fix">
+        <action>Fix all selected CRITICAL, HIGH, and MEDIUM issues in the code</action>
+        <action>Add/update tests as needed</action>
+        <action>Update File List in story if files changed</action>
+        <action>Run full test suite to verify fixes don't break anything</action>
+        <action>Log fixes applied to {{review_log}}: "Fixed: [description] in [file:line]"</action>
+      </check>
+    </check>
+
+    <check if="critical_count + high_count + medium_count == 0">
+      <output>No substantive issues found in Round {{round}} — review is CLEAN.</output>
+      <action>GOTO step 6</action>
+    </check>
+  </step>
+
+  <step n="5" goal="Iterate — repeat both phases until clean">
+    <critical>After fixing issues, BOTH phases must be re-run to verify fixes and catch any regressions.</critical>
+
+    <action>Increment {{round}} by 1</action>
+
+    <check if="{{round}} > 5">
+      <output>**WARNING:** Review has reached Round {{round}}. This is unusual.
+        Consider whether remaining issues are truly substantive or are diminishing-returns nitpicks.</output>
+      <ask>Continue reviewing (y) or finalize with current state (n)?</ask>
+      <check if="user says no">
+        <action>GOTO step 6</action>
+      </check>
+    </check>
+
+    <output>**Starting Round {{round}} — re-running both phases to verify fixes and catch regressions...**</output>
+    <action>GOTO step 2</action>
+  </step>
+
+  <step n="6" goal="Write findings to lifecycle review document and add lessons learned">
+    <!-- Write Code Review section to review document -->
+    <check if="review file exists at {{review_file}}">
+      <action>Load {{review_file}}</action>
+    </check>
+    <check if="review file does NOT exist">
+      <action>Create {{review_file}} with header:
+        # Story {{story_key}} — Lifecycle Review
+        Created: {{date}}
+        ## Story Spec Review
+        *Not run*
+      </action>
+    </check>
+
+    <action>Replace the "## Code Review" section (and its placeholder) with:
+
+      ## Code Review
+
+      **Date:** {{date}}
+      **Dev Model:** {{dev_model}} | **Reviewer Model:** {{reviewer_model}}
+      **Rounds:** {{round}} | **Final Result:** {{final_result}}
+
+      {{review_log — all rounds}}
+    </action>
+
+    <!-- Lessons Learned -->
+    <critical>Lessons Learned must include actionable process optimization recommendations
+      and test efficiency assessment — not just a list of what was found.</critical>
+
+    <action>Analyze the review process and generate Lessons Learned:
+
+      **Process Optimization Recommendations:**
+      - What could the story spec have included to prevent these review findings?
+      - Were there patterns in the findings that suggest a systematic gap?
+      - Should any new items be added to the QA Test Specification template?
+      - Were any findings the same type as previous stories' findings (recurring issues)?
+
+      **Test Efficiency Assessment:**
+      - Were tests well-structured and easy to review?
+      - Were there redundant tests that could be consolidated?
+      - Were there test gaps that a better QA Test Specification would have caught?
+      - Ratio of Phase 1 (test) findings vs Phase 2 (code) findings — what does this indicate?
+
+      **Recommendations for Future Stories:**
+      - Specific items to add to story creation process
+      - Patterns to watch for in similar stories
+      - Memory items to save for project-level learning
+    </action>
+
+    <action>Replace the "## Lessons Learned" section (and its placeholder) with:
+
+      ## Lessons Learned
+
+      {{generated lessons learned content}}
+    </action>
+
+    <action>Save {{review_file}}</action>
+  </step>
+
+  <step n="7" goal="Update story status and sync sprint tracking">
+    <!-- Determine new status -->
+    <check if="all CRITICAL and HIGH issues fixed AND all ACs implemented">
+      <action>Set {{new_status}} = "done"</action>
+      <action>Update story Status field to "done"</action>
+    </check>
+    <check if="CRITICAL or HIGH issues remain OR ACs not fully implemented">
+      <action>Set {{new_status}} = "in-progress"</action>
+      <action>Update story Status field to "in-progress"</action>
+    </check>
+    <action>Save story file</action>
+
+    <!-- Sprint status sync -->
+    <check if="{sprint_status} file exists">
+      <action>Load the FULL file: {sprint_status}</action>
+      <action>Find development_status key matching {{story_key}}</action>
+
+      <check if="{{new_status}} == 'done'">
+        <action>Update development_status[{{story_key}}] = "done"</action>
+        <action>Save file, preserving ALL comments and structure</action>
+      </check>
+      <check if="{{new_status}} == 'in-progress'">
+        <action>Update development_status[{{story_key}}] = "in-progress"</action>
+        <action>Save file, preserving ALL comments and structure</action>
+      </check>
+    </check>
+
+    <output>**CODE REVIEW COMPLETE, {user_name}!**
+
+      **Story:** {{story_key}} → **{{new_status}}**
+      **Review Rounds:** {{round}}
+      **Dev Model:** {{dev_model}} | **Reviewer Model:** {{reviewer_model}}
+
+      **Review Document:** {implementation_artifacts}/{{story_key}}-review.md
+      - Code Review findings: written
+      - Lessons Learned: written
+
+      {{#if new_status == "done"}}Story is complete and ready for commit!{{else}}Address remaining issues and re-run review.{{/if}}
+    </output>
+  </step>
+
+</workflow>

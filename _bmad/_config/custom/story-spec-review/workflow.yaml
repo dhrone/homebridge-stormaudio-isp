@@ -1,0 +1,37 @@
+# Custom Story Spec Review Workflow
+# Addresses: A6 (formalized story spec review before development)
+name: custom-story-spec-review
+description: 'Pre-development story spec review: AC validation, task audit, spec completeness, test scenario enumeration. Iterative fix-until-clean. Use when the user says "review story spec" or "run story spec review"'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+user_skill_level: "{config_source}:user_skill_level"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/story-spec-review"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: false
+
+project_context: "**/project-context.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "Architecture for constraint and pattern validation"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "SELECTIVE_LOAD"
+  epics:
+    description: "Epic containing story being reviewed"
+    whole: "{planning_artifacts}/*epic*.md"
+    sharded_index: "{planning_artifacts}/*epic*/index.md"
+    sharded_single: "{planning_artifacts}/*epic*/epic-{{epic_num}}.md"
+    load_strategy: "SELECTIVE_LOAD"

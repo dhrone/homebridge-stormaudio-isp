@@ -1,0 +1,314 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language} and generate all documents in {document_output_language}</critical>
+
+  <critical>PRE-DEVELOPMENT STORY SPEC REVIEW — Validate the story is implementation-ready BEFORE dev begins.</critical>
+  <critical>This replaces ad-hoc "/bmad-review-adversarial-general" prompts with a structured, iterative process.</critical>
+  <critical>Iterative: find issues, fix them, re-validate until clean. No story goes to dev with known gaps.</critical>
+
+  <step n="1" goal="Load story file and context">
+    <action>Use provided {{story_path}} or ask user which story file to review</action>
+    <check if="no story path provided">
+      <action>Check {{sprint_status}} for stories with status "ready-for-dev"</action>
+      <action>If found, propose the first one to user for confirmation</action>
+      <action>If not found, ask user to provide story file path</action>
+    </check>
+
+    <action>Read COMPLETE story file</action>
+    <action>Set {{story_key}} = extracted key from filename</action>
+    <action>Set {{epic_num}} = first number from story key</action>
+    <action>Parse ALL sections: Story, Acceptance Criteria, Tasks/Subtasks, QA Test Specification,
+      Dev Notes, Project Structure Notes, References</action>
+
+    <!-- Load planning context for cross-referencing -->
+    <invoke-protocol name="discover_inputs" />
+    <action>Load {project_context} for project patterns (if exists)</action>
+    <action>Load architecture content for the story's relevant sections</action>
+    <action>Load epic content for the story's epic to cross-reference requirements</action>
+
+    <!-- Load review document -->
+    <action>Set {{review_file}} = {implementation_artifacts}/{{story_key}}-review.md</action>
+    <action>Set {{round}} = 1</action>
+    <action>Set {{review_log}} = ""</action>
+  </step>
+
+  <step n="2" goal="AC Validation">
+    <critical>Every AC must be testable, specific, measurable, and traceable to epic requirements.</critical>
+
+    <output>**--- Round {{round}}: AC Validation ---**</output>
+
+    <action>Load epic requirements for this story from epics content</action>
+
+    <action>For EACH Acceptance Criterion in the story:
+      1. **Testable:** Can a test be written that definitively proves this AC is met?
+         - Vague language like "should work well" or "properly handles" → FINDING
+         - Must have specific Given/When/Then or measurable outcome
+      2. **Specific:** Is the expected behavior precisely defined?
+         - Ambiguous values, unspecified error behavior → FINDING
+         - Missing state preconditions → FINDING
+      3. **Measurable:** Can the outcome be verified programmatically?
+         - "User sees feedback" without specifying what feedback → FINDING
+      4. **Complete:** Does it cover the full behavior?
+         - Success path only (no error/edge case) → FINDING
+    </action>
+
+    <action>Cross-reference epic requirements against story ACs:
+      - Epic requirement not covered by any AC → HIGH finding: "Epic requirement [X] has no corresponding AC"
+      - AC that doesn't trace to any epic requirement → note (may be valid refinement)
+    </action>
+
+    <action>Check for missing AC categories:
+      - Error/failure behavior for each success AC
+      - Boundary conditions explicitly called out in architecture
+      - State transition completeness (all states in a state machine covered)
+    </action>
+
+    <action>Compile AC Validation findings</action>
+  </step>
+
+  <step n="3" goal="Task Audit">
+    <critical>Every AC must map to at least one Task. Protocol requirements must be Tasks, not just Dev Notes.</critical>
+
+    <output>**--- Round {{round}}: Task Audit ---**</output>
+
+    <!-- AC-to-Task mapping -->
+    <action>For EACH Acceptance Criterion:
+      1. Identify which Task(s) reference this AC (by AC number)
+      2. If NO task maps to this AC → HIGH finding: "AC {{n}} has no implementing task"
+      3. If task exists but is vague → MEDIUM finding: "Task for AC {{n}} lacks implementation detail"
+    </action>
+
+    <!-- Task ordering and dependencies -->
+    <action>Review task ordering:
+      1. Are tasks in a logical implementation sequence?
+      2. Does any task depend on another task that comes later? → MEDIUM finding
+      3. Are subtasks properly nested under their parent tasks?
+    </action>
+
+    <!-- Protocol-to-Tasks check (A3) -->
+    <critical>API-mandated behavior MUST be in Tasks, not just Dev Notes.</critical>
+    <action>Scan Dev Notes and References for protocol/API requirements:
+      - Commands that MUST be sent or handled
+      - Message formats mandated by the protocol
+      - Connection lifecycle requirements
+      - Timing constraints
+    </action>
+    <action>For each protocol requirement found ONLY in Dev Notes (not in Tasks):
+      → HIGH finding: "Protocol requirement [X] is in Dev Notes but not a Task — dev agent may skip it"
+    </action>
+
+    <!-- config.schema.json check (A4) -->
+    <action>If story adds or changes config fields:
+      - Is there a task to verify config.schema.json? If not → HIGH finding
+      - Does the task specify required vs optional matching? If not → MEDIUM finding
+    </action>
+
+    <action>Compile Task Audit findings</action>
+  </step>
+
+  <step n="4" goal="Spec Completeness">
+    <critical>The story must be self-contained — the dev agent will ONLY have this file.</critical>
+
+    <output>**--- Round {{round}}: Spec Completeness ---**</output>
+
+    <!-- Dev Notes quality -->
+    <action>Verify Dev Notes provide sufficient implementation context:
+      1. Architecture patterns and constraints relevant to this story
+      2. Specific file paths and modules to modify/create
+      3. Import patterns and dependency management approach
+      4. Error handling patterns to follow
+      5. Logging conventions and levels
+    </action>
+
+    <!-- Previous story learnings -->
+    <check if="story_num > 1">
+      <action>Check if previous story learnings are incorporated:
+        - Patterns established in previous stories
+        - Known pitfalls or gotchas documented
+        - Code conventions established that this story must follow
+        If missing → MEDIUM finding: "Previous story learnings not incorporated"
+      </action>
+    </check>
+
+    <!-- Architecture alignment -->
+    <action>Cross-reference with architecture content:
+      - Do Dev Notes reference the correct architecture patterns?
+      - Are there architecture constraints not mentioned in the story?
+      - Do file paths match the project structure?
+      If misalignment → HIGH finding with specific discrepancy
+    </action>
+
+    <!-- References quality -->
+    <action>Verify References section:
+      - Are source paths correct and specific (file + section)?
+      - Do referenced documents actually contain the cited information?
+      - Are critical architecture decisions referenced?
+    </action>
+
+    <!-- Dev Agent Record template -->
+    <action>Verify Dev Agent Record section exists with proper template fields:
+      - Agent Model Used
+      - Debug Log References
+      - Completion Notes List
+      - File List
+    </action>
+
+    <action>Compile Spec Completeness findings</action>
+  </step>
+
+  <step n="5" goal="Test Scenario Enumeration">
+    <critical>QA Test Specification must be comprehensive — this is what prevents multi-round review cycles.</critical>
+
+    <output>**--- Round {{round}}: Test Scenario Enumeration ---**</output>
+
+    <!-- Check for QA Test Specification section -->
+    <action>Verify "## QA Test Specification" section exists in the story</action>
+    <check if="QA Test Specification section missing">
+      <action>→ HIGH finding: "QA Test Specification section is missing — run [ES] Story Enhancement first"</action>
+      <action>GOTO step 6 (cannot fully validate without QA specs)</action>
+    </check>
+
+    <!-- Validate each QA spec category -->
+    <action>**Main Paths:** Verify each AC has at least one main path test scenario
+      - Missing main path for any AC → HIGH finding
+    </action>
+
+    <action>**Edge Cases:** Verify edge cases are comprehensive
+      - Missing boundary value tests → MEDIUM finding
+      - Missing null/undefined handling → MEDIUM finding
+      - Missing timeout/error scenarios → MEDIUM finding
+    </action>
+
+    <action>**Integration Smoke Tests:** Verify cross-component tests exist
+      - Missing event flow verification → MEDIUM finding
+      - Missing end-to-end scenario → HIGH finding
+    </action>
+
+    <action>**Sibling Coverage:** Verify ALL siblings in each family are listed
+      - Identify all pattern families in the ACs
+      - For each family: verify every sibling is explicitly enumerated
+      - Missing sibling → HIGH finding: "Sibling [X] not listed in coverage for family [Y]"
+    </action>
+
+    <action>**Listener Cleanup:** Verify all listener-registering methods are identified
+      - Cross-reference with implementation design (from Tasks and architecture)
+      - Missing method → HIGH finding
+    </action>
+
+    <action>**Mock Audit:** Verify all mocks list ALL possible return values
+      - Cross-reference with the types/interfaces from architecture
+      - Missing return value → MEDIUM finding
+    </action>
+
+    <action>Compile Test Scenario Enumeration findings</action>
+  </step>
+
+  <step n="6" goal="Present findings and fix iteratively">
+    <action>Merge all findings from Steps 2-5</action>
+    <action>Categorize: HIGH (must fix before dev), MEDIUM (should fix), LOW (nice to fix)</action>
+    <action>Count: {{high_count}}, {{medium_count}}, {{low_count}}</action>
+
+    <output>**STORY SPEC REVIEW — Round {{round}}, {user_name}**
+
+      **Story:** {{story_key}}
+
+      **AC Validation:** {{ac_finding_count}} findings
+      **Task Audit:** {{task_finding_count}} findings
+      **Spec Completeness:** {{spec_finding_count}} findings
+      **Test Scenarios:** {{test_finding_count}} findings
+
+      **Totals:** {{high_count}} High, {{medium_count}} Medium, {{low_count}} Low
+
+      {{detailed findings list}}
+    </output>
+
+    <check if="high_count + medium_count > 0">
+      <ask>I found {{high_count + medium_count}} substantive issues. Options:
+
+        1. **Fix all automatically** — I'll update the story spec to address all HIGH and MEDIUM issues
+        2. **Show details first** — deep dive before fixing
+        3. **Fix selectively** — choose which issues to address
+
+        Choose [1], [2], [3], or specify issue numbers:</ask>
+
+      <check if="user chooses to fix">
+        <action>Apply fixes to the story file:
+          - Add missing ACs
+          - Add missing tasks, promote protocol requirements
+          - Add config.schema.json verification task if needed
+          - Fill gaps in Dev Notes
+          - Expand QA Test Specification
+          - Fix any other identified issues
+        </action>
+        <action>Save story file</action>
+        <action>Log fixes to {{review_log}}:
+          ### Round {{round}}
+          {{findings and fixes applied}}
+        </action>
+      </check>
+    </check>
+
+    <check if="high_count + medium_count == 0">
+      <output>Story spec is CLEAN — no substantive issues found in Round {{round}}.</output>
+      <action>GOTO step 8</action>
+    </check>
+  </step>
+
+  <step n="7" goal="Iterate until clean">
+    <critical>After fixing issues, re-run ALL validation steps to verify fixes and catch regressions.</critical>
+
+    <action>Increment {{round}} by 1</action>
+
+    <check if="{{round}} > 4">
+      <output>**WARNING:** Spec review has reached Round {{round}}. Consider if remaining issues are truly blocking.</output>
+      <ask>Continue reviewing (y) or finalize (n)?</ask>
+      <check if="user says no">
+        <action>GOTO step 8</action>
+      </check>
+    </check>
+
+    <output>**Starting Round {{round}} — re-running all validation checks...**</output>
+    <action>GOTO step 2</action>
+  </step>
+
+  <step n="8" goal="Write findings to lifecycle review document">
+    <!-- Write Story Spec Review section to review document -->
+    <check if="review file exists at {{review_file}}">
+      <action>Load {{review_file}}</action>
+    </check>
+    <check if="review file does NOT exist">
+      <action>Create {{review_file}} with header:
+        # Story {{story_key}} — Lifecycle Review
+        Created: {{date}}
+      </action>
+    </check>
+
+    <action>Replace the "## Story Spec Review" section (and its placeholder) with:
+
+      ## Story Spec Review
+
+      **Date:** {{date}}
+      **Rounds:** {{round}} | **Final Result:** {{final_result}}
+
+      {{review_log — all rounds with findings and fixes}}
+    </action>
+
+    <action>Save {{review_file}}</action>
+
+    <output>**STORY SPEC REVIEW COMPLETE, {user_name}!**
+
+      **Story:** {{story_key}}
+      **Review Rounds:** {{round}}
+      **Final Result:** {{final_result}}
+
+      **Review Document:** {implementation_artifacts}/{{story_key}}-review.md
+      - Story Spec Review section: written
+
+      **Next Steps:**
+      1. Run dev-story [DS] for implementation
+      2. Run [CR] Code Review when development is complete
+    </output>
+  </step>
+
+</workflow>

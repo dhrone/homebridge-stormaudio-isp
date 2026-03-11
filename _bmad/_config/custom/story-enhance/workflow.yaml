@@ -1,0 +1,37 @@
+# Custom Story Enhancement Workflow
+# Addresses: A1 (QA in story creation), A3 (protocol requirements in tasks), A4 (config.schema.json verification)
+name: story-enhance
+description: 'Enhance a story with QA test specs, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Use when the user says "enhance story" or "run story enhancement" — run AFTER base create-story [CS]'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+user_skill_level: "{config_source}:user_skill_level"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/story-enhance"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: "{installed_path}/review-template.md"
+
+project_context: "**/project-context.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "Architecture for protocol/API requirement extraction"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "SELECTIVE_LOAD"
+  epics:
+    description: "Epic containing story being enhanced"
+    whole: "{planning_artifacts}/*epic*.md"
+    sharded_index: "{planning_artifacts}/*epic*/index.md"
+    sharded_single: "{planning_artifacts}/*epic*/epic-{{epic_num}}.md"
+    load_strategy: "SELECTIVE_LOAD"

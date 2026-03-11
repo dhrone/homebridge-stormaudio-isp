@@ -1,5 +1,5 @@
-# Agent Customization
-# Customize any section below - all are optional
+# Agent Customization — Scrum Master (Bob)
+# Custom workflows from Epic 1 Retrospective action items (2026-03-11)
 
 # Override agent name
 agent:
@@ -17,25 +17,24 @@ persona:
 critical_actions: []
 
 # Add persistent memories for the agent
-memories: []
-# Example:
-# memories:
-#   - "User prefers detailed technical explanations"
-#   - "Current project uses React and TypeScript"
+memories:
+  - "Epic 1 retro identified 6 action items — all addressed via custom workflows [ES], [CR], [SR]"
+  - "Fresh-eyes (cross-model) review is the default practice — same-model review has diminishing returns"
+  - "The story lifecycle is: [CS] create → [ES] enhance → [SR] spec review → [DS] dev → [CR] code review"
+  - "Every story that adds/changes config fields needs a config.schema.json verification task"
+  - "Protocol/API requirements must be Tasks, not just Dev Notes — dev agents execute Tasks, may skim Dev Notes"
 
 # Add custom menu items (appended to base menu)
-# Don't include * prefix or help/exit - auto-injected
-menu: []
-# Example:
-# menu:
-#   - trigger: my-workflow
-#     workflow: "{project-root}/custom/my.yaml"
-#     description: My custom workflow
+menu:
+  - trigger: ES or fuzzy match on enhance-story or enhance
+    workflow: "{project-root}/_bmad/_config/custom/story-enhance/workflow.yaml"
+    description: "[ES] Enhance Story: Add QA test specs, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Run AFTER [CS]."
+  - trigger: CR or fuzzy match on code-review or review-code
+    workflow: "{project-root}/_bmad/_config/custom/code-review/workflow.yaml"
+    description: "[CR] Code Review: Two-phase iterative review (test suite quality + full code review) with model-awareness and lifecycle document. Run AFTER dev is complete."
+  - trigger: SR or fuzzy match on story-review or spec-review or review-story
+    workflow: "{project-root}/_bmad/_config/custom/story-spec-review/workflow.yaml"
+    description: "[SR] Story Spec Review: AC validation, task audit, spec completeness, test scenario enumeration. Iterative fix-until-clean. Run BEFORE [DS] dev-story."
 
 # Add custom prompts (for action="#id" handlers)
 prompts: []
-# Example:
-# prompts:
-# - id: my-prompt
-#   content: |
-#     Prompt instructions here

@@ -1,0 +1,212 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language} and generate all documents in {document_output_language}</critical>
+
+  <critical>This workflow ENHANCES an already-created story file (from base [CS] create-story).</critical>
+  <critical>It adds QA test specifications, audits protocol-to-tasks compliance, verifies config.schema.json coverage,
+    and initializes the per-story lifecycle review document.</critical>
+  <critical>Run this AFTER the base create-story [CS] workflow has produced the story file.</critical>
+
+  <step n="1" goal="Load story file and extract context">
+    <action>Use provided {{story_path}} or ask user which story file to enhance</action>
+    <check if="no story path provided">
+      <action>Check {{sprint_status}} for the most recently created story (status = "ready-for-dev")</action>
+      <action>If found, propose it to the user for confirmation</action>
+      <action>If not found, ask user to provide story file path</action>
+    </check>
+
+    <action>Read COMPLETE story file</action>
+    <action>Set {{story_key}} = extracted key from filename (e.g., "2-1-television-speaker-volume-mute")</action>
+    <action>Set {{epic_num}} = first number from story key</action>
+    <action>Parse sections: Story, Acceptance Criteria, Tasks/Subtasks, Dev Notes</action>
+
+    <!-- Load planning context -->
+    <invoke-protocol name="discover_inputs" />
+    <action>Load {project_context} for project patterns (if exists)</action>
+    <action>Load architecture content for protocol/API reference extraction</action>
+    <action>Load epic content for the story's epic to cross-reference requirements</action>
+  </step>
+
+  <step n="2" goal="Add QA Test Specification section">
+    <critical>A1: QA involvement in story creation — every story must have comprehensive test specifications
+      that prevent multi-round review cycles</critical>
+
+    <action>Analyze ALL Acceptance Criteria from the story</action>
+    <action>For EACH AC, generate test specifications in these categories:</action>
+
+    <action>**Main Paths (Happy Path Tests):**
+      - One test per AC verifying the primary success scenario
+      - Include setup state, action, and expected outcome
+    </action>
+
+    <action>**Edge Cases:**
+      - Boundary values (min, max, off-by-one)
+      - Null/undefined/empty inputs
+      - Concurrent operations (if applicable)
+      - State transitions at boundaries (e.g., timeout exactly at limit)
+      - Error conditions and recovery
+    </action>
+
+    <action>**Integration Smoke Tests:**
+      - Cross-component interaction tests (e.g., client + accessory)
+      - Event flow verification (emit → handler → side effect)
+      - End-to-end scenario for the primary user story
+    </action>
+
+    <action>**Sibling Coverage:**
+      - When one case in a family is tested, identify ALL siblings that need the same test
+      - Example: if testing power.unknown, also test mute.unknown, input.garbage, etc.
+      - List sibling groups explicitly so the dev agent cannot skip any
+    </action>
+
+    <action>**Listener Cleanup Verification:**
+      - Any method that registers EventEmitter listeners MUST have a test verifying listenerCount
+        returns to baseline after completion
+      - Identify all methods in this story that add listeners
+      - List each one with its expected cleanup behavior
+    </action>
+
+    <action>**Mock Audit Checklist:**
+      - Identify all mocks/stubs the story will need
+      - For each mock: list ALL possible return values it could produce
+      - Each return value must be tested at least once
+      - Example: if a mock can return Active, Sleep, or Initializing — all three must appear in tests
+    </action>
+
+    <action>Insert the QA Test Specification as a new section AFTER "## Dev Notes" and BEFORE "## Dev Agent Record":
+
+      ## QA Test Specification
+
+      ### Main Paths
+      [generated content]
+
+      ### Edge Cases
+      [generated content]
+
+      ### Integration Smoke Tests
+      [generated content]
+
+      ### Sibling Coverage
+      [generated content with explicit sibling groups]
+
+      ### Listener Cleanup Verification
+      [list of methods with listener cleanup requirements]
+
+      ### Mock Audit Checklist
+      [list of mocks with ALL possible return values]
+    </action>
+
+    <action>Save story file</action>
+  </step>
+
+  <step n="3" goal="Protocol-to-Tasks audit">
+    <critical>A3: Any API-mandated or protocol-mandated behavior MUST appear as a Task, not just in Dev Notes.
+      The dev agent executes Tasks — it may skim Dev Notes.</critical>
+
+    <action>Scan the story's Dev Notes and References sections for protocol/API requirements:
+      - Commands that MUST be sent (e.g., ssp.close, ssp.power.on)
+      - Message formats that MUST be followed
+      - Connection lifecycle requirements (e.g., graceful disconnect)
+      - Timing/ordering constraints mandated by the protocol
+      - Any "MUST", "SHALL", or "REQUIRED" language referencing the external API
+    </action>
+
+    <action>Cross-reference with architecture content for additional protocol requirements
+      that apply to this story's scope</action>
+
+    <action>For each protocol requirement found in Dev Notes but NOT in Tasks/Subtasks:
+      - Create a new task or subtask in the appropriate location
+      - Format: `- [ ] Task N: [Protocol] description (AC: relevant AC numbers)`
+      - Include the specific command/message/behavior required
+    </action>
+
+    <check if="protocol requirements were promoted to tasks">
+      <action>Log each promoted requirement:
+        "Promoted protocol requirement to Task: [description] (was in Dev Notes only)"</action>
+      <action>Save story file</action>
+    </check>
+
+    <check if="no protocol requirements found in Dev Notes only">
+      <action>Log: "Protocol-to-Tasks audit passed — no untracked protocol requirements found"</action>
+    </check>
+  </step>
+
+  <step n="4" goal="config.schema.json verification task">
+    <critical>A4: Every story that adds or changes config fields MUST include a task to verify
+      config.schema.json matches ACs (required vs optional, defaults, ranges).</critical>
+
+    <action>Scan the story for any of these signals that config fields are being added or changed:
+      - ACs mentioning "configuration", "config", "settings", "user-configurable"
+      - Tasks involving config validation or schema changes
+      - Dev Notes referencing config field additions or modifications
+      - References to plugin settings, options, or preferences
+    </action>
+
+    <check if="config field changes detected">
+      <action>Check if a config.schema.json verification task already exists in Tasks/Subtasks</action>
+      <check if="no existing schema verification task">
+        <action>Add a new task at the end of Tasks/Subtasks:
+          `- [ ] Task N: Verify config.schema.json matches ACs (AC: all config-related)`
+            `- [ ] All new/changed fields present in schema with correct types`
+            `- [ ] Required vs optional matches AC specifications (if AC says "defaults if not provided", field must NOT be in schema required array)`
+            `- [ ] Default values match AC specifications`
+            `- [ ] Value ranges/constraints match AC specifications`
+            `- [ ] Field descriptions are clear for Homebridge Config UI`
+        </action>
+        <action>Log: "Added config.schema.json verification task — story modifies config fields"</action>
+      </check>
+      <check if="schema verification task already exists">
+        <action>Log: "config.schema.json verification task already present — no changes needed"</action>
+      </check>
+      <action>Save story file</action>
+    </check>
+
+    <check if="no config field changes detected">
+      <action>Log: "No config field changes detected — config.schema.json verification not needed"</action>
+    </check>
+  </step>
+
+  <step n="5" goal="Initialize lifecycle review document">
+    <critical>Create the per-story review document that all lifecycle workflows share.
+      This document is the audit trail for story spec review, code review, and lessons learned.</critical>
+
+    <action>Set {{review_file}} = {implementation_artifacts}/{{story_key}}-review.md</action>
+
+    <check if="review file already exists">
+      <action>Log: "Review document already exists at {{review_file}} — preserving existing content"</action>
+    </check>
+
+    <check if="review file does NOT exist">
+      <action>Load review template from {installed_path}/review-template.md</action>
+      <action>Replace {{story_key}} with actual story key</action>
+      <action>Replace {{date}} with current date</action>
+      <action>Write to {{review_file}}</action>
+      <action>Log: "Initialized lifecycle review document at {{review_file}}"</action>
+    </check>
+  </step>
+
+  <step n="6" goal="Report completion">
+    <action>Save story file with all enhancements</action>
+
+    <output>**Story Enhancement Complete, {user_name}!**
+
+      **Story:** {{story_key}}
+      **Enhancements Applied:**
+      - QA Test Specification section added (main paths, edge cases, integration smoke tests, sibling coverage, listener cleanup, mock audit)
+      - Protocol-to-Tasks audit: {{protocol_audit_result}}
+      - config.schema.json verification: {{schema_verification_result}}
+      - Lifecycle review document: {{review_doc_result}}
+
+      **Files Modified:**
+      - Story: {implementation_artifacts}/{{story_key}}.md
+      - Review: {implementation_artifacts}/{{story_key}}-review.md
+
+      **Next Steps:**
+      1. Run [SR] Story Spec Review for pre-development validation
+      2. Then run dev-story [DS] for implementation
+      3. Then run [CR] Code Review when development is complete
+    </output>
+  </step>
+
+</workflow>

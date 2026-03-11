@@ -1,0 +1,37 @@
+# Custom Two-Phase Code Review Workflow
+# Addresses: A2 (cross-model review awareness), A5 (formalized code review workflow)
+name: custom-code-review
+description: 'Two-phase iterative code review: (1) Test Suite Quality, (2) Full BMAD Code Review. Model-awareness check, iterative until clean, lifecycle review document integration. Use when the user says "run code review" or "review this code"'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+user_skill_level: "{config_source}:user_skill_level"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/code-review"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: false
+
+project_context: "**/project-context.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "System architecture for review context"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "FULL_LOAD"
+  epics:
+    description: "Epic containing story being reviewed"
+    whole: "{planning_artifacts}/*epic*.md"
+    sharded_index: "{planning_artifacts}/*epic*/index.md"
+    sharded_single: "{planning_artifacts}/*epic*/epic-{{epic_num}}.md"
+    load_strategy: "SELECTIVE_LOAD"
