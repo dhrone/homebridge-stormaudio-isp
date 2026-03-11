@@ -24,16 +24,16 @@ export interface InputInfo {
 
 export interface StormAudioConfig {
   host: string;
-  port?: number; // default 23
-  name?: string; // default "StormAudio"
-  volumeCeiling?: number; // default -20, range -100 to 0
-  volumeFloor?: number; // default -100, range -100 to 0, must be < ceiling
-  volumeControl?: 'lightbulb' | 'none'; // default 'lightbulb'
-  inputs?: Record<string, string>; // map of input ID → alias name
+  port: number;
+  name: string;
+  volumeCeiling: number;
+  volumeFloor: number;
+  volumeControl: 'lightbulb' | 'none';
+  inputs: Record<string, string>;
   // IMPORTANT: keys are string representations of numeric IDs
   // e.g., { "3": "TV", "5": "PS5" }
   // When looking up by numeric inputId, always convert:
-  //   config.inputs?.[String(inputId)]
+  //   config.inputs[String(inputId)]
 }
 
 export interface StormAudioState {

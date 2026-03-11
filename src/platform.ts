@@ -122,6 +122,10 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
       log.debug('Executed didFinishLaunching callback');
       if (this.validatedConfig) {
         this.client = new StormAudioClient(this.validatedConfig, this.log);
+        this.client.on('error', () => {
+          // Error already logged by StormAudioClient.
+          // Reconnection will be handled in Story 4.1.
+        });
         this.client.connect();
       }
     });

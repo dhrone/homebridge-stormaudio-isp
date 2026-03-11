@@ -5,7 +5,7 @@
   "strictValidation": false,
   "schema": {
     "type": "object",
-    "required": ["name", "host"],
+    "required": ["host"],
     "additionalProperties": false,
     "properties": {
       "name": {

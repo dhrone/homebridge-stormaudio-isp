@@ -39,7 +39,7 @@ export class StormAudioClient extends EventEmitter {
 
   connect(): void {
     const host = this.config.host;
-    const port = this.config.port ?? 23;
+    const port = this.config.port;
 
     this.socket = this.socketFactory(host, port);
 

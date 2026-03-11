@@ -20,6 +20,7 @@ const validConfig = {
   volumeCeiling: -20,
   volumeFloor: -100,
   volumeControl: 'lightbulb' as const,
+  inputs: {},
 };
 
 describe('StormAudioClient — class structure', () => {
@@ -87,10 +88,10 @@ describe('StormAudioClient — TCP connection', () => {
     expect(disconnectedFired).toBe(true);
   });
 
-  it('uses port 23 as default when port is undefined', () => {
-    const client = new StormAudioClient({ host: '10.0.0.1' }, makeLog(), socketFactory);
+  it('passes configured port to socketFactory', () => {
+    const client = new StormAudioClient({ ...validConfig, host: '10.0.0.1', port: 2000 }, makeLog(), socketFactory);
     client.connect();
-    expect(socketFactory).toHaveBeenCalledWith('10.0.0.1', 23);
+    expect(socketFactory).toHaveBeenCalledWith('10.0.0.1', 2000);
   });
 });
 
@@ -244,6 +245,36 @@ describe('StormAudioClient — message parsing', () => {
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
   });
+
+  it('logs debug and does not emit for ssp.mute.unknown (invalid value)', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let emitted = false;
+    client.on('mute', () => { emitted = true; });
+    mockSocket.simulateData('ssp.mute.unknown\n');
+    expect(emitted).toBe(false);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
+  });
+
+  it('logs debug and does not emit for ssp.input.garbage (non-numeric value)', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let emitted = false;
+    client.on('input', () => { emitted = true; });
+    mockSocket.simulateData('ssp.input.garbage\n');
+    expect(emitted).toBe(false);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
+  });
+
+  it('logs debug and does not emit for ssp.procstate.-1 (negative out-of-range)', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let emitted = false;
+    client.on('processorState', () => { emitted = true; });
+    mockSocket.simulateData('ssp.procstate.-1\n');
+    expect(emitted).toBe(false);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
+  });
 });
 
 describe('StormAudioClient — command methods', () => {
@@ -322,11 +353,25 @@ describe('StormAudioClient — command methods', () => {
     expect(mockSocket.written).toHaveLength(0);
   });
 
+  it('rejects commands after socket error (connected flag reset)', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.on('error', () => {}); // prevent unhandled error throw
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    client.setPower(true);
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
   it('disconnect() sends ssp.close and destroys the socket', () => {
     const client = connectClient();
     client.disconnect();
     expect(mockSocket.written).toContain('ssp.close\n');
     expect(mockSocket.destroyed).toBe(true);
+  });
+
+  it('disconnect() is a no-op when socket is null', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(() => client.disconnect()).not.toThrow();
   });
 });
 

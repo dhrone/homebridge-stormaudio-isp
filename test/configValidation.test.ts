@@ -29,6 +29,13 @@ describe('validateConfig — host', () => {
     expect(log.error).toHaveBeenCalled();
   });
 
+  it('returns null when host is a non-string type', () => {
+    const log = makeLog();
+    const result = validateConfig({ platform: 'StormAudioISP', host: 123 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('[Config]'));
+  });
+
   it('accepts a valid host', () => {
     const log = makeLog();
     const result = validateConfig(baseConfig, log);
@@ -82,6 +89,13 @@ describe('validateConfig — name', () => {
   it('defaults name to "StormAudio" when not provided', () => {
     const log = makeLog();
     const result = validateConfig(baseConfig, log);
+    expect(result!.name).toBe('StormAudio');
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Config]'));
+  });
+
+  it('defaults name to "StormAudio" when name is empty string', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, name: '' }, log);
     expect(result!.name).toBe('StormAudio');
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Config]'));
   });
