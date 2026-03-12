@@ -1,0 +1,307 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language} and generate all documents in {document_output_language}</critical>
+
+  <critical>EPIC SMOKE TEST CREATION — Produce a structured test artifact for hands-on hardware verification.</critical>
+  <critical>This is a CONFIDENCE CHECK that the epic delivered its intended value — NOT exhaustive QA.</critical>
+  <critical>The automated test suite handles detailed coverage. The smoke test validates real-world behavior on actual hardware.</critical>
+  <critical>Reference format: {smoke_test_reference} (epic-1-smoke-test.md is the gold-standard template).</critical>
+
+  <step n="1" goal="Determine target epic and discover artifacts">
+    <!-- Epic identification -->
+    <check if="epic identifier provided as argument">
+      <action>Set {{epic_num}} = provided epic number/label</action>
+    </check>
+    <check if="no epic identifier provided">
+      <action>Load {sprint_status}</action>
+      <action>Find the most recently completed epic (status: done)</action>
+      <check if="no completed epic found">
+        <output>**No completed epic found in sprint-status.yaml.** Cannot generate a smoke test without a completed epic.
+          Please provide the epic number manually, or ensure the epic status is updated in sprint-status.yaml.</output>
+        <action>HALT</action>
+      </check>
+      <ask>The most recently completed epic is **Epic {{epic_num}}**. Is this the one you want to create a smoke test for?</ask>
+      <check if="user specifies a different epic">
+        <action>Set {{epic_num}} = user's specified epic</action>
+      </check>
+    </check>
+
+    <!-- Yolo mode detection -->
+    <check if="yolo mode specified as argument">
+      <action>Set {{yolo_mode}} = true</action>
+    </check>
+    <check if="yolo mode not specified">
+      <ask>Would you like to review the proposed test scenarios before I generate the document, or should I proceed directly (yolo mode)?
+
+        1. **Review first** (recommended) — I'll propose scenarios and you can adjust
+        2. **Yolo mode** — I'll generate the document directly
+
+        Choose [1] or [2]:</ask>
+      <check if="user chooses 1">
+        <action>Set {{yolo_mode}} = false</action>
+      </check>
+      <check if="user chooses 2">
+        <action>Set {{yolo_mode}} = true</action>
+      </check>
+    </check>
+
+    <!-- Set output path -->
+    <action>Set {{output_file}} = {implementation_artifacts}/epic-{{epic_num}}-smoke-test.md</action>
+
+    <!-- Overwrite protection -->
+    <check if="{{output_file}} already exists">
+      <ask>**A smoke test document already exists at {{output_file}}.**
+
+        1. **Overwrite** — replace with a new smoke test
+        2. **Cancel** — keep the existing document
+
+        Choose [1] or [2]:</ask>
+      <check if="user chooses 2">
+        <action>HALT</action>
+      </check>
+    </check>
+
+    <!-- Discover artifacts -->
+    <output>**Discovering artifacts for Epic {{epic_num}}...**</output>
+
+    <!-- Load epic definition -->
+    <invoke-protocol name="discover_inputs" />
+    <action>Load epic content for Epic {{epic_num}} to understand epic scope and value proposition</action>
+
+    <!-- Discover story files -->
+    <action>Search {planning_artifacts} for story files matching pattern: story-{{epic_num}}.*.md</action>
+    <action>Set {{story_files}} = list of discovered story files</action>
+
+    <!-- Discover review documents -->
+    <action>Search {implementation_artifacts} for review documents matching pattern: story-{{epic_num}}.*-review.md</action>
+    <action>Set {{review_files}} = list of discovered review files</action>
+
+    <!-- Load architecture context -->
+    <action>Load architecture content relevant to Epic {{epic_num}}</action>
+
+    <!-- Load reference smoke test for format guidance -->
+    <action>Load {smoke_test_reference} to understand the target format and depth</action>
+
+    <!-- Report discoveries -->
+    <output>**Artifacts discovered for Epic {{epic_num}}:**
+
+      **Epic definition:** loaded
+      **Story files:** {{story_files count}} found
+      {{story_files list}}
+
+      **Review documents:** {{review_files count}} found
+      {{review_files list}}
+
+      **Architecture context:** loaded
+      **Format reference:** epic-1-smoke-test.md loaded
+    </output>
+
+    <check if="no story files found">
+      <ask>**WARNING:** No story files found for Epic {{epic_num}}. This is unusual.
+        Should I proceed anyway, or check the epic number?</ask>
+      <check if="user wants to abort">
+        <action>HALT</action>
+      </check>
+    </check>
+  </step>
+
+  <step n="2" goal="Analyze artifacts and propose test scenarios">
+    <critical>Use subprocess optimization (Pattern 2) — launch a subprocess per artifact for deep analysis.</critical>
+    <critical>Focus on VALUE DELIVERY — what does this epic enable the user to do? Test THAT.</critical>
+    <critical>Keep it focused. This is a confidence check, not an exhaustive test plan.</critical>
+
+    <output>**Analyzing Epic {{epic_num}} artifacts for testable behaviors...**</output>
+
+    <!-- Deep analysis of each artifact using subprocess Pattern 2 -->
+    <action>DO NOT BE LAZY — For EACH story file in {{story_files}}, launch a subprocess that:
+      1. Loads the complete story file
+      2. Extracts: story title, acceptance criteria, key behaviors, user-facing functionality
+      3. Identifies testable real-world behaviors (things verifiable on hardware)
+      4. Notes any edge cases or specific scenarios from QA Test Specification
+      5. Returns structured findings:
+         - story_key: identifier
+         - story_title: short description
+         - testable_behaviors: list of concrete, hardware-verifiable behaviors
+         - edge_cases: notable edge cases worth smoke testing
+         - related_stories: cross-references to other stories in the epic
+    </action>
+
+    <!-- Analyze review documents for additional test insights -->
+    <action>For EACH review file in {{review_files}}, launch a subprocess that:
+      1. Loads the review document
+      2. Examines these specific sections:
+         - **Story Spec Review:** findings about spec gaps, missing ACs, or protocol requirements
+         - **Code Review Phase 1 (Test Suite Quality):** test gaps that may indicate untested real-world behavior
+         - **Code Review Phase 2 (Full Code Review):** implementation findings with hardware implications
+         - **Lessons Learned:** process insights and recommendations that inform what to smoke test
+      3. Extracts only findings relevant to real-hardware verification
+      4. Returns structured findings:
+         - story_key: identifier
+         - review_insights: behaviors or edge cases surfaced during review
+         - hardware_relevant: items specifically relevant to real-hardware testing
+    </action>
+
+    <!-- If subprocess unavailable, perform analysis in main thread -->
+    <critical>If subprocess/subagent is not available, perform all analysis in the main context thread.</critical>
+
+    <!-- Synthesize test scenarios -->
+    <action>Synthesize findings into test scenarios:
+      1. Group related behaviors across stories into logical test scenarios
+      2. Ensure every story has at least one test scenario
+      3. Order scenarios in a logical testing sequence (setup first, then features, then edge cases)
+      4. For each scenario, draft:
+         - Scenario ID (ST-N)
+         - Title and related stories
+         - Goal (one sentence)
+         - Preconditions
+         - Steps (concrete, executable on real hardware)
+         - Expected results (specific, observable)
+         - Pass criteria (checklist items)
+      5. Keep total scenario count focused — aim for value coverage, not exhaustive coverage
+    </action>
+
+    <!-- Validate coverage -->
+    <action>Verify every story in {{story_files}} maps to at least one test scenario.
+      If any story is not covered, add a scenario or note why it was excluded.</action>
+
+    <action>Set {{proposed_scenarios}} = synthesized test scenarios</action>
+
+    <!-- Branch based on yolo mode -->
+    <check if="{{yolo_mode}} == true">
+      <output>**Yolo mode — proceeding directly to document generation...**</output>
+      <action>GOTO step 3</action>
+    </check>
+
+    <check if="{{yolo_mode}} == false">
+      <output>**Proposed Smoke Test Scenarios for Epic {{epic_num}}:**
+
+        {{proposed_scenarios formatted as summary table}}
+
+        | ST | Title | Stories | Description |
+        |----|-------|---------|-------------|
+        {{for each scenario: | ST-N | title | story refs | brief description |}}
+
+        **Total:** {{scenario_count}} scenarios covering {{story_count}} stories
+
+        **Please review:**
+        - Are any scenarios unnecessary or too granular?
+        - Are there behaviors you specifically want tested that I missed?
+        - Should any scenarios be combined or split?
+        - Is the testing order logical for your hardware setup?
+      </output>
+
+      <ask>Adjust the scenarios above, or confirm to proceed with document generation.</ask>
+
+      <check if="user requests changes">
+        <action>Apply requested changes to {{proposed_scenarios}}</action>
+        <action>Re-display updated scenario summary</action>
+        <ask>Updated scenarios ready. Confirm to proceed?</ask>
+      </check>
+    </check>
+  </step>
+
+  <step n="3" goal="Generate the smoke test document">
+    <critical>Follow the format and depth of {smoke_test_reference} exactly.</critical>
+    <critical>The document must be SELF-CONTAINED — the tester should not need to reference other docs.</critical>
+
+    <output>**Generating smoke test document for Epic {{epic_num}}...**</output>
+
+    <!-- Generate the document -->
+    <action>Create {{output_file}} with the following structure:
+
+      # Epic {{epic_num}} Smoke Test — {{epic_title}}
+
+      **Purpose:** Verify all Epic {{epic_num}} functionality end-to-end on real hardware.
+      **Scope:** Stories {{story_range}} — {{brief scope description}}.
+
+      ---
+
+      ## Prerequisites
+
+      | Item | Details |
+      |------|---------|
+      {{prerequisites table — include hardware, software, network requirements relevant to this epic}}
+
+      ## Epic-Specific Setup
+
+      {{Only include setup steps that are NEW or CHANGED for this epic.
+        Assume base Homebridge installation, plugin build/link, configuration,
+        and HomeKit pairing from prior epics are already complete.
+        Examples: new config fields, new dependencies, new pairing steps,
+        changed configuration options.
+        If no new setup is needed, state: "No additional setup required beyond
+        the base installation. Rebuild the plugin (`npm run build`) to pick up
+        Epic N changes."}}
+
+      ## Smoke Test Scenarios
+
+      {{For EACH scenario in {{proposed_scenarios}}:}}
+
+      ### ST-N: {{title}} ({{story refs}})
+
+      **Goal:** {{one sentence}}
+
+      **Precondition:** {{state required before test}}
+
+      **Steps:**
+      {{numbered, concrete steps}}
+
+      **Expected results:**
+      {{specific observable outcomes — log messages, UI state, hardware behavior}}
+
+      **Pass criteria:**
+      - [ ] {{checklist item}}
+      - [ ] {{checklist item}}
+
+      {{Optional: **Note:** or **Failure notes:** for additional context}}
+
+      ---
+
+      ## Findings from Smoke Test
+
+      ### Issues Discovered During Testing
+
+      | # | Issue | Severity | Status | Resolution |
+      |---|-------|----------|--------|------------|
+      | | _(to be filled during testing)_ | | | |
+
+      <!-- QA Agent: Process each issue row where Status is not "resolved".
+           For each issue, investigate the root cause, implement a fix, and update
+           the Status to "resolved" and Resolution with a brief description of the fix applied. -->
+
+      ### Observations for Future Stories
+
+      - _(to be filled during testing)_
+
+      ## Results Summary
+
+      | Test | Status | Notes |
+      |------|--------|-------|
+      {{for each scenario: | ST-N: title | _(blank for tester to fill)_ | |}}
+
+      **Tested by:**
+      **Date:**
+      **Processor model / firmware:**
+      **Node.js version:**
+      **Homebridge version:**
+    </action>
+
+    <action>Write the complete document to {{output_file}}</action>
+
+    <!-- Verify -->
+    <action>Confirm file was written successfully</action>
+    <action>Count scenarios and verify all stories are covered</action>
+
+    <output>**Smoke test document generated!**
+
+      **File:** {{output_file}}
+      **Scenarios:** {{scenario_count}} test scenarios
+      **Stories covered:** {{story_count}}/{{total_stories}}
+
+      The document is ready for you to execute on your hardware, {user_name}.
+      Fill in the pass criteria checkboxes and Results Summary as you test.
+    </output>
+  </step>
+
+</workflow>

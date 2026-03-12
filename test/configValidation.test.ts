@@ -167,11 +167,23 @@ describe('validateConfig — volumeFloor', () => {
 });
 
 describe('validateConfig — volumeControl', () => {
-  it('defaults volumeControl to "lightbulb"', () => {
+  it('defaults volumeControl to "fan"', () => {
     const log = makeLog();
     const result = validateConfig(baseConfig, log);
-    expect(result!.volumeControl).toBe('lightbulb');
+    expect(result!.volumeControl).toBe('fan');
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Config]'));
+  });
+
+  it('accepts "fan" as volumeControl', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, volumeControl: 'fan' }, log);
+    expect(result!.volumeControl).toBe('fan');
+  });
+
+  it('accepts "lightbulb" as volumeControl', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, volumeControl: 'lightbulb' }, log);
+    expect(result!.volumeControl).toBe('lightbulb');
   });
 
   it('accepts "none" as volumeControl', () => {

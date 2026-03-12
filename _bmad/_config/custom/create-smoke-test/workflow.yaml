@@ -1,0 +1,52 @@
+# Custom Epic Smoke Test Creation Workflow
+# Creates a structured smoke test document at the end of each epic
+# for hands-on hardware verification of epic value delivery
+name: create-smoke-test
+description: 'Create a structured smoke test document for an epic. Produces step-by-step test scenarios for real-hardware verification of epic value delivery. Use when the user says "create smoke test" or "generate smoke test for epic [N]"'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/create-smoke-test"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: false
+
+project_context: "**/project-context.md"
+
+# Reference document for output format
+smoke_test_reference: "{implementation_artifacts}/epic-1-smoke-test.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "System architecture for test scenario context"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "SELECTIVE_LOAD"
+  epics:
+    description: "Epic containing stories to generate smoke tests for"
+    whole: "{planning_artifacts}/*epic*.md"
+    sharded_index: "{planning_artifacts}/*epic*/index.md"
+    sharded_single: "{planning_artifacts}/*epic*/epic-{{epic_num}}.md"
+    load_strategy: "SELECTIVE_LOAD"
+  stories:
+    description: "Story files for the target epic"
+    pattern: "{planning_artifacts}/story-{{epic_num}}.*.md"
+    load_strategy: "FULL_LOAD"
+  story_reviews:
+    description: "Story review documents produced during the epic"
+    pattern: "{implementation_artifacts}/story-{{epic_num}}.*-review.md"
+    load_strategy: "FULL_LOAD"
+  code_reviews:
+    description: "Code review findings from the epic"
+    pattern: "{implementation_artifacts}/story-{{epic_num}}.*-review.md"
+    load_strategy: "SELECTIVE_LOAD"

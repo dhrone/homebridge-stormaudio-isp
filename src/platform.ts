@@ -75,13 +75,13 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
   }
 
   const volumeControl = config.volumeControl as string | undefined;
-  const resolvedVolumeControl = volumeControl ?? 'lightbulb';
-  if (resolvedVolumeControl !== 'lightbulb' && resolvedVolumeControl !== 'none') {
-    log.error(`[Config] Error: "volumeControl" must be "lightbulb" or "none". Got: ${resolvedVolumeControl}`);
+  const resolvedVolumeControl = volumeControl ?? 'fan';
+  if (resolvedVolumeControl !== 'fan' && resolvedVolumeControl !== 'lightbulb' && resolvedVolumeControl !== 'none') {
+    log.error(`[Config] Error: "volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedVolumeControl}`);
     return null;
   }
   if (!volumeControl) {
-    log.debug('[Config] Using default volumeControl: lightbulb');
+    log.debug('[Config] Using default volumeControl: fan');
   }
 
   return {
@@ -90,7 +90,7 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     name: name ?? 'StormAudio',
     volumeCeiling: resolvedCeiling,
     volumeFloor: resolvedFloor,
-    volumeControl: resolvedVolumeControl as 'lightbulb' | 'none',
+    volumeControl: resolvedVolumeControl as 'fan' | 'lightbulb' | 'none',
     inputs: (config.inputs as Record<string, string> | undefined) ?? {},
   };
 }

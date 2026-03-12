@@ -46,6 +46,11 @@ describe('StormAudioClient — class structure', () => {
     expect(typeof client.getVolume).toBe('function');
     expect(typeof client.getMute).toBe('function');
   });
+
+  it('exposes getInput', () => {
+    const client = new StormAudioClient(validConfig, makeLog());
+    expect(typeof client.getInput).toBe('function');
+  });
 });
 
 describe('StormAudioClient — TCP connection', () => {
@@ -378,16 +383,16 @@ describe('StormAudioClient — command methods', () => {
     expect(mockSocket.written).toContain('ssp.power.off\n');
   });
 
-  it('setVolume(-40) sends ssp.vol.-40\\n', () => {
+  it('setVolume(-40) sends ssp.vol.[-40]\\n', () => {
     const client = connectClient();
     client.setVolume(-40);
-    expect(mockSocket.written).toContain('ssp.vol.-40\n');
+    expect(mockSocket.written).toContain('ssp.vol.[-40]\n');
   });
 
-  it('setInput(3) sends ssp.input.3\\n', () => {
+  it('setInput(3) sends ssp.input.[3]\\n', () => {
     const client = connectClient();
     client.setInput(3);
-    expect(mockSocket.written).toContain('ssp.input.3\n');
+    expect(mockSocket.written).toContain('ssp.input.[3]\n');
   });
 
   it('setMute(true) sends ssp.mute.on\\n', () => {
@@ -526,6 +531,129 @@ describe('StormAudioClient — relative volume commands and getters (Story 2.1)'
     const client = connectClient();
     mockSocket.simulateData('ssp.mute.on\n');
     expect(client.getMute()).toBe(true);
+  });
+});
+
+describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('MP1: parses well-formed input list and emits inputList with correct InputInfo[]', () => {
+    const client = connectClient();
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=1,Apple TV,1,1,0;2,PS5,2,2,0\n');
+    expect(received).toHaveLength(2);
+    expect(received![0]).toEqual({ id: 1, name: 'Apple TV' });
+    expect(received![1]).toEqual({ id: 2, name: 'PS5' });
+  });
+
+  it('MP2: inputList InputInfo has id:number and name:string shape', () => {
+    const client = connectClient();
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=1,Apple TV,1,1,0\n');
+    expect(typeof received![0].id).toBe('number');
+    expect(typeof received![0].name).toBe('string');
+  });
+
+  it('EC4: single input list emits correctly', () => {
+    const client = connectClient();
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0\n');
+    expect(received).toHaveLength(1);
+    expect(received![0]).toEqual({ id: 1, name: 'TV' });
+  });
+
+  it('EC1: empty list (no entries after list=) emits inputList with []', () => {
+    const client = connectClient();
+    let received: unknown[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=\n');
+    expect(received).toEqual([]);
+  });
+
+  it('EC2: malformed entry (non-numeric ID) is skipped, valid entries still emitted', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=abc,TV,1,1,0;2,PS5,2,2,0\n');
+    expect(received).toHaveLength(1);
+    expect(received![0]).toEqual({ id: 2, name: 'PS5' });
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
+  });
+
+  it('EC3: entry with missing name is skipped, debug log emitted', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    mockSocket.simulateData('ssp.input.list=1,,1,1,0;2,PS5,2,2,0\n');
+    expect(received).toHaveLength(1);
+    expect(received![0]).toEqual({ id: 2, name: 'PS5' });
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
+  });
+
+  it('EC5: ssp.input.list does NOT emit input event', () => {
+    const client = connectClient();
+    let inputEmitted = false;
+    client.on('input', () => { inputEmitted = true; });
+    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0\n');
+    expect(inputEmitted).toBe(false);
+  });
+
+  it('EC6: ssp.input.[3] still emits input(3) — no regression', () => {
+    const client = connectClient();
+    let received: number | null = null;
+    client.on('input', (id) => { received = id; });
+    mockSocket.simulateData('ssp.input.[3]\n');
+    expect(received).toBe(3);
+  });
+
+  it('EC6b: ssp.input.[3] does NOT emit inputList event', () => {
+    const client = connectClient();
+    let inputListEmitted = false;
+    client.on('inputList', () => { inputListEmitted = true; });
+    mockSocket.simulateData('ssp.input.[3]\n');
+    expect(inputListEmitted).toBe(false);
+  });
+
+  it('EC15: logs [State] Received input list: N inputs at info level', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.on('inputList', () => {});
+    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0;2,PS5,2,2,0\n');
+    expect(log.info).toHaveBeenCalledWith('[State] Received input list: 2 inputs');
+  });
+
+  it('MP11: getInput() returns 0 (default) before any input event', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(client.getInput()).toBe(0);
+  });
+
+  it('MP12: getInput() returns updated value after ssp.input.[3] broadcast', () => {
+    const client = connectClient();
+    mockSocket.simulateData('ssp.input.[3]\n');
+    expect(client.getInput()).toBe(3);
+  });
+
+  it('listenerCount: inputList listener count is 0 at baseline (no self-registration)', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(client.listenerCount('inputList')).toBe(0);
   });
 });
 

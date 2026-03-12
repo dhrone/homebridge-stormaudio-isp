@@ -46,12 +46,13 @@
       "volumeControl": {
         "title": "Volume Control",
         "type": "string",
-        "default": "lightbulb",
+        "default": "fan",
         "oneOf": [
+          { "title": "Fan (speed slider, recommended)", "enum": ["fan"] },
           { "title": "Lightbulb (brightness slider)", "enum": ["lightbulb"] },
           { "title": "None (disable volume control)", "enum": ["none"] }
         ],
-        "description": "HomeKit accessory type used for volume control"
+        "description": "HomeKit accessory type used for volume control. Fan is recommended — it avoids 'turn off all lights' muting your processor."
       },
       "inputs": {
         "title": "Input Aliases",

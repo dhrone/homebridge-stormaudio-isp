@@ -3,7 +3,7 @@ import * as net from 'net';
 
 import { PROCESSOR_WAKE_TIMEOUT_MS } from './settings';
 import { ErrorCategory, ProcessorState } from './types';
-import type { StormAudioConfig, StormAudioError, StormAudioEvents, StormAudioState } from './types';
+import type { InputInfo, StormAudioConfig, StormAudioError, StormAudioEvents, StormAudioState } from './types';
 
 interface Logger {
   info(message: string, ...parameters: unknown[]): void;
@@ -89,11 +89,11 @@ export class StormAudioClient extends EventEmitter {
   }
 
   setVolume(dB: number): void {
-    this.sendCommand(`ssp.vol.${dB}\n`);
+    this.sendCommand(`ssp.vol.[${dB}]\n`);
   }
 
   setInput(id: number): void {
-    this.sendCommand(`ssp.input.${id}\n`);
+    this.sendCommand(`ssp.input.[${id}]\n`);
   }
 
   setMute(muted: boolean): void {
@@ -122,6 +122,10 @@ export class StormAudioClient extends EventEmitter {
 
   getPower(): boolean {
     return this.state.power;
+  }
+
+  getInput(): number {
+    return this.state.input;
   }
 
   async ensureActive(timeout = PROCESSOR_WAKE_TIMEOUT_MS): Promise<boolean> {
@@ -186,6 +190,11 @@ export class StormAudioClient extends EventEmitter {
   }
 
   private parseMessage(message: string): void {
+    if (message === 'error') {
+      this.log.warn('[Command] Command rejected by processor (invalid command or out of range)');
+      return;
+    }
+
     const parts = message.split('.');
     if (parts.length < 3 || parts[0] !== 'ssp') {
       this.log.debug('[Command] Unrecognized message: ' + message);
@@ -223,12 +232,20 @@ export class StormAudioClient extends EventEmitter {
         }
         break;
       case 'input': {
-        const inputId = parseInt(value, 10);
-        if (!isNaN(inputId)) {
-          this.state.input = inputId;
-          this.emit('input', inputId);
+        if (value.startsWith('list')) {
+          // value = 'list=1,Apple TV,1,1,0;2,PS5,2,2,0' (after bracket stripping)
+          const listRaw = value.slice(5); // remove 'list=' prefix
+          const inputs = this.parseInputList(listRaw);
+          this.log.info(`[State] Received input list: ${inputs.length} inputs`);
+          this.emit('inputList', inputs);
         } else {
-          this.log.debug('[Command] Unrecognized message: ' + message);
+          const inputId = parseInt(value, 10);
+          if (!isNaN(inputId)) {
+            this.state.input = inputId;
+            this.emit('input', inputId);
+          } else {
+            this.log.debug('[Command] Unrecognized message: ' + message);
+          }
         }
         break;
       }
@@ -252,6 +269,23 @@ export class StormAudioClient extends EventEmitter {
       default:
         this.log.debug('[Command] Unrecognized message: ' + message);
     }
+  }
+
+  private parseInputList(raw: string): InputInfo[] {
+    if (!raw) return [];
+    return raw.split(';')
+      .filter(entry => entry.trim())
+      .map(entry => {
+        const parts = entry.split(',');
+        const id = parseInt(parts[0], 10);
+        const name = parts[1] ?? '';
+        if (isNaN(id) || !name) {
+          this.log.debug('[State] Skipped malformed input list entry: ' + entry);
+          return null;
+        }
+        return { id, name } as InputInfo;
+      })
+      .filter((info): info is InputInfo => info !== null);
   }
 }
 
