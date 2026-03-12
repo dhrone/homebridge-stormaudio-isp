@@ -19,6 +19,7 @@ export function dBToPercentage(dB: number, floor: number, ceiling: number): numb
 export class StormAudioAccessory {
   private readonly tvService: Service;
   private speakerService!: Service;
+  private lightbulbService?: Service;
   private readonly state = { power: false, mute: false, volume: -100 };
 
   constructor(
@@ -27,7 +28,8 @@ export class StormAudioAccessory {
     private readonly client: StormAudioClient,
   ) {
     const { Characteristic } = this.platform;
-    const name = this.platform.validatedConfig!.name;
+    const config = this.platform.validatedConfig!;
+    const name = config.name;
 
     // Task 2: Register Television service
     this.tvService =
@@ -114,17 +116,62 @@ export class StormAudioAccessory {
     });
     speakerService.getCharacteristic(Characteristic.Mute).onGet(() => this.state.mute);
 
-    // Task 7: Mute event — bidirectional sync
+    // Task 4 (Story 2.2): TelevisionSpeaker Volume onGet
+    speakerService.getCharacteristic(Characteristic.Volume).onGet(() => {
+      return dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling);
+    });
+
+    // Task 1 (Story 2.2): Conditionally register Lightbulb service
+    if (config.volumeControl === 'lightbulb') {
+      const lightbulbService =
+        this.accessory.getService(this.platform.Service.Lightbulb) ||
+        this.accessory.addService(this.platform.Service.Lightbulb, `${config.name} Volume`, 'volume-lightbulb');
+      this.lightbulbService = lightbulbService;
+      this.platform.log.info('[HomeKit] Volume control: lightbulb proxy enabled');
+
+      // Task 2 (Story 2.2): Brightness handlers
+      lightbulbService.getCharacteristic(Characteristic.Brightness).onSet(async (value: CharacteristicValue) => {
+        if (!(await this.requiresActive())) return;
+        const percentage = value as number;
+        const dB = percentageToDB(percentage, config.volumeFloor, config.volumeCeiling);
+        this.platform.log.debug(`[HomeKit] Set volume to ${percentage}% (${dB}dB)`);
+        this.client.setVolume(dB);
+      });
+      lightbulbService.getCharacteristic(Characteristic.Brightness).onGet(() => {
+        return dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling);
+      });
+
+      // Task 3 (Story 2.2): On handlers linked to mute
+      lightbulbService.getCharacteristic(Characteristic.On).onSet(async (value: CharacteristicValue) => {
+        if (!(await this.requiresActive())) return;
+        const on = value as boolean;
+        this.platform.log.debug(`[HomeKit] Lightbulb ${on ? 'on (unmute)' : 'off (mute)'}`);
+        this.client.setMute(!on);
+      });
+      lightbulbService.getCharacteristic(Characteristic.On).onGet(() => !this.state.mute);
+    } else {
+      this.platform.log.info('[HomeKit] Volume control: lightbulb proxy disabled');
+    }
+
+    // Task 7 (Story 2.1) / Task 6 (Story 2.2): Mute event — bidirectional sync
     this.client.on('mute', (muted: boolean) => {
       this.state.mute = muted;
       this.speakerService.getCharacteristic(Characteristic.Mute).updateValue(muted, EXTERNAL_CONTEXT);
+      if (this.lightbulbService) {
+        this.lightbulbService.getCharacteristic(Characteristic.On).updateValue(!muted, EXTERNAL_CONTEXT);
+      }
       this.platform.log.debug(`[HomeKit] Mute state updated: ${muted ? 'muted' : 'unmuted'}`);
     });
 
-    // Task 8: Volume event — state tracking only
+    // Task 8 (Story 2.1) / Task 5 (Story 2.2): Volume event — bidirectional sync
     this.client.on('volume', (dB: number) => {
       this.state.volume = dB;
-      this.platform.log.debug(`[HomeKit] Volume level: ${dB}dB`);
+      const percentage = dBToPercentage(dB, config.volumeFloor, config.volumeCeiling);
+      this.speakerService.getCharacteristic(Characteristic.Volume).updateValue(percentage, EXTERNAL_CONTEXT);
+      if (this.lightbulbService) {
+        this.lightbulbService.getCharacteristic(Characteristic.Brightness).updateValue(percentage, EXTERNAL_CONTEXT);
+      }
+      this.platform.log.debug(`[HomeKit] Volume level: ${dB}dB (${percentage}%)`);
     });
   }
 

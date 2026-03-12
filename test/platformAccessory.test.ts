@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import type { StormAudioPlatform } from '../src/platform';
-import { StormAudioAccessory } from '../src/platformAccessory';
+import { StormAudioAccessory, dBToPercentage, percentageToDB } from '../src/platformAccessory';
 import { ProcessorState } from '../src/types';
 
 // --- Mock Homebridge types ---
@@ -84,8 +84,17 @@ function createMockClient() {
   };
 }
 
-function createMockPlatform(nameOverride?: string) {
+interface MockPlatformConfig {
+  volumeControl?: 'lightbulb' | 'none';
+  volumeFloor?: number;
+  volumeCeiling?: number;
+}
+
+function createMockPlatform(nameOverride?: string, configOverride?: MockPlatformConfig) {
   const name = nameOverride ?? 'StormAudio';
+  const volumeControl = configOverride?.volumeControl ?? 'lightbulb';
+  const volumeFloor = configOverride?.volumeFloor ?? -100;
+  const volumeCeiling = configOverride?.volumeCeiling ?? -20;
 
   const CharacteristicMock = {
     Name: 'Name',
@@ -96,18 +105,22 @@ function createMockPlatform(nameOverride?: string) {
     VolumeSelector: Object.assign('VolumeSelector', { INCREMENT: 0, DECREMENT: 1 }),
     Mute: 'Mute',
     VolumeControlType: Object.assign('VolumeControlType', { ABSOLUTE: 3 }),
+    Volume: 'Volume',
+    Brightness: 'Brightness',
+    On: 'On',
   };
 
   const ServiceMock = {
     Television: 'Television',
     TelevisionSpeaker: 'TelevisionSpeaker',
+    Lightbulb: 'Lightbulb',
   };
 
   return {
     Service: ServiceMock,
     Characteristic: CharacteristicMock,
     config: { name },
-    validatedConfig: { name },
+    validatedConfig: { name, volumeControl, volumeFloor, volumeCeiling },
     log: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -131,20 +144,25 @@ function createMockPlatform(nameOverride?: string) {
 function createMockAccessory() {
   const tvService = createMockService();
   const speakerService = createMockService();
+  const lightbulbService = createMockService();
 
   const getService = vi.fn((type: unknown) =>
     String(type) === 'Television' ? tvService : null,
   );
 
-  const addService = vi.fn((...args: unknown[]) =>
-    String(args[0]) === 'TelevisionSpeaker' ? speakerService : tvService,
-  );
+  const addService = vi.fn((...args: unknown[]) => {
+    const serviceType = String(args[0]);
+    if (serviceType === 'TelevisionSpeaker') return speakerService;
+    if (serviceType === 'Lightbulb') return lightbulbService;
+    return tvService;
+  });
 
   return {
     getService,
     addService,
     _tvService: tvService,
     _speakerService: speakerService,
+    _lightbulbService: lightbulbService,
     category: undefined as number | undefined,
     displayName: 'StormAudio',
   };
@@ -623,18 +641,20 @@ describe('StormAudioAccessory — volume event state tracking (Task 8)', () => {
     new StormAudioAccessory(platform, accessory as never, client as never);
   });
 
-  it('volume event updates internal state.volume and logs the level', () => {
+  it('volume event updates internal state.volume and logs the level with percentage', () => {
+    // dBToPercentage(-45, -100, -20) = round((55/80)*100) = round(68.75) = 69
     client._emit('volume', -45);
-    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -45dB');
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -45dB (69%)');
   });
 
-  it('volume event logs at -55dB', () => {
+  it('volume event logs at -55dB with percentage', () => {
+    // dBToPercentage(-55, -100, -20) = round((45/80)*100) = round(56.25) = 56
     client._emit('volume', -55);
-    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -55dB');
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -55dB (56%)');
   });
 
-  it('volume event does NOT update any characteristic (state tracking only)', () => {
-    // No characteristic.updateValue should be called from the volume handler
+  it('volume event does NOT update Mute or Active characteristics', () => {
+    // Volume event only updates Volume and Brightness characteristics, not Mute or Active
     const accessory2 = createMockAccessory();
     const client2 = createMockClient();
     new StormAudioAccessory(platform, accessory2 as never, client2 as never);
@@ -684,5 +704,461 @@ describe('StormAudioAccessory — listener count baseline verification (Task 9)'
 
     expect(client._emitter.listenerCount('mute')).toBe(muteBefore);
     expect(client._emitter.listenerCount('volume')).toBe(volumeBefore);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 2.2 tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('StormAudioAccessory — Lightbulb service registration (Task 1)', () => {
+  it('MP1: creates Lightbulb service via addService when volumeControl="lightbulb" (default)', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory.addService).toHaveBeenCalledWith('Lightbulb', 'StormAudio Volume', 'volume-lightbulb');
+  });
+
+  it('MP7: does NOT create Lightbulb service when volumeControl="none"', () => {
+    const platform = createMockPlatform(undefined, { volumeControl: 'none' });
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory.addService).not.toHaveBeenCalledWith('Lightbulb', expect.anything(), expect.anything());
+    expect(accessory.getService).not.toHaveBeenCalledWith('Lightbulb');
+  });
+
+  it('Lightbulb service has Brightness characteristic', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory._lightbulbService._getCharacteristicMock('Brightness')).toBeDefined();
+  });
+
+  it('Lightbulb service has On characteristic', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory._lightbulbService._getCharacteristicMock('On')).toBeDefined();
+  });
+
+  it('Lightbulb service is added with subtype "volume-lightbulb"', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    const call = accessory.addService.mock.calls.find((c: unknown[]) => String(c[0]) === 'Lightbulb');
+    expect(call).toBeDefined();
+    expect(call![2]).toBe('volume-lightbulb');
+  });
+
+  it('EC16: logs info "Volume control: lightbulb proxy enabled" when volumeControl="lightbulb"', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(platform.log.info).toHaveBeenCalledWith('[HomeKit] Volume control: lightbulb proxy enabled');
+  });
+
+  it('EC17: logs info "Volume control: lightbulb proxy disabled" when volumeControl="none"', () => {
+    const platform = createMockPlatform(undefined, { volumeControl: 'none' });
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(platform.log.info).toHaveBeenCalledWith('[HomeKit] Volume control: lightbulb proxy disabled');
+  });
+
+  it('reuses existing Lightbulb service via getService when already present', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    // Return existing lightbulb service from getService
+    accessory.getService.mockImplementation((type: unknown) => {
+      const t = String(type);
+      if (t === 'Television') return accessory._tvService;
+      if (t === 'Lightbulb') return accessory._lightbulbService;
+      return null;
+    });
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    expect(accessory.addService).not.toHaveBeenCalledWith('Lightbulb', expect.anything(), expect.anything());
+  });
+});
+
+describe('StormAudioAccessory — Lightbulb Brightness handlers (Task 2)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+  let brightnessChar: ReturnType<typeof createMockCharacteristic>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    brightnessChar = accessory._lightbulbService._getCharacteristicMock('Brightness')!;
+  });
+
+  it('MP3: Brightness onSet 50% → percentageToDB(50,-100,-20)=-60 → client.setVolume(-60)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(50);
+    expect(client.setVolume).toHaveBeenCalledWith(-60);
+  });
+
+  it('MP4: Brightness onSet 100% → safety ceiling → client.setVolume(-20)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(100);
+    expect(client.setVolume).toHaveBeenCalledWith(-20);
+  });
+
+  it('MP5: Brightness onSet 0% → floor → client.setVolume(-100)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(0);
+    expect(client.setVolume).toHaveBeenCalledWith(-100);
+  });
+
+  it('MP8: custom range floor=-80,ceiling=-30 → 50% → client.setVolume(-55)', async () => {
+    const p = createMockPlatform(undefined, { volumeFloor: -80, volumeCeiling: -30 });
+    const a = createMockAccessory();
+    const c = createMockClient();
+    new StormAudioAccessory(p, a as never, c as never);
+    c.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await a._lightbulbService._getCharacteristicMock('Brightness')!._triggerSet(50);
+    expect(c.setVolume).toHaveBeenCalledWith(-55);
+  });
+
+  it('MP9: custom range floor=-80,ceiling=-30 → 0% → client.setVolume(-80)', async () => {
+    const p = createMockPlatform(undefined, { volumeFloor: -80, volumeCeiling: -30 });
+    const a = createMockAccessory();
+    const c = createMockClient();
+    new StormAudioAccessory(p, a as never, c as never);
+    c.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await a._lightbulbService._getCharacteristicMock('Brightness')!._triggerSet(0);
+    expect(c.setVolume).toHaveBeenCalledWith(-80);
+  });
+
+  it('MP10: custom range floor=-80,ceiling=-30 → 100% → client.setVolume(-30)', async () => {
+    const p = createMockPlatform(undefined, { volumeFloor: -80, volumeCeiling: -30 });
+    const a = createMockAccessory();
+    const c = createMockClient();
+    new StormAudioAccessory(p, a as never, c as never);
+    c.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await a._lightbulbService._getCharacteristicMock('Brightness')!._triggerSet(100);
+    expect(c.setVolume).toHaveBeenCalledWith(-30);
+  });
+
+  it('EC1: Brightness onSet when processor sleeping → setVolume NOT called', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
+    client.ensureActive.mockResolvedValue(false);
+    await brightnessChar._triggerSet(50);
+    expect(client.setVolume).not.toHaveBeenCalled();
+  });
+
+  it('EC14: Brightness boundary 1% → percentageToDB(1,-100,-20)=-99 → client.setVolume(-99)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(1);
+    expect(client.setVolume).toHaveBeenCalledWith(-99);
+  });
+
+  it('EC15: Brightness boundary 99% → percentageToDB(99,-100,-20)=-21 → client.setVolume(-21)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(99);
+    expect(client.setVolume).toHaveBeenCalledWith(-21);
+  });
+
+  it('Brightness onSet logs debug with percentage and dB', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(50);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Set volume to 50% (-60dB)');
+  });
+
+  it('Brightness onSet calls requiresActive() — skips ensureActive when processor is already Active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await brightnessChar._triggerSet(50);
+    expect(client.ensureActive).not.toHaveBeenCalled();
+  });
+
+  it('EC9: Brightness onGet returns dBToPercentage(state.volume) — default state.volume=-100 → 0%', () => {
+    // Default state.volume = -100 → dBToPercentage(-100, -100, -20) = 0
+    const result = brightnessChar._triggerGet();
+    expect(result).toBe(0);
+  });
+
+  it('EC9: Brightness onGet returns 50% when state.volume=-60', () => {
+    // dBToPercentage(-60, -100, -20) = round((40/80)*100) = 50
+    client._emit('volume', -60);
+    const result = brightnessChar._triggerGet();
+    expect(result).toBe(50);
+  });
+
+  it('EC10: Brightness onGet returns 75% after volume event(-40)', () => {
+    // dBToPercentage(-40, -100, -20) = round((60/80)*100) = 75
+    client._emit('volume', -40);
+    const result = brightnessChar._triggerGet();
+    expect(result).toBe(75);
+  });
+});
+
+describe('StormAudioAccessory — Lightbulb On handlers (Task 3)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+  let onChar: ReturnType<typeof createMockCharacteristic>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    onChar = accessory._lightbulbService._getCharacteristicMock('On')!;
+  });
+
+  it('EC3: On onSet true (unmute) → client.setMute(false)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await onChar._triggerSet(true);
+    expect(client.setMute).toHaveBeenCalledWith(false);
+  });
+
+  it('EC2: On onSet false (mute) → client.setMute(true)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await onChar._triggerSet(false);
+    expect(client.setMute).toHaveBeenCalledWith(true);
+  });
+
+  it('EC4: On onSet when processor sleeping → setMute NOT called', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
+    client.ensureActive.mockResolvedValue(false);
+    await onChar._triggerSet(false);
+    expect(client.setMute).not.toHaveBeenCalled();
+  });
+
+  it('On onSet true logs [HomeKit] Lightbulb on (unmute)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await onChar._triggerSet(true);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Lightbulb on (unmute)');
+  });
+
+  it('On onSet false logs [HomeKit] Lightbulb off (mute)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await onChar._triggerSet(false);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Lightbulb off (mute)');
+  });
+
+  it('On onSet calls requiresActive() — skips ensureActive when processor is already Active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await onChar._triggerSet(true);
+    expect(client.ensureActive).not.toHaveBeenCalled();
+  });
+
+  it('MP2/EC11: On onGet returns true (not muted) — default state.mute=false', () => {
+    const result = onChar._triggerGet();
+    expect(result).toBe(true);
+  });
+
+  it('EC12: On onGet returns false when muted', () => {
+    client._emit('mute', true);
+    const result = onChar._triggerGet();
+    expect(result).toBe(false);
+  });
+
+  it('EC11: On onGet returns true after unmute event', () => {
+    client._emit('mute', true);
+    client._emit('mute', false);
+    const result = onChar._triggerGet();
+    expect(result).toBe(true);
+  });
+});
+
+describe('StormAudioAccessory — TelevisionSpeaker Volume onGet (Task 4)', () => {
+  it('EC13: Volume onGet returns dBToPercentage(state.volume) — default state.volume=-100 → 0%', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    const volumeChar = accessory._speakerService._getCharacteristicMock('Volume')!;
+    expect(volumeChar._triggerGet()).toBe(0);
+  });
+
+  it('Volume onGet returns 50% when state.volume=-60', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('volume', -60);
+    const volumeChar = accessory._speakerService._getCharacteristicMock('Volume')!;
+    expect(volumeChar._triggerGet()).toBe(50);
+  });
+
+  it('Volume onGet returns 75% when state.volume=-40', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('volume', -40);
+    const volumeChar = accessory._speakerService._getCharacteristicMock('Volume')!;
+    expect(volumeChar._triggerGet()).toBe(75);
+  });
+});
+
+describe('StormAudioAccessory — volume event bidirectional sync (Task 5)', () => {
+  it('MP6: volume(-40) updates Lightbulb Brightness to 75 with EXTERNAL_CONTEXT', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('volume', -40);
+    const brightnessChar = accessory._lightbulbService._getCharacteristicMock('Brightness')!;
+    expect(brightnessChar._getUpdateValueMock()).toHaveBeenCalledWith(75, { source: 'stormaudio' });
+  });
+
+  it('MP6: volume(-40) updates TelevisionSpeaker Volume to 75 with EXTERNAL_CONTEXT', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('volume', -40);
+    const volumeChar = accessory._speakerService._getCharacteristicMock('Volume')!;
+    expect(volumeChar._getUpdateValueMock()).toHaveBeenCalledWith(75, { source: 'stormaudio' });
+  });
+
+  it('EC5: volumeControl="none" → volume event only updates TelevisionSpeaker Volume (no Lightbulb)', () => {
+    const platform = createMockPlatform(undefined, { volumeControl: 'none' });
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('volume', -40);
+    // TelevisionSpeaker Volume is updated
+    const volumeChar = accessory._speakerService._getCharacteristicMock('Volume')!;
+    expect(volumeChar._getUpdateValueMock()).toHaveBeenCalledWith(75, { source: 'stormaudio' });
+    // Lightbulb Brightness is NOT updated (lightbulbService never created)
+    const brightnessChar = accessory._lightbulbService._getCharacteristicMock('Brightness');
+    if (brightnessChar) {
+      expect(brightnessChar._getUpdateValueMock()).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe('StormAudioAccessory — mute event Lightbulb On sync (Task 6)', () => {
+  it('EC7: mute(true) → Lightbulb On updated to false with EXTERNAL_CONTEXT', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('mute', true);
+    const onChar = accessory._lightbulbService._getCharacteristicMock('On')!;
+    expect(onChar._getUpdateValueMock()).toHaveBeenCalledWith(false, { source: 'stormaudio' });
+  });
+
+  it('EC8: mute(false) → Lightbulb On updated to true with EXTERNAL_CONTEXT', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('mute', false);
+    const onChar = accessory._lightbulbService._getCharacteristicMock('On')!;
+    expect(onChar._getUpdateValueMock()).toHaveBeenCalledWith(true, { source: 'stormaudio' });
+  });
+
+  it('EC6: volumeControl="none" → mute event only updates TelevisionSpeaker Mute (no Lightbulb On)', () => {
+    const platform = createMockPlatform(undefined, { volumeControl: 'none' });
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    client._emit('mute', true);
+    // TelevisionSpeaker Mute is updated
+    const muteChar = accessory._speakerService._getCharacteristicMock('Mute')!;
+    expect(muteChar._getUpdateValueMock()).toHaveBeenCalledWith(true, { source: 'stormaudio' });
+    // Lightbulb On is NOT updated (lightbulbService never created)
+    const onChar = accessory._lightbulbService._getCharacteristicMock('On');
+    if (onChar) {
+      expect(onChar._getUpdateValueMock()).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe('StormAudioAccessory — Story 2.2 listener count verification', () => {
+  it('Story 2.2 does NOT add new client.on() listeners (handler modification only)', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+
+    const baselineMute = client._emitter.listenerCount('mute');
+    const baselineVolume = client._emitter.listenerCount('volume');
+
+    new StormAudioAccessory(platform, accessory as never, client as never);
+
+    // Still exactly 1 of each — handler modified, not added
+    expect(client._emitter.listenerCount('mute')).toBe(baselineMute + 1);
+    expect(client._emitter.listenerCount('volume')).toBe(baselineVolume + 1);
+  });
+
+  it('Brightness and On onSet handlers do NOT register new client listeners', async () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+
+    const muteBefore = client._emitter.listenerCount('mute');
+    const volumeBefore = client._emitter.listenerCount('volume');
+
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    const brightnessChar = accessory._lightbulbService._getCharacteristicMock('Brightness')!;
+    const onChar = accessory._lightbulbService._getCharacteristicMock('On')!;
+
+    await brightnessChar._triggerSet(50);
+    await brightnessChar._triggerSet(75);
+    await onChar._triggerSet(true);
+    await onChar._triggerSet(false);
+
+    expect(client._emitter.listenerCount('mute')).toBe(muteBefore);
+    expect(client._emitter.listenerCount('volume')).toBe(volumeBefore);
+  });
+});
+
+describe('percentageToDB and dBToPercentage — volume mapping functions', () => {
+  it('percentageToDB(50, -100, -20) = -60', () => {
+    expect(percentageToDB(50, -100, -20)).toBe(-60);
+  });
+
+  it('percentageToDB(100, -100, -20) = -20 (ceiling)', () => {
+    expect(percentageToDB(100, -100, -20)).toBe(-20);
+  });
+
+  it('percentageToDB(0, -100, -20) = -100 (floor)', () => {
+    expect(percentageToDB(0, -100, -20)).toBe(-100);
+  });
+
+  it('percentageToDB(50, -80, -30) = -55 (custom range)', () => {
+    expect(percentageToDB(50, -80, -30)).toBe(-55);
+  });
+
+  it('percentageToDB(1, -100, -20) = -99 (boundary)', () => {
+    expect(percentageToDB(1, -100, -20)).toBe(-99);
+  });
+
+  it('percentageToDB(99, -100, -20) = -21 (boundary)', () => {
+    expect(percentageToDB(99, -100, -20)).toBe(-21);
+  });
+
+  it('dBToPercentage(-60, -100, -20) = 50', () => {
+    expect(dBToPercentage(-60, -100, -20)).toBe(50);
+  });
+
+  it('dBToPercentage(-40, -100, -20) = 75', () => {
+    expect(dBToPercentage(-40, -100, -20)).toBe(75);
+  });
+
+  it('dBToPercentage(-100, -100, -20) = 0 (floor)', () => {
+    expect(dBToPercentage(-100, -100, -20)).toBe(0);
+  });
+
+  it('dBToPercentage(-20, -100, -20) = 100 (ceiling)', () => {
+    expect(dBToPercentage(-20, -100, -20)).toBe(100);
+  });
+
+  it('dBToPercentage(-55, -80, -30) = 50 (custom range)', () => {
+    expect(dBToPercentage(-55, -80, -30)).toBe(50);
   });
 });
