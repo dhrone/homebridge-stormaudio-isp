@@ -58,6 +58,7 @@ function createMockService() {
   return {
     setCharacteristic: vi.fn().mockReturnThis(),
     getCharacteristic,
+    addLinkedService: vi.fn(),
     _getCharacteristicMock: (name: string) => characteristics.get(key(name)),
   };
 }
@@ -70,11 +71,16 @@ function createMockClient() {
     setVolume: vi.fn(),
     setInput: vi.fn(),
     setMute: vi.fn(),
+    volumeUp: vi.fn(),
+    volumeDown: vi.fn(),
+    getVolume: vi.fn().mockReturnValue(-40),
+    getMute: vi.fn().mockReturnValue(false),
     disconnect: vi.fn(),
     connect: vi.fn(),
     getProcessorState: vi.fn().mockReturnValue(ProcessorState.Sleep),
     ensureActive: vi.fn().mockResolvedValue(true),
     _emit: emitter.emit.bind(emitter),
+    _emitter: emitter,
   };
 }
 
@@ -87,10 +93,14 @@ function createMockPlatform(nameOverride?: string) {
     SleepDiscoveryMode: Object.assign('SleepDiscoveryMode', SleepDiscoveryModeEnum),
     ActiveIdentifier: 'ActiveIdentifier',
     Active: Object.assign('Active', ActiveEnum),
+    VolumeSelector: Object.assign('VolumeSelector', { INCREMENT: 0, DECREMENT: 1 }),
+    Mute: 'Mute',
+    VolumeControlType: Object.assign('VolumeControlType', { ABSOLUTE: 3 }),
   };
 
   const ServiceMock = {
     Television: 'Television',
+    TelevisionSpeaker: 'TelevisionSpeaker',
   };
 
   return {
@@ -120,11 +130,21 @@ function createMockPlatform(nameOverride?: string) {
 
 function createMockAccessory() {
   const tvService = createMockService();
+  const speakerService = createMockService();
+
+  const getService = vi.fn((type: unknown) =>
+    String(type) === 'Television' ? tvService : null,
+  );
+
+  const addService = vi.fn((...args: unknown[]) =>
+    String(args[0]) === 'TelevisionSpeaker' ? speakerService : tvService,
+  );
 
   return {
-    getService: vi.fn().mockReturnValue(tvService),
-    addService: vi.fn().mockReturnValue(tvService),
+    getService,
+    addService,
     _tvService: tvService,
+    _speakerService: speakerService,
     category: undefined as number | undefined,
     displayName: 'StormAudio',
   };
@@ -359,5 +379,310 @@ describe('StormAudioAccessory — zero net imports (Task 1)', () => {
     // Check for any form of net import
     expect(content).not.toMatch(/from\s+['"]net['"]/);
     expect(content).not.toMatch(/require\s*\(\s*['"]net['"]\s*\)/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 2.1 tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('StormAudioAccessory — TelevisionSpeaker service setup (Task 4)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+  });
+
+  it('creates TelevisionSpeaker service via addService when not present', () => {
+    expect(accessory.addService).toHaveBeenCalledWith('TelevisionSpeaker', 'StormAudio Speaker', 'speaker');
+  });
+
+  it('reuses existing TelevisionSpeaker service via getService when present', () => {
+    const platform2 = createMockPlatform();
+    const accessory2 = createMockAccessory();
+    // Make getService return speakerService for TelevisionSpeaker too
+    accessory2.getService.mockImplementation((type: unknown) =>
+      String(type) === 'Television' ? accessory2._tvService : accessory2._speakerService,
+    );
+    const client2 = createMockClient();
+    new StormAudioAccessory(platform2, accessory2 as never, client2 as never);
+    expect(accessory2.addService).not.toHaveBeenCalledWith(
+      'TelevisionSpeaker',
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('sets Active characteristic to ACTIVE on TelevisionSpeaker', () => {
+    const calls = accessory._speakerService.setCharacteristic.mock.calls;
+    const activeCall = calls.find((c: unknown[]) => String(c[0]) === 'Active');
+    expect(activeCall).toBeDefined();
+    expect(activeCall![1]).toBe(1); // ActiveEnum.ACTIVE
+  });
+
+  it('sets VolumeControlType characteristic to ABSOLUTE on TelevisionSpeaker', () => {
+    const calls = accessory._speakerService.setCharacteristic.mock.calls;
+    const vtcCall = calls.find((c: unknown[]) => String(c[0]) === 'VolumeControlType');
+    expect(vtcCall).toBeDefined();
+    expect(vtcCall![1]).toBe(3); // VolumeControlType.ABSOLUTE
+  });
+
+  it('links TelevisionSpeaker to Television via addLinkedService', () => {
+    expect(accessory._tvService.addLinkedService).toHaveBeenCalledWith(accessory._speakerService);
+  });
+
+  it('exposes VolumeSelector characteristic on TelevisionSpeaker', () => {
+    expect(accessory._speakerService._getCharacteristicMock('VolumeSelector')).toBeDefined();
+  });
+
+  it('exposes Mute characteristic on TelevisionSpeaker', () => {
+    expect(accessory._speakerService._getCharacteristicMock('Mute')).toBeDefined();
+  });
+});
+
+describe('StormAudioAccessory — VolumeSelector handler (Task 5)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+  let volumeSelectorChar: ReturnType<typeof createMockCharacteristic>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    volumeSelectorChar = accessory._speakerService._getCharacteristicMock('VolumeSelector')!;
+  });
+
+  it('INCREMENT (0) → client.volumeUp() called when processor is active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await volumeSelectorChar._triggerSet(0);
+    expect(client.volumeUp).toHaveBeenCalled();
+    expect(client.volumeDown).not.toHaveBeenCalled();
+  });
+
+  it('DECREMENT (1) → client.volumeDown() called when processor is active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await volumeSelectorChar._triggerSet(1);
+    expect(client.volumeDown).toHaveBeenCalled();
+    expect(client.volumeUp).not.toHaveBeenCalled();
+  });
+
+  it('INCREMENT logs [HomeKit] Volume up', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await volumeSelectorChar._triggerSet(0);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume up');
+  });
+
+  it('DECREMENT logs [HomeKit] Volume down', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await volumeSelectorChar._triggerSet(1);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume down');
+  });
+
+  it('volumeUp NOT called when requiresActive returns false (sleep + timeout)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
+    client.ensureActive.mockResolvedValue(false);
+    await volumeSelectorChar._triggerSet(0);
+    expect(client.volumeUp).not.toHaveBeenCalled();
+  });
+
+  it('volumeDown NOT called when requiresActive returns false (sleep + timeout)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
+    client.ensureActive.mockResolvedValue(false);
+    await volumeSelectorChar._triggerSet(1);
+    expect(client.volumeDown).not.toHaveBeenCalled();
+  });
+
+  it('calls requiresActive() — skips ensureActive when processor is already Active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await volumeSelectorChar._triggerSet(0);
+    expect(client.ensureActive).not.toHaveBeenCalled();
+  });
+});
+
+describe('StormAudioAccessory — Mute onSet and onGet handlers (Task 6)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+  let muteChar: ReturnType<typeof createMockCharacteristic>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    muteChar = accessory._speakerService._getCharacteristicMock('Mute')!;
+  });
+
+  it('Mute onSet true → client.setMute(true) called when processor is active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await muteChar._triggerSet(true);
+    expect(client.setMute).toHaveBeenCalledWith(true);
+  });
+
+  it('Mute onSet false → client.setMute(false) called when processor is active', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await muteChar._triggerSet(false);
+    expect(client.setMute).toHaveBeenCalledWith(false);
+  });
+
+  it('Mute onSet true logs [HomeKit] Mute on', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await muteChar._triggerSet(true);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Mute on');
+  });
+
+  it('Mute onSet false logs [HomeKit] Mute off', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    await muteChar._triggerSet(false);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Mute off');
+  });
+
+  it('setMute NOT called when requiresActive returns false (sleep + timeout)', async () => {
+    client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
+    client.ensureActive.mockResolvedValue(false);
+    await muteChar._triggerSet(true);
+    expect(client.setMute).not.toHaveBeenCalled();
+  });
+
+  it('Mute onGet returns false by default (cached state)', () => {
+    const result = muteChar._triggerGet();
+    expect(result).toBe(false);
+  });
+
+  it('Mute onGet returns true after mute event updates state', () => {
+    client._emit('mute', true);
+    const result = muteChar._triggerGet();
+    expect(result).toBe(true);
+  });
+
+  it('Mute onGet returns false after unmute event updates state', () => {
+    client._emit('mute', true);
+    client._emit('mute', false);
+    const result = muteChar._triggerGet();
+    expect(result).toBe(false);
+  });
+});
+
+describe('StormAudioAccessory — mute event bidirectional sync (Task 7)', () => {
+  let platform: StormAudioPlatform;
+  let accessory: ReturnType<typeof createMockAccessory>;
+  let client: ReturnType<typeof createMockClient>;
+  let muteChar: ReturnType<typeof createMockCharacteristic>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    muteChar = accessory._speakerService._getCharacteristicMock('Mute')!;
+  });
+
+  it('mute event(true) updates TelevisionSpeaker Mute characteristic with EXTERNAL_CONTEXT', () => {
+    client._emit('mute', true);
+    expect(muteChar._getUpdateValueMock()).toHaveBeenCalledWith(true, { source: 'stormaudio' });
+  });
+
+  it('mute event(false) updates TelevisionSpeaker Mute characteristic with EXTERNAL_CONTEXT', () => {
+    client._emit('mute', false);
+    expect(muteChar._getUpdateValueMock()).toHaveBeenCalledWith(false, { source: 'stormaudio' });
+  });
+
+  it('mute event(true) logs [HomeKit] Mute state updated: muted', () => {
+    client._emit('mute', true);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Mute state updated: muted');
+  });
+
+  it('mute event(false) logs [HomeKit] Mute state updated: unmuted', () => {
+    client._emit('mute', false);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Mute state updated: unmuted');
+  });
+
+  it('mute event updates internal state (verified via onGet)', () => {
+    client._emit('mute', true);
+    expect(muteChar._triggerGet()).toBe(true);
+    client._emit('mute', false);
+    expect(muteChar._triggerGet()).toBe(false);
+  });
+});
+
+describe('StormAudioAccessory — volume event state tracking (Task 8)', () => {
+  let platform: StormAudioPlatform;
+  let client: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+  });
+
+  it('volume event updates internal state.volume and logs the level', () => {
+    client._emit('volume', -45);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -45dB');
+  });
+
+  it('volume event logs at -55dB', () => {
+    client._emit('volume', -55);
+    expect(platform.log.debug).toHaveBeenCalledWith('[HomeKit] Volume level: -55dB');
+  });
+
+  it('volume event does NOT update any characteristic (state tracking only)', () => {
+    // No characteristic.updateValue should be called from the volume handler
+    const accessory2 = createMockAccessory();
+    const client2 = createMockClient();
+    new StormAudioAccessory(platform, accessory2 as never, client2 as never);
+    const muteChar = accessory2._speakerService._getCharacteristicMock('Mute')!;
+    const activeChar = accessory2._tvService._getCharacteristicMock('Active')!;
+    muteChar._getUpdateValueMock().mockClear();
+    activeChar._getUpdateValueMock().mockClear();
+
+    client2._emit('volume', -45);
+    expect(muteChar._getUpdateValueMock()).not.toHaveBeenCalled();
+    expect(activeChar._getUpdateValueMock()).not.toHaveBeenCalled();
+  });
+});
+
+describe('StormAudioAccessory — listener count baseline verification (Task 9)', () => {
+  it('registers exactly one mute listener and one volume listener in constructor', () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+
+    const baselineMute = client._emitter.listenerCount('mute');
+    const baselineVolume = client._emitter.listenerCount('volume');
+
+    new StormAudioAccessory(platform, accessory as never, client as never);
+
+    expect(client._emitter.listenerCount('mute')).toBe(baselineMute + 1);
+    expect(client._emitter.listenerCount('volume')).toBe(baselineVolume + 1);
+  });
+
+  it('mute and volume listener counts do NOT grow after repeated onSet calls', async () => {
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+
+    const muteBefore = client._emitter.listenerCount('mute');
+    const volumeBefore = client._emitter.listenerCount('volume');
+
+    client.getProcessorState.mockReturnValue(ProcessorState.Active);
+    const muteChar = accessory._speakerService._getCharacteristicMock('Mute')!;
+    const volumeSelectorChar = accessory._speakerService._getCharacteristicMock('VolumeSelector')!;
+
+    await muteChar._triggerSet(true);
+    await muteChar._triggerSet(false);
+    await volumeSelectorChar._triggerSet(0);
+    await volumeSelectorChar._triggerSet(1);
+
+    expect(client._emitter.listenerCount('mute')).toBe(muteBefore);
+    expect(client._emitter.listenerCount('volume')).toBe(volumeBefore);
   });
 });

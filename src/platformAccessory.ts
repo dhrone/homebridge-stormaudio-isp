@@ -6,9 +6,20 @@ import { ProcessorState } from './types';
 
 const EXTERNAL_CONTEXT = { source: 'stormaudio' };
 
+export function percentageToDB(percentage: number, floor: number, ceiling: number): number {
+  const clamped = Math.max(0, Math.min(100, percentage));
+  return Math.round(floor + (clamped / 100) * (ceiling - floor));
+}
+
+export function dBToPercentage(dB: number, floor: number, ceiling: number): number {
+  const clamped = Math.max(floor, Math.min(ceiling, dB));
+  return Math.round(((clamped - floor) / (ceiling - floor)) * 100);
+}
+
 export class StormAudioAccessory {
   private readonly tvService: Service;
-  private readonly state = { power: false };
+  private speakerService!: Service;
+  private readonly state = { power: false, mute: false, volume: -100 };
 
   constructor(
     private readonly platform: StormAudioPlatform,
@@ -71,6 +82,49 @@ export class StormAudioAccessory {
       } else if (state === ProcessorState.Sleep) {
         this.platform.log.debug('[HomeKit] Processor in sleep mode');
       }
+    });
+
+    // Task 4: Register TelevisionSpeaker service
+    const speakerService =
+      this.accessory.getService(this.platform.Service.TelevisionSpeaker) ||
+      this.accessory.addService(this.platform.Service.TelevisionSpeaker, `${name} Speaker`, 'speaker');
+    speakerService.setCharacteristic(Characteristic.Active, Characteristic.Active.ACTIVE);
+    speakerService.setCharacteristic(Characteristic.VolumeControlType, Characteristic.VolumeControlType.ABSOLUTE);
+    this.tvService.addLinkedService(speakerService);
+    this.speakerService = speakerService;
+
+    // Task 5: VolumeSelector handler
+    speakerService.getCharacteristic(Characteristic.VolumeSelector).onSet(async (value: CharacteristicValue) => {
+      if (!(await this.requiresActive())) return;
+      if (value === Characteristic.VolumeSelector.INCREMENT) {
+        this.platform.log.debug('[HomeKit] Volume up');
+        this.client.volumeUp();
+      } else {
+        this.platform.log.debug('[HomeKit] Volume down');
+        this.client.volumeDown();
+      }
+    });
+
+    // Task 6: Mute handlers
+    speakerService.getCharacteristic(Characteristic.Mute).onSet(async (value: CharacteristicValue) => {
+      if (!(await this.requiresActive())) return;
+      const muted = value as boolean;
+      this.platform.log.debug(`[HomeKit] Mute ${muted ? 'on' : 'off'}`);
+      this.client.setMute(muted);
+    });
+    speakerService.getCharacteristic(Characteristic.Mute).onGet(() => this.state.mute);
+
+    // Task 7: Mute event — bidirectional sync
+    this.client.on('mute', (muted: boolean) => {
+      this.state.mute = muted;
+      this.speakerService.getCharacteristic(Characteristic.Mute).updateValue(muted, EXTERNAL_CONTEXT);
+      this.platform.log.debug(`[HomeKit] Mute state updated: ${muted ? 'muted' : 'unmuted'}`);
+    });
+
+    // Task 8: Volume event — state tracking only
+    this.client.on('volume', (dB: number) => {
+      this.state.volume = dB;
+      this.platform.log.debug(`[HomeKit] Volume level: ${dB}dB`);
     });
   }
 

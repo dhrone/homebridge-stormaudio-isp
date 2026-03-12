@@ -38,6 +38,14 @@ describe('StormAudioClient — class structure', () => {
     expect(typeof client.setInput).toBe('function');
     expect(typeof client.setMute).toBe('function');
   });
+
+  it('exposes volumeUp, volumeDown, getVolume, getMute', () => {
+    const client = new StormAudioClient(validConfig, makeLog());
+    expect(typeof client.volumeUp).toBe('function');
+    expect(typeof client.volumeDown).toBe('function');
+    expect(typeof client.getVolume).toBe('function');
+    expect(typeof client.getMute).toBe('function');
+  });
 });
 
 describe('StormAudioClient — TCP connection', () => {
@@ -437,6 +445,87 @@ describe('StormAudioClient — command methods', () => {
   it('disconnect() is a no-op when socket is null', () => {
     const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
     expect(() => client.disconnect()).not.toThrow();
+  });
+});
+
+describe('StormAudioClient — relative volume commands and getters (Story 2.1)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('volumeUp() sends ssp.vol.up\\n when connected', () => {
+    const client = connectClient();
+    client.volumeUp();
+    expect(mockSocket.written).toContain('ssp.vol.up\n');
+  });
+
+  it('volumeDown() sends ssp.vol.down\\n when connected', () => {
+    const client = connectClient();
+    client.volumeDown();
+    expect(mockSocket.written).toContain('ssp.vol.down\n');
+  });
+
+  it('volumeUp() logs [Command] Sent: ssp.vol.up', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.volumeUp();
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Sent: ssp.vol.up'));
+  });
+
+  it('volumeDown() logs [Command] Sent: ssp.vol.down', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.volumeDown();
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Sent: ssp.vol.down'));
+  });
+
+  it('volumeUp() guarded when disconnected — no write, logs warn', () => {
+    const log = makeLog();
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.volumeUp();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(mockSocket.written).toHaveLength(0);
+  });
+
+  it('volumeDown() guarded when disconnected — no write, logs warn', () => {
+    const log = makeLog();
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.volumeDown();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(mockSocket.written).toHaveLength(0);
+  });
+
+  it('getVolume() returns initial state value (-40)', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(client.getVolume()).toBe(-40);
+  });
+
+  it('getVolume() returns updated value after ssp.vol.-55 broadcast', () => {
+    const client = connectClient();
+    mockSocket.simulateData('ssp.vol.-55\n');
+    expect(client.getVolume()).toBe(-55);
+  });
+
+  it('getMute() returns initial state value (false)', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(client.getMute()).toBe(false);
+  });
+
+  it('getMute() returns true after ssp.mute.on broadcast', () => {
+    const client = connectClient();
+    mockSocket.simulateData('ssp.mute.on\n');
+    expect(client.getMute()).toBe(true);
   });
 });
 

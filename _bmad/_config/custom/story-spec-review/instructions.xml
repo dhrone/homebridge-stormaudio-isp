@@ -250,13 +250,16 @@
     </check>
 
     <check if="high_count + medium_count == 0">
-      <output>Story spec is CLEAN — no substantive issues found in Round {{round}}.</output>
+      <output>Fresh adversarial pass found no new substantive issues in Round {{round}} — story spec is CLEAN.</output>
       <action>GOTO step 8</action>
     </check>
   </step>
 
-  <step n="7" goal="Iterate until clean">
-    <critical>After fixing issues, re-run ALL validation steps to verify fixes and catch regressions.</critical>
+  <step n="7" goal="Iterate — fresh adversarial pass until clean">
+    <critical>Each subsequent round is a FRESH ADVERSARIAL PASS — not just verification of previous fixes.</critical>
+    <critical>Approach the story spec as if you have never reviewed it before. Look for NEW issues, not just fix confirmation.
+      The goal of each round is to find everything wrong, not to confirm that nothing is wrong.
+      A round is CLEAN only when a genuinely fresh adversarial review finds zero substantive issues.</critical>
 
     <action>Increment {{round}} by 1</action>
 
@@ -268,7 +271,7 @@
       </check>
     </check>
 
-    <output>**Starting Round {{round}} — re-running all validation checks...**</output>
+    <output>**Starting Round {{round}} — fresh adversarial pass on all spec sections (not just verifying previous fixes)...**</output>
     <action>GOTO step 2</action>
   </step>
 

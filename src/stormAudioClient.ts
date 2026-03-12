@@ -100,6 +100,22 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand(muted ? 'ssp.mute.on\n' : 'ssp.mute.off\n');
   }
 
+  volumeUp(): void {
+    this.sendCommand('ssp.vol.up\n');
+  }
+
+  volumeDown(): void {
+    this.sendCommand('ssp.vol.down\n');
+  }
+
+  getVolume(): number {
+    return this.state.volume;
+  }
+
+  getMute(): boolean {
+    return this.state.mute;
+  }
+
   getProcessorState(): ProcessorState {
     return this.state.processorState;
   }
