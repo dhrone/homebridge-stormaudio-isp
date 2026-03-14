@@ -550,11 +550,23 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     return client;
   };
 
+  // Helper: send a complete input list sequence (start → entries → end)
+  const sendInputList = (entries: string[]) => {
+    mockSocket.simulateData('ssp.input.start\n');
+    for (const entry of entries) {
+      mockSocket.simulateData(entry + '\n');
+    }
+    mockSocket.simulateData('ssp.input.end\n');
+  };
+
   it('MP1: parses well-formed input list and emits inputList with correct InputInfo[]', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=1,Apple TV,1,1,0;2,PS5,2,2,0\n');
+    sendInputList([
+      'ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
+    ]);
     expect(received).toHaveLength(2);
     expect(received![0]).toEqual({ id: 1, name: 'Apple TV' });
     expect(received![1]).toEqual({ id: 2, name: 'PS5' });
@@ -564,7 +576,7 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=1,Apple TV,1,1,0\n');
+    sendInputList(['ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(typeof received![0].id).toBe('number');
     expect(typeof received![0].name).toBe('string');
   });
@@ -573,46 +585,52 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0\n');
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 1, name: 'TV' });
   });
 
-  it('EC1: empty list (no entries after list=) emits inputList with []', () => {
+  it('EC1: empty list (start/end with no entries) emits inputList with []', () => {
     const client = connectClient();
     let received: unknown[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=\n');
+    sendInputList([]);
     expect(received).toEqual([]);
   });
 
-  it('EC2: malformed entry (non-numeric ID) is skipped, valid entries still emitted', () => {
+  it('EC2: malformed entry (invalid JSON) is skipped, valid entries still emitted', () => {
     const log = makeLog();
     const client = connectClient(log);
     let received: { id: number; name: string }[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=abc,TV,1,1,0;2,PS5,2,2,0\n');
+    sendInputList([
+      'ssp.input.list.[not-valid-json]',
+      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
+    ]);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 2, name: 'PS5' });
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
   });
 
-  it('EC3: entry with missing name is skipped, debug log emitted', () => {
+  it('EC3: entry with wrong types (id not number) is skipped, debug log emitted', () => {
     const log = makeLog();
     const client = connectClient(log);
     let received: { id: number; name: string }[] | null = null;
     client.on('inputList', (inputs) => { received = inputs; });
-    mockSocket.simulateData('ssp.input.list=1,,1,1,0;2,PS5,2,2,0\n');
+    sendInputList([
+      'ssp.input.list.[1, "reversed-order", 1, 1, 0]',
+      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
+    ]);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 2, name: 'PS5' });
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
   });
 
-  it('EC5: ssp.input.list does NOT emit input event', () => {
+  it('EC5: input list sequence does NOT emit input event', () => {
     const client = connectClient();
     let inputEmitted = false;
     client.on('input', () => { inputEmitted = true; });
-    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0\n');
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(inputEmitted).toBe(false);
   });
 
@@ -636,8 +654,34 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const log = makeLog();
     const client = connectClient(log);
     client.on('inputList', () => {});
-    mockSocket.simulateData('ssp.input.list=1,TV,1,1,0;2,PS5,2,2,0\n');
+    sendInputList([
+      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
+    ]);
     expect(log.info).toHaveBeenCalledWith('[State] Received input list: 2 inputs');
+  });
+
+  it('inputList only emits on ssp.input.end — not on each list entry', () => {
+    const client = connectClient();
+    let emitCount = 0;
+    client.on('inputList', () => { emitCount++; });
+    mockSocket.simulateData('ssp.input.start\n');
+    mockSocket.simulateData('ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]\n');
+    mockSocket.simulateData('ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]\n');
+    expect(emitCount).toBe(0); // not emitted yet
+    mockSocket.simulateData('ssp.input.end\n');
+    expect(emitCount).toBe(1); // emitted exactly once on end
+  });
+
+  it('list entries without start marker are still accumulated (graceful)', () => {
+    const client = connectClient();
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    // Skip ssp.input.start — entries arrive directly
+    mockSocket.simulateData('ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]\n');
+    mockSocket.simulateData('ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]\n');
+    mockSocket.simulateData('ssp.input.end\n');
+    expect(received).toHaveLength(2);
   });
 
   it('MP11: getInput() returns 0 (default) before any input event', () => {

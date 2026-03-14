@@ -18,6 +18,26 @@
         "username": "CC:22:3D:E3:CE:31",
         "port": 51827
       }
+    },
+    {
+      "platform": "AppleTVEnhanced",
+      "name": "Apple TV",
+      "pythonExecutable": "/opt/homebrew/bin/python3.12",
+      "mediaTypes": ["music", "video", "tv"],
+      "deviceStates": ["playing", "idle"],
+      "_bridge": {
+        "username": "CC:22:3D:E3:CE:32",
+        "port": 51828
+      }
+    },
+    {
+      "platform": "config",
+      "name": "Homebridge Config UI",
+      "port": 8581,
+      "log": {
+        "method": "file",
+        "path": "./test/hbConfig/homebridge.log"
+      }
     }
   ]
 }

@@ -240,4 +240,61 @@ describe('StormAudioClient — ensureActive() (Task 2)', () => {
     await promise;
     expect(client.listenerCount('processorState')).toBe(before);
   });
+
+  it('concurrent calls share a single wake — only one ssp.power.on sent', async () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    // Fire 4 concurrent ensureActive() calls (simulates multiple HomeKit handlers)
+    const p1 = client.ensureActive();
+    const p2 = client.ensureActive();
+    const p3 = client.ensureActive();
+    const p4 = client.ensureActive();
+    // Only ONE power-on command should have been sent
+    const powerOnCount = mockSocket.written.filter((w: string) => w === 'ssp.power.on\n').length;
+    expect(powerOnCount).toBe(1);
+    // Only ONE "Waking processor" log
+    const wakeLogs = log.info.mock.calls.filter(
+      (c: unknown[]) => c[0] === '[State] Waking processor... waiting for active state',
+    );
+    expect(wakeLogs).toHaveLength(1);
+    // Only ONE processorState listener added
+    expect(client.listenerCount('processorState')).toBe(1);
+    // Resolve all — all 4 should get true
+    mockSocket.simulateData('ssp.procstate.2\n');
+    const results = await Promise.all([p1, p2, p3, p4]);
+    expect(results).toEqual([true, true, true, true]);
+    // Listener cleaned up
+    expect(client.listenerCount('processorState')).toBe(0);
+  });
+
+  it('wakePromise is cleared after resolution — next call creates a new wake', async () => {
+    const client = connectClient();
+    // First wake cycle
+    const p1 = client.ensureActive();
+    mockSocket.simulateData('ssp.procstate.2\n');
+    await p1;
+    // Put processor back to sleep
+    mockSocket.simulateData('ssp.procstate.0\n');
+    // Second wake cycle — should send a new ssp.power.on
+    const writtenBefore = mockSocket.written.length;
+    const p2 = client.ensureActive();
+    const newWrites = mockSocket.written.slice(writtenBefore);
+    expect(newWrites).toContain('ssp.power.on\n');
+    mockSocket.simulateData('ssp.procstate.2\n');
+    const result = await p2;
+    expect(result).toBe(true);
+  });
+
+  it('concurrent calls share timeout — all get false on timeout', async () => {
+    vi.useFakeTimers();
+    const client = connectClient();
+    const p1 = client.ensureActive(1000);
+    const p2 = client.ensureActive(1000);
+    const p3 = client.ensureActive(1000);
+    vi.advanceTimersByTime(1001);
+    const results = await Promise.all([p1, p2, p3]);
+    expect(results).toEqual([false, false, false]);
+    // Listener cleaned up
+    expect(client.listenerCount('processorState')).toBe(0);
+  });
 });

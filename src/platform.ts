@@ -136,13 +136,16 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
         });
         this.client.connect();
 
-        // Task 6: Create and publish external accessory
+        // Task 6: Create external accessory — defer publish until input list arrives
         const uuid = this.api.hap.uuid.generate('stormaudio-isp');
         const accessory = new this.api.platformAccessory(this.validatedConfig.name, uuid);
         accessory.category = this.api.hap.Categories.TELEVISION;
         new StormAudioAccessory(this, accessory, this.client);
-        this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
-        this.log.info('[HomeKit] Published StormAudio accessory: ' + this.validatedConfig.name);
+
+        this.client.once('inputList', () => {
+          this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
+          this.log.info('[HomeKit] Published StormAudio accessory: ' + this.validatedConfig!.name);
+        });
       }
     });
   }

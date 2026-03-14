@@ -22,6 +22,8 @@ export class StormAudioClient extends EventEmitter {
   private socket: net.Socket | null = null;
   private connected = false;
   private buffer = '';
+  private pendingInputList: InputInfo[] | null = null;
+  private wakePromise: Promise<boolean> | null = null;
   private readonly state: StormAudioState = {
     power: false,
     volume: -40,
@@ -133,6 +135,12 @@ export class StormAudioClient extends EventEmitter {
       return true;
     }
 
+    // If a wake is already in progress, piggyback on it — avoids duplicate
+    // power-on commands when multiple HomeKit handlers fire simultaneously
+    if (this.wakePromise) {
+      return this.wakePromise;
+    }
+
     if (this.state.processorState === ProcessorState.Sleep) {
       this.log.info('[State] Waking processor... waiting for active state');
       this.sendCommand('ssp.power.on\n');
@@ -140,7 +148,7 @@ export class StormAudioClient extends EventEmitter {
       this.log.info('[State] Processor initializing... waiting for active state');
     }
 
-    return new Promise<boolean>((resolve) => {
+    this.wakePromise = new Promise<boolean>((resolve) => {
       let resolved = false;
       // eslint-disable-next-line prefer-const
       let timer!: ReturnType<typeof setTimeout>;
@@ -151,6 +159,7 @@ export class StormAudioClient extends EventEmitter {
           resolved = true;
           clearTimeout(timer);
           this.removeListener('processorState', onStateChange);
+          this.wakePromise = null;
           this.log.info('[State] Processor active — ready for commands');
           resolve(true);
         }
@@ -160,12 +169,15 @@ export class StormAudioClient extends EventEmitter {
         if (resolved) return;
         resolved = true;
         this.removeListener('processorState', onStateChange);
+        this.wakePromise = null;
         this.log.warn('[State] Processor did not reach active state within timeout');
         resolve(false);
       }, timeout);
 
       this.on('processorState', onStateChange);
     });
+
+    return this.wakePromise;
   }
 
   private sendCommand(command: string): void {
@@ -232,12 +244,27 @@ export class StormAudioClient extends EventEmitter {
         }
         break;
       case 'input': {
-        if (value.startsWith('list')) {
-          // value = 'list=1,Apple TV,1,1,0;2,PS5,2,2,0' (after bracket stripping)
-          const listRaw = value.slice(5); // remove 'list=' prefix
-          const inputs = this.parseInputList(listRaw);
-          this.log.info(`[State] Received input list: ${inputs.length} inputs`);
-          this.emit('inputList', inputs);
+        if (value === 'start') {
+          this.pendingInputList = [];
+        } else if (value === 'end') {
+          if (this.pendingInputList) {
+            const inputs = this.pendingInputList;
+            this.pendingInputList = null;
+            this.log.info(`[State] Received input list: ${inputs.length} inputs`);
+            this.emit('inputList', inputs);
+          }
+        } else if (value.startsWith('list')) {
+          // Real wire format: ssp.input.list.["name", id, video, audio, ...]
+          // After bracket stripping, value = 'list.["name", id, ..., 0' (trailing ] stripped)
+          // Restore trailing ] and parse as JSON array
+          const raw = value.slice(5) + ']'; // remove 'list.' prefix, restore ']'
+          const entry = this.parseInputListEntry(raw);
+          if (entry) {
+            if (!this.pendingInputList) {
+              this.pendingInputList = [];
+            }
+            this.pendingInputList.push(entry);
+          }
         } else {
           const inputId = parseInt(value, 10);
           if (!isNaN(inputId)) {
@@ -271,21 +298,18 @@ export class StormAudioClient extends EventEmitter {
     }
   }
 
-  private parseInputList(raw: string): InputInfo[] {
-    if (!raw) return [];
-    return raw.split(';')
-      .filter(entry => entry.trim())
-      .map(entry => {
-        const parts = entry.split(',');
-        const id = parseInt(parts[0], 10);
-        const name = parts[1] ?? '';
-        if (isNaN(id) || !name) {
-          this.log.debug('[State] Skipped malformed input list entry: ' + entry);
-          return null;
-        }
-        return { id, name } as InputInfo;
-      })
-      .filter((info): info is InputInfo => info !== null);
+  private parseInputListEntry(raw: string): InputInfo | null {
+    // raw should be a JSON array: '["name", id, video_src, audio_src, ...]'
+    try {
+      const arr = JSON.parse(raw) as unknown[];
+      if (Array.isArray(arr) && typeof arr[0] === 'string' && typeof arr[1] === 'number') {
+        return { id: arr[1], name: arr[0] };
+      }
+    } catch {
+      // Not valid JSON — fall through to malformed log
+    }
+    this.log.debug('[State] Skipped malformed input list entry: ' + raw);
+    return null;
   }
 }
 
