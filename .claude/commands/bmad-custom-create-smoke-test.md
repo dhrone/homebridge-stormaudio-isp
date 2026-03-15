@@ -1,6 +1,6 @@
 ---
 name: 'custom-create-smoke-test'
-description: 'Create a structured smoke test document for an epic. Produces step-by-step test scenarios for real-hardware verification of epic value delivery. Use when the user says "create smoke test" or "generate smoke test for epic [N]"'
+description: 'Create or formalize a structured smoke test document for an epic. Produces step-by-step test scenarios for real-hardware verification of epic value delivery, and formalizes tester annotations into Issues table and Results Summary after testing. Use when the user says "create smoke test", "generate smoke test for epic [N]", or "formalize smoke test results"'
 ---
 
 IT IS CRITICAL THAT YOU FOLLOW THESE STEPS - while staying in character as the current agent persona you may have loaded:

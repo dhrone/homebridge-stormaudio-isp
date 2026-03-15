@@ -49,15 +49,19 @@
     <!-- Set output path -->
     <action>Set {{output_file}} = {implementation_artifacts}/epic-{{epic_num}}-smoke-test.md</action>
 
-    <!-- Overwrite protection -->
+    <!-- Existing document handling -->
     <check if="{{output_file}} already exists">
       <ask>**A smoke test document already exists at {{output_file}}.**
 
-        1. **Overwrite** — replace with a new smoke test
-        2. **Cancel** — keep the existing document
+        1. **Formalize Results** — extract tester annotations into Issues table and Results Summary
+        2. **Overwrite** — replace with a new smoke test
+        3. **Cancel** — keep the existing document
 
-        Choose [1] or [2]:</ask>
-      <check if="user chooses 2">
+        Choose [1], [2], or [3]:</ask>
+      <check if="user chooses 1">
+        <action>GOTO step 4</action>
+      </check>
+      <check if="user chooses 3">
         <action>HALT</action>
       </check>
     </check>
@@ -301,6 +305,114 @@
 
       The document is ready for you to execute on your hardware, {user_name}.
       Fill in the pass criteria checkboxes and Results Summary as you test.
+
+      When testing is complete, run this workflow again and choose **Formalize Results** to extract
+      tester notes into the Issues table and fill in the Results Summary.
+    </output>
+  </step>
+
+  <step n="4" goal="Formalize smoke test results from tester annotations">
+    <critical>This step processes a COMPLETED smoke test — the tester has already executed the scenarios and annotated the document.</critical>
+    <critical>Read the existing document carefully. Extract ALL tester annotations, not just the obvious ones.</critical>
+    <critical>Severity levels: Critical (blocks release), High (significant gap), Medium (notable but workable), Low (cosmetic or deferrable).</critical>
+    <critical>Status values: Open (needs fix), Accepted (known limitation, no action), Deferred (future work), Resolved (fixed).</critical>
+
+    <!-- Load and analyze the existing smoke test document -->
+    <action>Load {{output_file}} completely</action>
+
+    <output>**Analyzing smoke test results for Epic {{epic_num}}...**</output>
+
+    <!-- Scan for tester annotations -->
+    <action>Scan the entire document for tester annotations:
+      1. **Pass criteria markers:** Look for [Passed], [Failed], [NA], [Pass], [Fail], [ ] (untested) on each criterion
+      2. **Tester Note blocks:** Lines starting with "**Tester Note:**" or "**Tester Notes:**"
+      3. **Inline annotations:** Any text the tester added that wasn't in the original template
+      4. **Partially tested scenarios:** Mix of passed/failed/untested criteria within a single ST
+      5. **Completely untested scenarios:** All criteria still showing [ ]
+    </action>
+
+    <!-- Extract issues -->
+    <action>For EACH finding, determine:
+      1. **Issue description:** What happened or what was observed
+      2. **Severity:** Based on impact to the epic's value delivery
+         - Critical: Blocks the epic's core value proposition
+         - High: Significant functional gap, but workarounds exist
+         - Medium: Notable behavior issue, but doesn't block usage
+         - Low: Cosmetic, deferrable, or edge case only
+      3. **Status:**
+         - Open: Needs investigation or fix (likely a code bug or design gap)
+         - Accepted: Known platform limitation or expected behavior (not fixable by the plugin)
+         - Deferred: Valid issue but not blocking; can be addressed in a future epic
+         - Resolved: Already fixed (include resolution description)
+      4. **Resolution/Notes:** Root cause analysis, workaround, or rationale for status
+      5. **Source:** Which ST and criterion the issue came from
+    </action>
+
+    <!-- Determine results per scenario -->
+    <action>For EACH test scenario (ST-N), determine overall status:
+      - **PASS:** All criteria marked Passed/Pass
+      - **PARTIAL:** Mix of Passed and Failed criteria, or minor issues noted
+      - **FAIL:** Core criteria failed — the tested behavior does not work
+      - **NOT TESTED:** All criteria still [ ] (untested) with no tester notes
+      - **NA:** All criteria marked NA — scenario could not be executed (note reason)
+    </action>
+
+    <!-- Present findings for review -->
+    <output>**Smoke Test Formalization — Epic {{epic_num}}**
+
+      **Issues extracted:**
+
+      | # | Source | Issue | Severity | Status |
+      |---|--------|-------|----------|--------|
+      {{for each issue: | N | ST-X | description | severity | status |}}
+
+      **Results Summary:**
+
+      | Test | Status | Notes |
+      |------|--------|-------|
+      {{for each scenario: | ST-N: title | PASS/PARTIAL/FAIL/NA/NOT TESTED | brief notes |}}
+
+      **Observations for future stories:**
+      {{list of forward-looking observations from tester notes that aren't bugs}}
+    </output>
+
+    <ask>Review the findings above. Any adjustments to severity, status, or observations before I update the document?</ask>
+
+    <check if="user requests changes">
+      <action>Apply requested changes</action>
+      <action>Re-display updated findings</action>
+      <ask>Updated findings ready. Confirm to write?</ask>
+    </check>
+
+    <!-- Update the document -->
+    <action>Update {{output_file}}:
+      1. Replace the Issues table placeholder with the extracted issues (keep column format: #, Issue, Severity, Status, Resolution)
+      2. Replace the Observations placeholder with forward-looking observations
+      3. Replace the Results Summary table with scenario statuses and notes
+      4. Fill in test metadata if determinable from context:
+         - Tested by, Date, Processor model/firmware, Node.js version, Homebridge version
+         - Use values from prior smoke tests ({smoke_test_reference}) if the tester and hardware are the same
+         - If date is not stated, use the epic completion date from {sprint_status}
+      5. Preserve all existing tester annotations inline — do NOT remove Tester Note blocks or criteria markers
+    </action>
+
+    <action>Write the updated document to {{output_file}}</action>
+
+    <!-- Flag actionable items -->
+    <check if="any issues have status Open">
+      <output>**Action Required:** {{open_issue_count}} open issue(s) need investigation before Epic {{epic_num}} can be considered fully validated:
+
+        {{for each open issue: - **Issue #N:** description (severity) }}
+
+        These should be triaged during sprint planning and tracked as action items in sprint-status.yaml.
+      </output>
+    </check>
+
+    <output>**Smoke test formalization complete!**
+
+      **File:** {{output_file}}
+      **Issues:** {{total_issues}} extracted ({{open_count}} open, {{accepted_count}} accepted, {{deferred_count}} deferred, {{resolved_count}} resolved)
+      **Scenarios:** {{pass_count}} pass, {{partial_count}} partial, {{fail_count}} fail, {{na_count}} NA, {{untested_count}} not tested
     </output>
   </step>
 
