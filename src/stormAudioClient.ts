@@ -30,6 +30,16 @@ type SocketFactory = (host: string, port: number) => net.Socket;
 const defaultSocketFactory: SocketFactory = (host, port) =>
   net.createConnection({ host, port });
 
+// Log prefix convention and level policy:
+//   [TCP]     Connection lifecycle     → info (connect/reconnect success, graceful close)
+//                                        warn (connection lost, reconnect attempt failed, keepalive timeout)
+//                                        error (max retries exhausted, initial connect failure)
+//                                        debug (keepalive sent)
+//   [Command] Message traffic          → debug (Sent, Received, Cannot send, Unrecognized, Informational)
+//                                        warn (Command rejected)
+//   [State]   Processor state changes  → info (sleep, initializing, active, waking, input list)
+//                                        warn (wake timeout)
+
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class StormAudioClient extends EventEmitter {
   private socket: net.Socket | null = null;
@@ -437,7 +447,7 @@ export class StormAudioClient extends EventEmitter {
 
   private sendCommand(command: string): void {
     if (!this.socket || !this.connected) {
-      this.log.warn(`[Command] Cannot send ${command.trim()}: not connected`);
+      this.log.debug(`[Command] Cannot send ${command.trim()}: not connected`);
       return;
     }
     this.log.debug(`[Command] Sent: ${command.trim()}`);
@@ -506,6 +516,8 @@ export class StormAudioClient extends EventEmitter {
   };
 
   private parseMessage(message: string): void {
+    this.log.debug('[Command] Received: ' + message);
+
     if (message === 'error') {
       this.log.warn('[Command] Command rejected by processor (invalid command or out of range)');
       return;

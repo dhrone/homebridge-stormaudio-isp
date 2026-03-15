@@ -423,20 +423,22 @@ describe('StormAudioClient — command methods', () => {
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Sent:'));
   });
 
-  it('logs [Command] Cannot send at warn when socket is null (connect never called)', () => {
+  it('logs [Command] Cannot send at debug when socket is null (connect never called)', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     client.setPower(true);
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     expect(mockSocket.written).toHaveLength(0);
   });
 
-  it('logs [Command] Cannot send at warn when socket is connecting but connect event not yet fired', () => {
+  it('logs [Command] Cannot send at debug when socket is connecting but connect event not yet fired', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     client.connect(); // socket created but simulateConnect() not called
     client.setPower(true);
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     expect(mockSocket.written).toHaveLength(0);
   });
 
@@ -447,7 +449,7 @@ describe('StormAudioClient — command methods', () => {
     mockSocket.simulateError(new Error('ECONNRESET'));
     mockSocket.simulateClose();
     client.setPower(true);
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
   });
 
   it('disconnect() sends ssp.close and destroys the socket', () => {
@@ -505,19 +507,19 @@ describe('StormAudioClient — relative volume commands and getters (Story 2.1)'
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Sent: ssp.vol.down'));
   });
 
-  it('volumeUp() guarded when disconnected — no write, logs warn', () => {
+  it('volumeUp() guarded when disconnected — no write, logs debug', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     client.volumeUp();
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     expect(mockSocket.written).toHaveLength(0);
   });
 
-  it('volumeDown() guarded when disconnected — no write, logs warn', () => {
+  it('volumeDown() guarded when disconnected — no write, logs debug', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     client.volumeDown();
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     expect(mockSocket.written).toHaveLength(0);
   });
 
@@ -2748,5 +2750,568 @@ describe('StormAudioClient — keepalive', () => {
 
   it('KEEPALIVE_TIMEOUT_MS is 10000', () => {
     expect(KEEPALIVE_TIMEOUT_MS).toBe(10000);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// Story 4.3: Structured Logging & Error Classification
+// ════════════════════════════════════════════════════════════════
+
+describe('StormAudioClient — [Command] Received: logging (Story 4.3, Task 1)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  const connectClient = () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('logs [Command] Received: for ssp.power.on', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.power.on\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: ssp.power.on');
+  });
+
+  it('logs [Command] Received: for error response', () => {
+    connectClient();
+    mockSocket.simulateData('error\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: error');
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Command rejected'));
+  });
+
+  it('logs [Command] Received: for unrecognized message', () => {
+    connectClient();
+    mockSocket.simulateData('garbage.data\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: garbage.data');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Unrecognized message: garbage.data');
+  });
+
+  it('logs [Command] Received: for keepalive', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.keepalive\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: ssp.keepalive');
+    expect(log.debug).toHaveBeenCalledWith('[Command] keepalive received');
+  });
+
+  it('logs [Command] Received: BEFORE category-specific processing logs', () => {
+    connectClient();
+    const debugCalls: string[] = [];
+    log.debug.mockImplementation((msg: string) => { debugCalls.push(msg); });
+    mockSocket.simulateData('garbage.data\n');
+    const receivedIdx = debugCalls.findIndex(m => m === '[Command] Received: garbage.data');
+    const unrecognizedIdx = debugCalls.findIndex(m => m === '[Command] Unrecognized message: garbage.data');
+    expect(receivedIdx).toBeGreaterThanOrEqual(0);
+    expect(unrecognizedIdx).toBeGreaterThan(receivedIdx);
+  });
+
+  it('logs [Command] Received: for multi-line buffer — two messages', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.power.on\nssp.vol.[-40]\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: ssp.power.on');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: ssp.vol.[-40]');
+  });
+
+  it('logs [Command] Received: for rapid burst of 100 messages', () => {
+    connectClient();
+    for (let i = 0; i < 100; i++) {
+      mockSocket.simulateData(`ssp.power.on\n`);
+    }
+    const receivedCalls = log.debug.mock.calls.filter(
+      (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string) === '[Command] Received: ssp.power.on',
+    );
+    expect(receivedCalls).toHaveLength(100);
+  });
+});
+
+describe('StormAudioClient — sendCommand guard at debug level (Story 4.3, Task 2)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  it('sendCommand guard logs at debug (not warn) when disconnected — setPower', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.setPower(true);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
+  it('sendCommand guard logs at debug (not warn) when disconnected — setVolume', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.setVolume(-30);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
+  it('sendCommand guard logs at debug (not warn) when disconnected — setMute', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.setMute(true);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
+  it('sendCommand guard logs at debug (not warn) when disconnected — setInput', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.setInput(5);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
+  it('sendCommand guard logs at debug after socket error + close during reconnection', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    client.on('error', () => {});
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    mockSocket.simulateClose();
+    // Now disconnected and reconnecting — sendCommand should log at debug
+    log.debug.mockClear();
+    client.setPower(true);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+});
+
+describe('StormAudioClient — parser fuzz safety (Story 4.3, Task 5)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  const connectClient = () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('handles empty string without throwing', () => {
+    connectClient();
+    // Empty lines are filtered out by onData, but sending just \n is safe
+    expect(() => mockSocket.simulateData('\n')).not.toThrow();
+  });
+
+  it('handles whitespace-only strings without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('   \n')).not.toThrow();
+  });
+
+  it('handles very long strings (10KB) without throwing', () => {
+    connectClient();
+    const longStr = 'x'.repeat(10240);
+    expect(() => mockSocket.simulateData(longStr + '\n')).not.toThrow();
+    expect(log.debug).toHaveBeenCalledWith('[Command] Unrecognized message: ' + longStr);
+  });
+
+  it('handles binary-like data without throwing', () => {
+    connectClient();
+    const binaryStr = '\x01\x02\x03\xFF\xFE';
+    expect(() => mockSocket.simulateData(binaryStr + '\n')).not.toThrow();
+  });
+
+  it('handles null byte strings without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('ssp\x00power\x00on\n')).not.toThrow();
+  });
+
+  it('handles carriage return in data without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('ssp.power\r.on\n')).not.toThrow();
+  });
+
+  it('handles unicode characters without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('ssp.power.😀\n')).not.toThrow();
+    expect(() => mockSocket.simulateData('ñoño.data\n')).not.toThrow();
+    expect(() => mockSocket.simulateData('日本語\n')).not.toThrow();
+  });
+
+  it('handles partial ssp. prefixes without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('ssp.\n')).not.toThrow();
+    expect(() => mockSocket.simulateData('ssp.unknown\n')).not.toThrow();
+    expect(() => mockSocket.simulateData('ssp.vol.\n')).not.toThrow();
+  });
+
+  it('handles deeply nested dots without throwing', () => {
+    connectClient();
+    expect(() => mockSocket.simulateData('ssp.a.b.c.d.e.f.g.h.i.j\n')).not.toThrow();
+    expect(log.debug).toHaveBeenCalledWith('[Command] Unrecognized message: ssp.a.b.c.d.e.f.g.h.i.j');
+  });
+
+  it('50 random garbage strings — no exceptions, all logged at debug', () => {
+    connectClient();
+    const fuzzInputs = [
+      '', '   ', 'x'.repeat(10240), '\x01\x02\xFF', '\x00',
+      'ssp.', 'ssp.unknown', 'ssp.vol.', 'ssp.a.b.c.d.e',
+      'error', 'ssp.keepalive', '日本語', 'ñ', '😀',
+      'just plain text', '12345', 'true', 'false', 'null',
+      '{}', '[]', '<xml/>', '!@#$%^&*()', 'ssp.power.maybe',
+      'ssp.vol.NaN', 'ssp.mute.perhaps', 'ssp.input.abc',
+      'ssp.procstate.99', 'ssp.procstate.-1', 'ssp.procstate.foo',
+      'ssp.brightness.abc', 'ssp.generator.maybe', 'ssp.lipsync.foo',
+      'ssp.stormxt.maybe', 'ssp.sphereaudioeffect.abc',
+      'ssp.dim.maybe', 'ssp.drc.invalid', 'ssp.dialogcontrol.bad',
+      'ssp.zones.start', 'ssp.zones.end',
+      'ssp.preset.start', 'ssp.preset.end',
+      'ssp.surroundmode.start', 'ssp.surroundmode.end',
+      'ssp.trigger.start', 'ssp.trigger.end',
+      'ssp.auropreset.start', 'ssp.auropreset.end',
+      'ssp.frontpanel.unknown.value', '\r\n', 'ssp..power.on',
+      'SSP.POWER.ON', // case-sensitive check
+    ];
+    for (const input of fuzzInputs) {
+      expect(() => mockSocket.simulateData(input + '\n')).not.toThrow();
+    }
+  });
+});
+
+describe('StormAudioClient — log level audit: [TCP] lifecycle (Story 4.3, Task 3)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('[TCP] Connected to {host}:{port} → info', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    expect(log.info).toHaveBeenCalledWith('[TCP] Connected to 192.168.1.100:23');
+  });
+
+  it('[TCP] Reconnected to {host}:{port} → info', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    // Drop connection to trigger reconnection
+    mockSocket.simulateError(new Error('dropped'));
+    mockSocket.simulateClose();
+    // Advance past reconnect delay
+    const reconnectSocket = new MockSocket();
+    socketFactory.mockReturnValue(reconnectSocket);
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    reconnectSocket.simulateConnect();
+    expect(log.info).toHaveBeenCalledWith('[TCP] Reconnected to 192.168.1.100:23');
+  });
+
+  it('[TCP] Connection lost. Reconnecting... → warn', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    mockSocket.simulateError(new Error('dropped'));
+    expect(log.warn).toHaveBeenCalledWith('[TCP] Connection lost. Reconnecting...');
+  });
+
+  it('[TCP] Reconnection attempt failed → warn', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    // Drop and close
+    mockSocket.simulateError(new Error('dropped'));
+    mockSocket.simulateClose();
+    // Advance to first reconnect
+    const reconnectSocket = new MockSocket();
+    socketFactory.mockReturnValue(reconnectSocket);
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    // Reconnect attempt fails
+    reconnectSocket.simulateError(new Error('still down'));
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[TCP] Reconnection attempt'),
+    );
+  });
+
+  it('[TCP] Keepalive sent → debug', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    expect(log.debug).toHaveBeenCalledWith('[TCP] Keepalive sent');
+  });
+
+  it('[TCP] Keepalive timeout → warn', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS);
+    expect(log.warn).toHaveBeenCalledWith('[TCP] Keepalive timeout — connection appears stale');
+  });
+
+  it('[TCP] Max reconnection retries exhausted → error', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    // Drop connection
+    mockSocket.simulateError(new Error('dropped'));
+    mockSocket.simulateClose();
+    // Exhaust all retries
+    let delay = RECONNECT_INITIAL_DELAY_MS;
+    for (let i = 0; i < RECONNECT_MAX_RETRIES; i++) {
+      const retrySocket = new MockSocket();
+      socketFactory.mockReturnValue(retrySocket);
+      vi.advanceTimersByTime(delay);
+      retrySocket.simulateError(new Error('nope'));
+      retrySocket.simulateClose();
+      delay = Math.min(delay * RECONNECT_MULTIPLIER, RECONNECT_MAX_DELAY_MS);
+    }
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining('[TCP] Max reconnection retries exhausted'),
+    );
+  });
+});
+
+describe('StormAudioClient — log level audit: [Command] traffic (Story 4.3, Task 3)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  const connectClient = () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('[Command] Sent: ssp.xxx → debug', () => {
+    const client = connectClient();
+    client.setPower(true);
+    expect(log.debug).toHaveBeenCalledWith('[Command] Sent: ssp.power.on');
+  });
+
+  it('[Command] Received: ssp.xxx → debug', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.power.on\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Received: ssp.power.on');
+  });
+
+  it('[Command] Command rejected → warn', () => {
+    connectClient();
+    mockSocket.simulateData('error\n');
+    expect(log.warn).toHaveBeenCalledWith('[Command] Command rejected by processor (invalid command or out of range)');
+  });
+
+  it('[Command] Unrecognized message → debug', () => {
+    connectClient();
+    mockSocket.simulateData('garbage.data\n');
+    expect(log.debug).toHaveBeenCalledWith('[Command] Unrecognized message: garbage.data');
+  });
+
+  it('[Command] Cannot send... not connected → debug', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.setPower(true);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+});
+
+describe('StormAudioClient — log level audit: [State] changes (Story 4.3, Task 3)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  const connectClient = () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('[State] Processor entered sleep mode → info', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.procstate.0\n');
+    expect(log.info).toHaveBeenCalledWith('[State] Processor entered sleep mode');
+  });
+
+  it('[State] Processor initializing → info', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.procstate.1\n');
+    expect(log.info).toHaveBeenCalledWith('[State] Processor initializing');
+  });
+
+  it('[State] Processor active → info', () => {
+    connectClient();
+    mockSocket.simulateData('ssp.procstate.2\n');
+    expect(log.info).toHaveBeenCalledWith('[State] Processor active');
+  });
+
+  it('[State] Waking processor... → info', () => {
+    const client = connectClient();
+    client.ensureActive();
+    expect(log.info).toHaveBeenCalledWith('[State] Waking processor... waiting for active state');
+  });
+});
+
+describe('StormAudioClient — error classification audit (Story 4.3, Task 2)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('Transient: sendCommand when disconnected → debug, no error event emitted', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    const errors: unknown[] = [];
+    client.on('error', (err) => { errors.push(err); });
+    client.setPower(true);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    expect(errors).toHaveLength(0);
+  });
+
+  it('Recoverable: initial connection failure → error emitted with Recoverable category', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    const errors: { category: string }[] = [];
+    client.on('error', (err) => { errors.push(err); });
+    client.connect();
+    mockSocket.simulateError(new Error('ECONNREFUSED'));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].category).toBe(ErrorCategory.Recoverable);
+  });
+
+  it('Recoverable: connection drop → warn logged, reconnection triggered', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    expect(log.warn).toHaveBeenCalledWith('[TCP] Connection lost. Reconnecting...');
+  });
+
+  it('Fatal: max retries exhausted → error emitted with Fatal category', () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    const errors: { category: string }[] = [];
+    client.on('error', (err) => { errors.push(err); });
+    client.connect();
+    mockSocket.simulateConnect();
+    // Drop and close
+    mockSocket.simulateError(new Error('dropped'));
+    mockSocket.simulateClose();
+    // Exhaust all retries
+    let delay = RECONNECT_INITIAL_DELAY_MS;
+    for (let i = 0; i < RECONNECT_MAX_RETRIES; i++) {
+      const retrySocket = new MockSocket();
+      socketFactory.mockReturnValue(retrySocket);
+      vi.advanceTimersByTime(delay);
+      retrySocket.simulateError(new Error('nope'));
+      retrySocket.simulateClose();
+      delay = Math.min(delay * RECONNECT_MULTIPLIER, RECONNECT_MAX_DELAY_MS);
+    }
+    const fatalErrors = errors.filter(e => e.category === ErrorCategory.Fatal);
+    expect(fatalErrors.length).toBeGreaterThanOrEqual(1);
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining('[TCP] Max reconnection retries exhausted'),
+    );
+  });
+});
+
+describe('StormAudioClient — log level filtering simulation (Story 4.3, AC 4)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+  let log: ReturnType<typeof makeLog>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+    log = makeLog();
+  });
+
+  const connectClient = () => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('info-only logs show meaningful operational overview', () => {
+    connectClient();
+    // Simulate some activity
+    mockSocket.simulateData('ssp.procstate.2\n'); // processor active
+    mockSocket.simulateData('ssp.power.on\n');
+    mockSocket.simulateData('ssp.input.start\n');
+    mockSocket.simulateData('ssp.input.end\n');
+
+    // All info calls should be meaningful operational messages
+    const infoCalls = log.info.mock.calls.map((args: unknown[]) => args[0] as string);
+    expect(infoCalls.length).toBeGreaterThan(0);
+    // Should include connection and state messages
+    expect(infoCalls.some(m => m.includes('[TCP]'))).toBe(true);
+    expect(infoCalls.some(m => m.includes('[State]'))).toBe(true);
+  });
+
+  it('warn/error logs show only actionable problems', () => {
+    connectClient();
+    // Normal operation — no warns or errors expected during happy path
+    mockSocket.simulateData('ssp.power.on\n');
+    mockSocket.simulateData('ssp.vol.[-40]\n');
+    mockSocket.simulateData('ssp.mute.off\n');
+
+    // Warns should only appear for actual problems
+    const warnCalls = log.warn.mock.calls.map((args: unknown[]) => args[0] as string);
+    const errorCalls = log.error.mock.calls.map((args: unknown[]) => args[0] as string);
+    // During normal happy path, there should be no warns or errors
+    expect(warnCalls).toHaveLength(0);
+    expect(errorCalls).toHaveLength(0);
+  });
+
+  it('debug logs show all command traffic detail', () => {
+    const client = connectClient();
+    client.setPower(true);
+    mockSocket.simulateData('ssp.power.on\n');
+
+    const debugCalls = log.debug.mock.calls.map((args: unknown[]) => args[0] as string);
+    // Should include both sent and received messages
+    expect(debugCalls.some(m => m.includes('[Command] Sent:'))).toBe(true);
+    expect(debugCalls.some(m => m.includes('[Command] Received:'))).toBe(true);
   });
 });

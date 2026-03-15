@@ -198,13 +198,13 @@ describe('StormAudioClient — ensureActive() (Task 2)', () => {
     expect(log.warn).toHaveBeenCalledWith('[State] Processor did not reach active state within timeout');
   });
 
-  it('disconnected: sendCommand logs warn; ensureActive returns false on timeout (no throw)', async () => {
+  it('disconnected: sendCommand logs debug; ensureActive returns false on timeout (no throw)', async () => {
     vi.useFakeTimers();
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory); // NOT connected
     const promise = client.ensureActive(1000);
-    // sendCommand should have logged warn (socket is null)
-    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+    // sendCommand should have logged debug (socket is null) — Story 4.3 changed from warn to debug
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     vi.advanceTimersByTime(1001);
     await expect(promise).resolves.toBe(false);
   });
