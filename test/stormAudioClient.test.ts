@@ -2958,7 +2958,7 @@ describe('StormAudioClient — parser fuzz safety (Story 4.3, Task 5)', () => {
     expect(log.debug).toHaveBeenCalledWith('[Command] Unrecognized message: ssp.a.b.c.d.e.f.g.h.i.j');
   });
 
-  it('50 random garbage strings — no exceptions, all logged at debug', () => {
+  it('52 random garbage strings — no exceptions, all logged at debug', () => {
     connectClient();
     const fuzzInputs = [
       '', '   ', 'x'.repeat(10240), '\x01\x02\xFF', '\x00',
@@ -3090,6 +3090,11 @@ describe('StormAudioClient — log level audit: [TCP] lifecycle (Story 4.3, Task
       expect.stringContaining('[TCP] Max reconnection retries exhausted'),
     );
   });
+
+  // Note: [TCP] Connection closed gracefully → info is the 8th sibling in the QA spec Sibling Coverage.
+  // It is logged by platform.ts (shutdown handler), not stormAudioClient.ts.
+  // Covered by: platform.test.ts — 'logs graceful close message on shutdown'
+  // expect(log.info).toHaveBeenCalledWith('[TCP] Connection closed gracefully');
 });
 
 describe('StormAudioClient — log level audit: [Command] traffic (Story 4.3, Task 3)', () => {
@@ -3178,9 +3183,24 @@ describe('StormAudioClient — log level audit: [State] changes (Story 4.3, Task
   });
 
   it('[State] Waking processor... → info', () => {
+    vi.useFakeTimers();
     const client = connectClient();
-    client.ensureActive();
+    client.ensureActive(); // not awaited — checking immediate log only
     expect(log.info).toHaveBeenCalledWith('[State] Waking processor... waiting for active state');
+    client.disconnect(); // cancel pending ensureActive promise and clear timer
+    vi.useRealTimers();
+  });
+
+  it('[State] wake timeout → warn', async () => {
+    // Use a disconnected client (no simulateConnect) so keepalive never starts,
+    // then use a short custom timeout to avoid advancing 90s of fake time.
+    vi.useFakeTimers();
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    const promise = client.ensureActive(1000); // custom 1s timeout
+    vi.advanceTimersByTime(1001);
+    await promise;
+    expect(log.warn).toHaveBeenCalledWith('[State] Processor did not reach active state within timeout');
+    vi.useRealTimers();
   });
 });
 

@@ -39,6 +39,7 @@ const defaultSocketFactory: SocketFactory = (host, port) =>
 //                                        warn (Command rejected)
 //   [State]   Processor state changes  → info (sleep, initializing, active, waking, input list)
 //                                        warn (wake timeout)
+//                                        debug (malformed list entry skipped)
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class StormAudioClient extends EventEmitter {
