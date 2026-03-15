@@ -11,6 +11,7 @@ vi.mock('../src/stormAudioClient', () => {
       const emitter = new EventEmitter();
       return {
         on: emitter.on.bind(emitter),
+        once: emitter.once.bind(emitter),
         emit: emitter.emit.bind(emitter),
         connect: vi.fn(),
         disconnect: vi.fn(),
@@ -97,9 +98,12 @@ describe('StormAudioPlatform — didFinishLaunching (Task 6)', () => {
     log = createMockLog();
   });
 
-  it('creates accessory and calls publishExternalAccessories', () => {
+  it('creates accessory and calls publishExternalAccessories', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
     new StormAudioPlatform(log as never, validConfig as never, api as never);
     api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('inputList', []);
 
     expect(api.platformAccessory).toHaveBeenCalledWith('StormAudio', 'mock-uuid');
     expect(api.publishExternalAccessories).toHaveBeenCalledWith(
@@ -157,17 +161,23 @@ describe('StormAudioPlatform — didFinishLaunching (Task 6)', () => {
     );
   });
 
-  it('logs info when accessory is published', () => {
+  it('logs info when accessory is published', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
     new StormAudioPlatform(log as never, validConfig as never, api as never);
     api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('inputList', []);
 
     expect(log.info).toHaveBeenCalledWith('[HomeKit] Published StormAudio accessory: StormAudio');
   });
 
-  it('uses custom name for accessory', () => {
+  it('uses custom name for accessory', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
     const customConfig = { ...validConfig, name: 'Theater' };
     new StormAudioPlatform(log as never, customConfig as never, api as never);
     api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('inputList', []);
 
     expect(api.platformAccessory).toHaveBeenCalledWith('Theater', 'mock-uuid');
     expect(log.info).toHaveBeenCalledWith('[HomeKit] Published StormAudio accessory: Theater');

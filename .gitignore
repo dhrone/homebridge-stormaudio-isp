@@ -49,3 +49,7 @@ coverage
 /test/hbConfig/auth.json
 /test/hbConfig/accessories/
 /test/hbConfig/persist/
+
+# Apple TV enhanced test config (credentials and Python venv)
+/test/hbConfig/appletv-enhanced/.venv/
+/test/hbConfig/appletv-enhanced/*/credentials.txt

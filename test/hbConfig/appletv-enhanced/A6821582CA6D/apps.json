@@ -1,0 +1,194 @@
+{
+    "com.wbd.stream": {
+        "configuredName": "HBO Max",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 3182089187
+    },
+    "us.zoom.ZoomPresence": {
+        "configuredName": "Zoom",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 497620257
+    },
+    "com.apple.Fitness": {
+        "configuredName": "Fitness",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 165566846
+    },
+    "com.apple.podcasts": {
+        "configuredName": "Podcasts",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 1155383753
+    },
+    "com.apple.TVMovies": {
+        "configuredName": "Movies",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 3171583122
+    },
+    "com.amazon.aiv.AIVApp": {
+        "configuredName": "Prime Video",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 1405852026
+    },
+    "com.apple.TVWatchList": {
+        "configuredName": "Apple TV",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 1165595439
+    },
+    "com.apple.TVPhotos": {
+        "configuredName": "Photos",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 3347068108
+    },
+    "com.aspiro.TIDAL": {
+        "configuredName": "TIDAL",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 3153334071
+    },
+    "com.apple.TVAppStore": {
+        "configuredName": "AppStore",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 1938323747
+    },
+    "com.apple.TVShows": {
+        "configuredName": "TV Shows",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 603468196
+    },
+    "com.crunchyroll.iphone": {
+        "configuredName": "Crunchyroll",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 513291389
+    },
+    "com.nbcuni.nbc.portal": {
+        "configuredName": "NBC",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 2421828763
+    },
+    "com.apple.TVSearch": {
+        "configuredName": "Search",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 1325395214
+    },
+    "com.apple.Arcade": {
+        "configuredName": "Arcade",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 2675918005
+    },
+    "com.spotify.client": {
+        "configuredName": "Spotify",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 236585001
+    },
+    "com.hbo.hbonow": {
+        "configuredName": "HBO Max",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 277979109
+    },
+    "com.apple.TVHomeSharing": {
+        "configuredName": "Computers",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 1149221640
+    },
+    "com.apple.facetime": {
+        "configuredName": "FaceTime",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 1999355136
+    },
+    "com.masterclass.production": {
+        "configuredName": "MasterClass",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 542392810
+    },
+    "com.google.ios.youtube": {
+        "configuredName": "YouTube",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 3498025792
+    },
+    "org.pbs.playeripad": {
+        "configuredName": "PBS",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 692701524
+    },
+    "com.peacocktv.peacock": {
+        "configuredName": "Peacock",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 3764591475
+    },
+    "com.hulu.plus": {
+        "configuredName": "Hulu",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 943445252
+    },
+    "com.abcdigital.abc.videoplayer": {
+        "configuredName": "ABC",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 3944456009
+    },
+    "com.disney.disneyplus": {
+        "configuredName": "Disney",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 24698133
+    },
+    "com.apple.TVSettings": {
+        "configuredName": "Settings",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 2130633348
+    },
+    "com.netflix.Netflix": {
+        "configuredName": "Netflix",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 2522907556
+    },
+    "com.uie.foxsports": {
+        "configuredName": "FOX Sports Watch Live",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 2232550508
+    },
+    "com.apple.Sing": {
+        "configuredName": "Sing",
+        "isConfigured": 1,
+        "visibilityState": 1,
+        "identifier": 788873847
+    },
+    "com.apple.TVMusic": {
+        "configuredName": "Apple Music",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 2318275026
+    },
+    "com.cbsvideo.app": {
+        "configuredName": "Paramount",
+        "isConfigured": 1,
+        "visibilityState": 0,
+        "identifier": 2008291801
+    }
+}

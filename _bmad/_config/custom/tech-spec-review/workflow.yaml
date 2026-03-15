@@ -1,0 +1,30 @@
+# Custom Tech Spec Review Workflow
+name: custom-tech-spec-review
+description: 'Pre-development tech spec review: AC validation, task audit, Technical Decisions review, test coverage review. Iterative fix-until-clean. Run AFTER writing a tech spec and BEFORE creating a story. Use when the user says "review tech spec", "run tech spec review", or "check this spec". Preferred over /bmad-review-adversarial-general for tech specs because it runs structured multi-round review phases and fixes the spec in-place rather than just reporting findings once.'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+user_skill_level: "{config_source}:user_skill_level"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/tech-spec-review"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: false
+
+project_context: "**/project-context.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "Architecture for constraint and pattern validation"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "SELECTIVE_LOAD"
