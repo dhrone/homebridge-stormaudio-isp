@@ -100,7 +100,54 @@
     <action>Save story file</action>
   </step>
 
-  <step n="3" goal="Protocol-to-Tasks audit">
+  <step n="3" goal="Boundary/clamping AC audit for safety-critical functions">
+    <critical>E2-A1: For any function with safety implications, flag if boundary behavior ACs are missing.
+      The happy-path formula is NOT sufficient — ACs must explicitly specify what happens at boundaries.
+      Informed by percentageToDB clamping gap in Story 2.1 where the formula was specified but
+      boundary clamping behavior (what happens at 0%, 100%, and out-of-range values) was not.</critical>
+
+    <action>Scan the story for signals of safety-critical or boundary-sensitive functions:
+      - Volume, gain, level, or amplitude controls
+      - Percentage-to-unit conversions (e.g., percentage to dB, percentage to raw value)
+      - Min/max/ceiling/floor constraints
+      - Rate limiting or throttling
+      - Timeout values
+      - Any function where out-of-range input could cause hardware damage, data loss, or unsafe behavior
+      - ACs containing formulas, ranges, or numeric thresholds
+    </action>
+
+    <check if="safety-critical or boundary-sensitive functions detected">
+      <action>For EACH detected function, verify the ACs explicitly specify:
+        1. **Lower boundary behavior:** What happens at the minimum value (e.g., 0%)
+        2. **Upper boundary behavior:** What happens at the maximum value (e.g., 100%)
+        3. **Clamping/rejection for out-of-range:** What happens when input exceeds valid range
+        4. **Off-by-one clarity:** Whether boundaries are inclusive or exclusive
+        5. **Type safety:** What happens with non-numeric or fractional inputs (if applicable)
+      </action>
+
+      <check if="boundary behavior ACs are missing">
+        <action>For each gap found, add a boundary-behavior task to Tasks/Subtasks:
+          `- [ ] Task N: [Boundary] Verify [function] handles boundary inputs (AC: relevant ACs)`
+            `- [ ] Lower bound: [describe expected behavior at minimum]`
+            `- [ ] Upper bound: [describe expected behavior at maximum]`
+            `- [ ] Out-of-range: [describe clamping or rejection behavior]`
+        </action>
+        <action>Log each addition:
+          "Added boundary verification task for [function]: [description of missing coverage]"</action>
+        <action>Save story file</action>
+      </check>
+
+      <check if="all boundary behaviors are covered in ACs">
+        <action>Log: "Boundary/clamping AC audit passed — all safety-critical functions have boundary ACs"</action>
+      </check>
+    </check>
+
+    <check if="no safety-critical or boundary-sensitive functions detected">
+      <action>Log: "No safety-critical or boundary-sensitive functions detected — boundary audit not applicable"</action>
+    </check>
+  </step>
+
+  <step n="4" goal="Protocol-to-Tasks audit">
     <critical>A3: Any API-mandated or protocol-mandated behavior MUST appear as a Task, not just in Dev Notes.
       The dev agent executes Tasks — it may skim Dev Notes.</critical>
 
@@ -132,7 +179,7 @@
     </check>
   </step>
 
-  <step n="4" goal="config.schema.json verification task">
+  <step n="5" goal="config.schema.json verification task">
     <critical>A4: Every story that adds or changes config fields MUST include a task to verify
       config.schema.json matches ACs (required vs optional, defaults, ranges).</critical>
 
@@ -167,7 +214,7 @@
     </check>
   </step>
 
-  <step n="5" goal="Initialize lifecycle review document">
+  <step n="6" goal="Initialize lifecycle review document">
     <critical>Create the per-story review document that all lifecycle workflows share.
       This document is the audit trail for story spec review, code review, and lessons learned.</critical>
 
@@ -186,7 +233,7 @@
     </check>
   </step>
 
-  <step n="6" goal="Report completion">
+  <step n="7" goal="Report completion">
     <action>Save story file with all enhancements</action>
 
     <output>**Story Enhancement Complete, {user_name}!**
@@ -194,6 +241,7 @@
       **Story:** {{story_key}}
       **Enhancements Applied:**
       - QA Test Specification section added (main paths, edge cases, integration smoke tests, sibling coverage, listener cleanup, mock audit)
+      - Boundary/clamping AC audit: {{boundary_audit_result}}
       - Protocol-to-Tasks audit: {{protocol_audit_result}}
       - config.schema.json verification: {{schema_verification_result}}
       - Lifecycle review document: {{review_doc_result}}

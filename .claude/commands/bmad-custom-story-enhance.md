@@ -1,6 +1,6 @@
 ---
 name: 'story-enhance'
-description: 'Enhance a story with QA test specs, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Use when the user says "enhance story" or "run story enhancement"'
+description: 'Enhance a story with QA test specs, boundary/clamping AC audit, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Use when the user says "enhance story" or "run story enhancement"'
 ---
 
 IT IS CRITICAL THAT YOU FOLLOW THESE STEPS - while staying in character as the current agent persona you may have loaded:

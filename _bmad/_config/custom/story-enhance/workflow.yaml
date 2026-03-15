@@ -1,7 +1,7 @@
 # Custom Story Enhancement Workflow
-# Addresses: A1 (QA in story creation), A3 (protocol requirements in tasks), A4 (config.schema.json verification)
+# Addresses: A1 (QA in story creation), E2-A1 (boundary/clamping AC audit), A3 (protocol requirements in tasks), A4 (config.schema.json verification)
 name: story-enhance
-description: 'Enhance a story with QA test specs, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Use when the user says "enhance story" or "run story enhancement" — run AFTER base create-story [CS]'
+description: 'Enhance a story with QA test specs, boundary/clamping AC audit, protocol-to-tasks audit, config.schema.json verification, and initialize lifecycle review document. Use when the user says "enhance story" or "run story enhancement" — run AFTER base create-story [CS]'
 
 # Critical variables from config
 config_source: "{project-root}/_bmad/bmm/config.yaml"
