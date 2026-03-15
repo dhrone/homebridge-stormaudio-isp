@@ -1,3 +1,9 @@
 export const PLATFORM_NAME = 'StormAudioISP';
 export const PLUGIN_NAME = 'homebridge-stormaudio-isp';
 export const PROCESSOR_WAKE_TIMEOUT_MS = 90000;
+export const RECONNECT_INITIAL_DELAY_MS = 1000;
+export const RECONNECT_MULTIPLIER = 2;
+export const RECONNECT_MAX_DELAY_MS = 60000;
+export const RECONNECT_MAX_RETRIES = 10;
+export const KEEPALIVE_INTERVAL_MS = 30000;
+export const KEEPALIVE_TIMEOUT_MS = 10000;

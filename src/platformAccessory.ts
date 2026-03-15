@@ -24,6 +24,7 @@ export class StormAudioAccessory {
   private volumeProxyChar?: string;
   private readonly state = { power: false, mute: false, volume: -100, input: 0 };
   private readonly inputSources: Map<number, Service> = new Map();
+  private connected = true;
 
   constructor(
     private readonly platform: StormAudioPlatform,
@@ -33,6 +34,14 @@ export class StormAudioAccessory {
     const { Characteristic } = this.platform;
     const config = this.platform.validatedConfig!;
     const name = config.name;
+
+    // FR20: Bidirectional sync latency is met by the event-driven architecture:
+    // ISP broadcasts → parseMessage → typed event → accessory listener → updateValue.
+    // No polling is used. Network round-trips on LAN are inherently <1s.
+
+    // Task 5: Track TCP connection status for HomeKit "Not Responding" support (AC: 3, 4)
+    this.client.on('disconnected', () => { this.connected = false; });
+    this.client.on('connected', () => { this.connected = true; });
 
     // Task 2: Register Television service
     this.tvService =
@@ -49,7 +58,7 @@ export class StormAudioAccessory {
 
     // Story 3.1: ActiveIdentifier onGet — returns local state
     this.tvService.getCharacteristic(Characteristic.ActiveIdentifier)
-      .onGet(() => this.state.input);
+      .onGet(() => { this.ensureConnected(); return this.state.input; });
 
     // Story 3.2: ActiveIdentifier onSet — send setInput command (fire-and-forget)
     this.tvService
@@ -84,6 +93,7 @@ export class StormAudioAccessory {
 
     // Task 4: Register onGet handler for power state
     this.tvService.getCharacteristic(Characteristic.Active).onGet(() => {
+      this.ensureConnected();
       return this.state.power ? Characteristic.Active.ACTIVE : Characteristic.Active.INACTIVE;
     });
 
@@ -137,10 +147,11 @@ export class StormAudioAccessory {
         this.client.setMute(muted);
       });
     });
-    speakerService.getCharacteristic(Characteristic.Mute).onGet(() => this.state.mute);
+    speakerService.getCharacteristic(Characteristic.Mute).onGet(() => { this.ensureConnected(); return this.state.mute; });
 
     // Task 4 (Story 2.2): TelevisionSpeaker Volume onGet
     speakerService.getCharacteristic(Characteristic.Volume).onGet(() => {
+      this.ensureConnected();
       return dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling);
     });
 
@@ -171,6 +182,7 @@ export class StormAudioAccessory {
         });
       });
       proxyService.getCharacteristic(volumeChar).onGet(() => {
+        this.ensureConnected();
         return dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling);
       });
 
@@ -183,7 +195,7 @@ export class StormAudioAccessory {
           this.client.setMute(!on);
         });
       });
-      proxyService.getCharacteristic(Characteristic.On).onGet(() => !this.state.mute);
+      proxyService.getCharacteristic(Characteristic.On).onGet(() => { this.ensureConnected(); return !this.state.mute; });
     } else {
       this.platform.log.info('[HomeKit] Volume control: proxy disabled');
     }
@@ -259,6 +271,13 @@ export class StormAudioAccessory {
         .updateValue(inputId, EXTERNAL_CONTEXT);
       this.platform.log.debug(`[HomeKit] Active input updated: ID ${inputId}`);
     });
+  }
+
+  private ensureConnected(): void {
+    if (!this.connected) {
+      const { HapStatusError, HAPStatus } = this.platform.api.hap;
+      throw new HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    }
   }
 
   private async requiresActive(): Promise<boolean> {

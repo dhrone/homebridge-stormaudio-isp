@@ -1,7 +1,15 @@
 import { EventEmitter } from 'events';
 import * as net from 'net';
 
-import { PROCESSOR_WAKE_TIMEOUT_MS } from './settings';
+import {
+  KEEPALIVE_INTERVAL_MS,
+  KEEPALIVE_TIMEOUT_MS,
+  PROCESSOR_WAKE_TIMEOUT_MS,
+  RECONNECT_INITIAL_DELAY_MS,
+  RECONNECT_MAX_DELAY_MS,
+  RECONNECT_MAX_RETRIES,
+  RECONNECT_MULTIPLIER,
+} from './settings';
 import { ErrorCategory, ProcessorState } from './types';
 import type {
   AudioConfigState, AudioState, DeviceState, HdmiOutputState,
@@ -36,6 +44,13 @@ export class StormAudioClient extends EventEmitter {
   private pendingTriggerList: TriggerInfo[] | null = null;
   private wakePromise: Promise<boolean> | null = null;
   private wakeCancel: (() => void) | null = null;
+  private reconnecting = false;
+  private intentionalDisconnect = false;
+  private retryCount = 0;
+  private backoffDelay = RECONNECT_INITIAL_DELAY_MS;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveInterval: ReturnType<typeof setInterval> | null = null;
+  private keepaliveTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly state: StormAudioState = {
     power: false,
     volume: -40,
@@ -78,6 +93,85 @@ export class StormAudioClient extends EventEmitter {
     super();
   }
 
+  private scheduleReconnect(): void {
+    // Idempotency guard — prevents double-scheduling if close fires twice
+    if (this.reconnectTimer !== null) {
+      return;
+    }
+
+    // Max retries exhausted
+    if (this.retryCount >= RECONNECT_MAX_RETRIES) {
+      this.reconnecting = false;
+      this.log.error(
+        '[TCP] Max reconnection retries exhausted. Processor may need reboot. Check network and power cycle the StormAudio.',
+      );
+      const stormError: StormAudioError = {
+        category: ErrorCategory.Fatal,
+        message: 'Max reconnection retries exhausted',
+      };
+      this.emit('error', stormError);
+      return;
+    }
+
+    this.reconnecting = true;
+    this.retryCount++;
+
+    // Clear stale parsing state
+    this.buffer = '';
+    this.pendingInputList = null;
+    this.pendingPresetList = null;
+    this.pendingSurroundModeList = null;
+    this.pendingAuroPresetList = null;
+    this.pendingZoneList = null;
+    this.pendingZoneProfileList = null;
+    this.pendingTriggerList = null;
+
+    const delay = this.backoffDelay;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
+
+    // Update backoff for next attempt
+    this.backoffDelay = Math.min(this.backoffDelay * RECONNECT_MULTIPLIER, RECONNECT_MAX_DELAY_MS);
+  }
+
+  private startKeepalive(): void {
+    this.stopKeepalive();
+    this.keepaliveInterval = setInterval(() => {
+      this.sendCommand('ssp.keepalive\n');
+      this.log.debug('[TCP] Keepalive sent');
+      this.keepaliveTimeout = setTimeout(() => {
+        this.log.warn('[TCP] Keepalive timeout — connection appears stale');
+        this.socket?.destroy();
+      }, KEEPALIVE_TIMEOUT_MS);
+    }, KEEPALIVE_INTERVAL_MS);
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveInterval !== null) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = null;
+    }
+    if (this.keepaliveTimeout !== null) {
+      clearTimeout(this.keepaliveTimeout);
+      this.keepaliveTimeout = null;
+    }
+  }
+
+  private cancelReconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+  }
+
+  private resetBackoff(): void {
+    this.retryCount = 0;
+    this.backoffDelay = RECONNECT_INITIAL_DELAY_MS;
+  }
+
   connect(): void {
     const host = this.config.host;
     const port = this.config.port;
@@ -87,12 +181,24 @@ export class StormAudioClient extends EventEmitter {
       return;
     }
 
+    // On first call (not reconnection), clear intentionalDisconnect
+    if (!this.reconnecting) {
+      this.intentionalDisconnect = false;
+    }
+
     this.socket = this.socketFactory(host, port);
 
     this.socket.on('connect', () => {
       this.connected = true;
-      this.log.info(`[TCP] Connected to ${host}:${port}`);
+      if (this.reconnecting) {
+        this.log.info(`[TCP] Reconnected to ${host}:${port}`);
+        this.reconnecting = false;
+        this.resetBackoff();
+      } else {
+        this.log.info(`[TCP] Connected to ${host}:${port}`);
+      }
       this.emit('connected');
+      this.startKeepalive();
     });
 
     this.socket.on('data', (data: Buffer) => {
@@ -104,39 +210,60 @@ export class StormAudioClient extends EventEmitter {
         this.wakeCancel();
       }
       if (this.connected) {
-        this.log.error(`[TCP] Lost connection to StormAudio at ${host}:${port}: ${err.message}`);
+        // Active connection dropped
+        this.log.warn(`[TCP] Connection lost. Reconnecting...`);
+      } else if (this.reconnecting) {
+        // Reconnection attempt failed
+        this.log.warn(
+          `[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Retrying in ${this.backoffDelay / 1000}s`,
+        );
       } else {
+        // Initial connection failure
         this.log.error(
           `[TCP] Could not connect to StormAudio at ${host}:${port}. Verify the IP address and that the processor is powered on.`,
         );
+        const stormError: StormAudioError = {
+          category: ErrorCategory.Recoverable,
+          message: err.message,
+          originalError: err,
+        };
+        this.emit('error', stormError);
       }
-      this.connected = false;
-      const stormError: StormAudioError = {
-        category: ErrorCategory.Recoverable,
-        message: err.message,
-        originalError: err,
-      };
-      this.emit('error', stormError);
+      // CRITICAL: Do NOT set this.connected = false here — that's the close handler's
+      // responsibility. Setting it here would cause wasConnected to always be false in
+      // the close handler for active-connection drops.
     });
 
     this.socket.on('close', () => {
+      const wasConnected = this.connected;
+      this.connected = false;
+      this.socket = null;
+
       if (this.wakeCancel) {
         this.wakeCancel();
       }
-      this.socket = null;
-      this.connected = false;
+
+      this.stopKeepalive();
+
       this.emit('disconnected');
+
+      if (!this.intentionalDisconnect && (wasConnected || this.reconnecting)) {
+        this.scheduleReconnect();
+      }
     });
   }
 
   disconnect(): void {
+    // Suppress reconnection — must be set FIRST
+    this.intentionalDisconnect = true;
+    this.cancelReconnect();
+
     // Cancel any pending wake — resolve false before socket teardown.
-    // Executes synchronously; Node.js's single-threaded model guarantees no
-    // async re-entry between here and the if (this.connected) check in the
-    // socket teardown block below.
     if (this.wakeCancel) {
       this.wakeCancel();
     }
+
+    this.stopKeepalive();
 
     // Reset in-flight parsing state.
     // NOTE: if a new streaming list field is added to this class (e.g. pendingFooList),
@@ -318,6 +445,10 @@ export class StormAudioClient extends EventEmitter {
   }
 
   private onData(data: Buffer): void {
+    if (this.keepaliveTimeout !== null) {
+      clearTimeout(this.keepaliveTimeout);
+      this.keepaliveTimeout = null;
+    }
     this.buffer += data.toString();
     const lines = this.buffer.split('\n');
     this.buffer = lines.pop() ?? '';

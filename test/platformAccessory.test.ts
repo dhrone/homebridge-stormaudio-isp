@@ -19,6 +19,15 @@ const SleepDiscoveryModeEnum = {
 
 const CategoriesEnum = { TELEVISION: 31 } as const;
 
+class MockHapStatusError extends Error {
+  constructor(public readonly hapStatus: number) {
+    super(`HapStatusError: ${hapStatus}`);
+    this.name = 'HapStatusError';
+  }
+}
+
+const MockHAPStatus = { SERVICE_COMMUNICATION_FAILURE: -70402 } as const;
+
 function createMockCharacteristic() {
   let onSetHandler: ((value: unknown) => void | Promise<void>) | null = null;
   let onGetHandler: (() => unknown) | null = null;
@@ -143,6 +152,8 @@ function createMockPlatform(nameOverride?: string, configOverride?: MockPlatform
         Service: ServiceMock,
         Categories: CategoriesEnum,
         uuid: { generate: vi.fn().mockReturnValue('mock-uuid') },
+        HapStatusError: MockHapStatusError,
+        HAPStatus: MockHAPStatus,
       },
       platformAccessory: vi.fn(),
       publishExternalAccessories: vi.fn(),
@@ -1629,5 +1640,190 @@ describe('StormAudioAccessory — Story 3.2 listener count verification', () => 
     client._emit('inputList', [{ id: 3, name: 'Blu-ray' }]);
 
     expect(client._emitter.listenerCount('inputList')).toBe(inputListBefore);
+  });
+});
+
+describe('StormAudioAccessory — HomeKit connection status (Story 4.2)', () => {
+  function setup(volumeControl: 'fan' | 'lightbulb' | 'none' = 'lightbulb') {
+    const platform = createMockPlatform(undefined, { volumeControl });
+    const accessory = createMockAccessory();
+    const client = createMockClient();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+    return { platform, accessory, client };
+  }
+
+  // Helper: trigger an onGet and return or throw
+  function triggerGet(
+    accessory: ReturnType<typeof createMockAccessory>,
+    service: '_tvService' | '_speakerService' | '_lightbulbService',
+    charName: string,
+  ): unknown {
+    return accessory[service]._getCharacteristicMock(charName)?._triggerGet();
+  }
+
+  // ── Main Paths ──────────────────────────────────────────────
+
+  it('QA-13: all 6 onGet handlers return values when connected (initial state)', () => {
+    const { accessory } = setup('lightbulb');
+    // All should succeed (no throw) — connected starts as true
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).not.toThrow();
+    expect(() => triggerGet(accessory, '_tvService', 'ActiveIdentifier')).not.toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Mute')).not.toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Volume')).not.toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'Brightness')).not.toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'On')).not.toThrow();
+  });
+
+  it('QA-14: Active onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: ActiveIdentifier onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_tvService', 'ActiveIdentifier')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: Mute onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_speakerService', 'Mute')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: Volume onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_speakerService', 'Volume')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: proxy Brightness onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup('lightbulb');
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_lightbulbService', 'Brightness')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: proxy On onGet throws HapStatusError when disconnected', () => {
+    const { accessory, client } = setup('lightbulb');
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_lightbulbService', 'On')).toThrow(MockHapStatusError);
+  });
+
+  it('QA-14: thrown HapStatusError uses SERVICE_COMMUNICATION_FAILURE status code', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    let caught: unknown;
+    try {
+      triggerGet(accessory, '_tvService', 'Active');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(MockHapStatusError);
+    expect((caught as MockHapStatusError).hapStatus).toBe(-70402);
+  });
+
+  it('QA-15: "Not Responding" clears on reconnect — onGet succeeds after connected event', () => {
+    const { accessory, client } = setup();
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).toThrow(MockHapStatusError);
+    client._emit('connected');
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).not.toThrow();
+  });
+
+  it('QA-16: disconnected event sets connected to false — all onGet handlers throw', () => {
+    const { accessory, client } = setup('lightbulb');
+    client._emit('disconnected');
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).toThrow();
+    expect(() => triggerGet(accessory, '_tvService', 'ActiveIdentifier')).toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Mute')).toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Volume')).toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'Brightness')).toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'On')).toThrow();
+  });
+
+  it('QA-17: connected event sets connected to true — all onGet handlers succeed', () => {
+    const { accessory, client } = setup('lightbulb');
+    client._emit('disconnected');
+    client._emit('connected');
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).not.toThrow();
+    expect(() => triggerGet(accessory, '_tvService', 'ActiveIdentifier')).not.toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Mute')).not.toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Volume')).not.toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'Brightness')).not.toThrow();
+    expect(() => triggerGet(accessory, '_lightbulbService', 'On')).not.toThrow();
+  });
+
+  // ── Edge Cases ──────────────────────────────────────────────
+
+  it('QA-18: onSet handlers gracefully handle disconnected state — commands dropped silently', async () => {
+    const { accessory, client } = setup('lightbulb');
+    client._emit('disconnected');
+    client.ensureActive.mockResolvedValue(false);
+
+    // Trigger onSet handlers that use requiresActive — none should throw
+    accessory._tvService._getCharacteristicMock('ActiveIdentifier')?._triggerSet(3);
+    accessory._speakerService._getCharacteristicMock('VolumeSelector')?._triggerSet(0);
+    accessory._speakerService._getCharacteristicMock('Mute')?._triggerSet(true);
+    accessory._lightbulbService._getCharacteristicMock('Brightness')?._triggerSet(50);
+    accessory._lightbulbService._getCharacteristicMock('On')?._triggerSet(false);
+
+    // Flush fire-and-forget promises
+    await new Promise(r => setTimeout(r, 0));
+
+    // Commands should NOT be called — ensureActive returned false, handlers returned early
+    expect(client.setInput).not.toHaveBeenCalled();
+    expect(client.volumeUp).not.toHaveBeenCalled();
+    expect(client.setMute).not.toHaveBeenCalled();
+    expect(client.setVolume).not.toHaveBeenCalled();
+  });
+
+  it('QA-19: initial state is connected — onGet handlers succeed immediately after construction', () => {
+    const { accessory } = setup();
+    // No events emitted — accessory starts connected
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).not.toThrow();
+    expect(() => triggerGet(accessory, '_speakerService', 'Mute')).not.toThrow();
+  });
+
+  it('QA-20: multiple disconnected events — no error, connected stays false', () => {
+    const { accessory, client } = setup();
+    expect(() => {
+      client._emit('disconnected');
+      client._emit('disconnected');
+    }).not.toThrow();
+    expect(() => triggerGet(accessory, '_tvService', 'Active')).toThrow(MockHapStatusError);
+  });
+
+  // ── Listener Cleanup ─────────────────────────────────────────
+
+  it('QA-25: connected/disconnected listener count remains at baseline after construction (no accumulation)', () => {
+    const emitter = new EventEmitter();
+    const client = {
+      on: emitter.on.bind(emitter),
+      setPower: vi.fn(), setVolume: vi.fn(), setInput: vi.fn(), setMute: vi.fn(),
+      volumeUp: vi.fn(), volumeDown: vi.fn(), getVolume: vi.fn().mockReturnValue(-40),
+      getMute: vi.fn().mockReturnValue(false), disconnect: vi.fn(), connect: vi.fn(),
+      getProcessorState: vi.fn().mockReturnValue(ProcessorState.Sleep),
+      ensureActive: vi.fn().mockResolvedValue(true),
+      _emit: emitter.emit.bind(emitter),
+      _emitter: emitter,
+    };
+
+    const baselineConnected = emitter.listenerCount('connected');
+    const baselineDisconnected = emitter.listenerCount('disconnected');
+
+    const platform = createMockPlatform();
+    const accessory = createMockAccessory();
+    new StormAudioAccessory(platform, accessory as never, client as never);
+
+    expect(emitter.listenerCount('connected')).toBe(baselineConnected + 1);
+    expect(emitter.listenerCount('disconnected')).toBe(baselineDisconnected + 1);
+
+    // Emitting events repeatedly does NOT add new listeners
+    client._emit('connected');
+    client._emit('disconnected');
+    client._emit('connected');
+    expect(emitter.listenerCount('connected')).toBe(baselineConnected + 1);
+    expect(emitter.listenerCount('disconnected')).toBe(baselineDisconnected + 1);
   });
 });

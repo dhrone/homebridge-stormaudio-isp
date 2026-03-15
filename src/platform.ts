@@ -11,6 +11,7 @@ import type {
 import { StormAudioAccessory } from './platformAccessory';
 import { PLUGIN_NAME } from './settings';
 import { StormAudioClient } from './stormAudioClient';
+import { ErrorCategory } from './types';
 import type { StormAudioConfig } from './types';
 
 interface ConfigLogger {
@@ -130,9 +131,13 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
       log.debug('Executed didFinishLaunching callback');
       if (this.validatedConfig) {
         this.client = new StormAudioClient(this.validatedConfig, this.log);
-        this.client.on('error', () => {
+        this.client.on('error', (stormError) => {
           // Error already logged by StormAudioClient.
-          // Reconnection will be handled in Story 4.1.
+          // Reconnection is handled automatically by StormAudioClient.
+          // Fatal errors (max retries exhausted) require user intervention.
+          if (stormError.category === ErrorCategory.Fatal) {
+            this.log.error('[Platform] Reconnection failed permanently. Check network and power cycle the StormAudio.');
+          }
         });
         this.client.connect();
 

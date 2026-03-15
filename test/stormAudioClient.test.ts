@@ -3,7 +3,15 @@ import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StormAudioClient } from '../src/stormAudioClient';
-import { PROCESSOR_WAKE_TIMEOUT_MS } from '../src/settings';
+import {
+  KEEPALIVE_INTERVAL_MS,
+  KEEPALIVE_TIMEOUT_MS,
+  PROCESSOR_WAKE_TIMEOUT_MS,
+  RECONNECT_INITIAL_DELAY_MS,
+  RECONNECT_MAX_DELAY_MS,
+  RECONNECT_MAX_RETRIES,
+  RECONNECT_MULTIPLIER,
+} from '../src/settings';
 import { ErrorCategory, ProcessorState } from '../src/types';
 import { MockSocket } from './helpers/mockSocket';
 
@@ -432,11 +440,12 @@ describe('StormAudioClient — command methods', () => {
     expect(mockSocket.written).toHaveLength(0);
   });
 
-  it('rejects commands after socket error (connected flag reset)', () => {
+  it('rejects commands after socket error + close (connected flag reset)', () => {
     const log = makeLog();
     const client = connectClient(log);
     client.on('error', () => {}); // prevent unhandled error throw
     mockSocket.simulateError(new Error('ECONNRESET'));
+    mockSocket.simulateClose();
     client.setPower(true);
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
   });
@@ -1931,14 +1940,14 @@ describe('StormAudioClient — error handler log messages', () => {
     expect(log.error).not.toHaveBeenCalledWith(expect.stringContaining('Lost connection'));
   });
 
-  it('socket error after successful connection logs "Lost connection"', () => {
+  it('socket error after successful connection logs "Connection lost" at warn level', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     client.on('error', () => {});
     client.connect();
     mockSocket.simulateConnect();
     mockSocket.simulateError(new Error('ECONNRESET'));
-    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Lost connection'));
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Connection lost. Reconnecting...'));
     expect(log.error).not.toHaveBeenCalledWith(expect.stringContaining('Could not connect'));
   });
 });
@@ -1962,5 +1971,782 @@ describe('StormAudioClient — typed EventEmitter', () => {
     client.removeListener('connected', handler);
     client.emit('connected');
     expect(callCount).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Reconnection tests (Story 4.1)
+// ─────────────────────────────────────────────────────────────
+
+describe('StormAudioClient — reconnection', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {}); // prevent unhandled error throw
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  /** Simulate an unexpected disconnect (error + close, like real Node.js sockets) */
+  const simulateUnexpectedDisconnect = () => {
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    mockSocket.simulateClose();
+  };
+
+  /** Create a fresh MockSocket for reconnection attempts */
+  const freshSocket = () => {
+    mockSocket = new MockSocket();
+    socketFactory.mockReturnValue(mockSocket);
+    return mockSocket;
+  };
+
+  // ── Main Paths ──────────────────────────────────────────────
+
+  it('QA-1: successful reconnection after single failure', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let connectedCount = 0;
+    client.on('connected', () => { connectedCount++; });
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+
+    // Should schedule reconnect with 1s delay
+    const newSocket = freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+
+    // connect() called, simulate successful connection
+    newSocket.simulateConnect();
+
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining('[TCP] Reconnected to'));
+    expect(connectedCount).toBe(1); // one reconnection 'connected' event
+  });
+
+  it('QA-2: backoff delay progression — 1s, 2s, 4s, 8s, 16s, 32s, 60s (capped), 60s', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.on('error', () => {});
+
+    const expectedDelays = [1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000];
+
+    // First unexpected disconnect triggers reconnection cycle
+    simulateUnexpectedDisconnect();
+
+    for (let i = 0; i < expectedDelays.length; i++) {
+      freshSocket();
+      const callsBefore = socketFactory.mock.calls.length;
+
+      // Advancing 1ms short should NOT trigger reconnect
+      vi.advanceTimersByTime(expectedDelays[i] - 1);
+      expect(socketFactory).toHaveBeenCalledTimes(callsBefore);
+
+      // Advancing the remaining 1ms SHOULD trigger reconnect
+      vi.advanceTimersByTime(1);
+      expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
+
+      // Fail this attempt to continue to next backoff level
+      if (i < expectedDelays.length - 1) {
+        mockSocket.simulateError(new Error('ECONNREFUSED'));
+        mockSocket.simulateClose();
+      }
+    }
+  });
+
+  it('QA-3: max retries exhausted emits fatal error', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let fatalError = false;
+    client.on('error', (err) => {
+      if (err.category === ErrorCategory.Fatal) {
+        fatalError = true;
+      }
+    });
+
+    // Initial unexpected disconnect starts the reconnection cycle (retryCount → 1)
+    simulateUnexpectedDisconnect();
+
+    // Each iteration: advance to next timer, fail the reconnection attempt.
+    // After RECONNECT_MAX_RETRIES failures, scheduleReconnect() detects retryCount >= MAX and emits Fatal.
+    for (let i = 0; i < RECONNECT_MAX_RETRIES; i++) {
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS); // advance past any delay
+      mockSocket.simulateError(new Error('ECONNREFUSED'));
+      mockSocket.simulateClose();
+    }
+
+    // The final close triggers scheduleReconnect, which detects retryCount >= MAX
+    expect(fatalError).toBe(true);
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining('Max reconnection retries exhausted'),
+    );
+  });
+
+  it('QA-5: intentional disconnect() suppresses reconnection', () => {
+    const client = connectClient();
+    const callCountBefore = socketFactory.mock.calls.length;
+    client.disconnect();
+
+    // Advance time well past any reconnection delay
+    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+    expect(socketFactory).toHaveBeenCalledTimes(callCountBefore);
+  });
+
+  it('QA-6: backoff resets on successful reconnect', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    client.on('error', () => {});
+
+    // Fail 3 times (delay should be at 8s for next)
+    for (let i = 0; i < 3; i++) {
+      simulateUnexpectedDisconnect();
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS);
+      if (i < 2) {
+        mockSocket.simulateError(new Error('ECONNREFUSED'));
+        mockSocket.simulateClose();
+      }
+    }
+    // 3rd attempt succeeds
+    mockSocket.simulateConnect();
+
+    // Now disconnect again — delay should restart at 1s
+    simulateUnexpectedDisconnect();
+    const reconnectSocket = freshSocket();
+    const callsBefore = socketFactory.mock.calls.length;
+
+    // Should NOT reconnect at 999ms
+    vi.advanceTimersByTime(999);
+    expect(socketFactory).toHaveBeenCalledTimes(callsBefore);
+
+    // Should reconnect at 1000ms (reset to initial delay)
+    vi.advanceTimersByTime(1);
+    expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
+    reconnectSocket.simulateConnect();
+  });
+
+  // ── Edge Cases ──────────────────────────────────────────────
+
+  it('QA-7: initial connection failure does NOT trigger reconnection', () => {
+    const log = makeLog();
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    let errorFired = false;
+    client.on('error', (err) => {
+      if (err.category === ErrorCategory.Recoverable) {
+        errorFired = true;
+      }
+    });
+    client.connect();
+
+    // Fail immediately (never connected)
+    mockSocket.simulateError(new Error('ECONNREFUSED'));
+    mockSocket.simulateClose();
+
+    const callCountAfterClose = socketFactory.mock.calls.length;
+    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+
+    expect(errorFired).toBe(true);
+    expect(socketFactory).toHaveBeenCalledTimes(callCountAfterClose); // no reconnect
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Could not connect'));
+  });
+
+  it('QA-8: disconnect() during active reconnection timer clears the timer', () => {
+    const client = connectClient();
+
+    // Unexpected disconnect — timer scheduled
+    simulateUnexpectedDisconnect();
+    freshSocket();
+
+    // disconnect() before timer fires
+    client.disconnect();
+    const callCountAfterDisconnect = socketFactory.mock.calls.length;
+
+    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+    expect(socketFactory).toHaveBeenCalledTimes(callCountAfterDisconnect);
+  });
+
+  it('QA-9: disconnect() during reconnection attempt (socket mid-connect)', () => {
+    const client = connectClient();
+
+    // Unexpected disconnect — timer scheduled
+    simulateUnexpectedDisconnect();
+    freshSocket();
+
+    // Timer fires — new socket created but connect event not fired yet
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    expect(mockSocket.destroyed).toBe(false);
+
+    // User calls disconnect while socket is connecting
+    client.disconnect();
+    expect(mockSocket.destroyed).toBe(true);
+
+    // No further reconnection
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+    expect(mockSocket.destroyed).toBe(false); // new socket never used
+  });
+
+  it('QA-10: concurrent close events — scheduleReconnect idempotency', () => {
+    connectClient();
+
+    // Simulate unexpected disconnect
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    // Fire close twice rapidly (edge case)
+    mockSocket.simulateClose();
+    mockSocket.simulateClose();
+
+    freshSocket();
+    const callsBefore = socketFactory.mock.calls.length;
+
+    // Only one reconnect timer should fire
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
+  });
+
+  it('QA-11: ensureActive() resolves false on unexpected disconnect', async () => {
+    const log = makeLog();
+    const client = connectClient(log);
+
+    // Set processor to Sleep state for ensureActive to wait
+    mockSocket.simulateData('ssp.procstate.[0]\n');
+
+    const wakeResult = client.ensureActive(5000);
+
+    // Unexpected disconnect while waiting
+    simulateUnexpectedDisconnect();
+
+    expect(await wakeResult).toBe(false);
+  });
+
+  it('QA-12: stale parsing state cleared on reconnection', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+
+    // Start receiving a streaming input list
+    mockSocket.simulateData('ssp.input.start\n');
+    mockSocket.simulateData('ssp.input.list.["TV", 1]\n');
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+    const newSocket = freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    newSocket.simulateConnect();
+
+    // Send end of list on new connection — should NOT produce inputList event
+    // because pending state was cleared during reconnection
+    let inputListFired = false;
+    client.on('inputList', () => { inputListFired = true; });
+    newSocket.simulateData('ssp.input.end\n');
+
+    expect(inputListFired).toBe(false);
+  });
+
+  it('QA-13: error during reconnection does NOT emit error event', () => {
+    const client = connectClient();
+    let errorCount = 0;
+    client.on('error', () => { errorCount++; });
+
+    // Unexpected disconnect — triggers reconnection
+    simulateUnexpectedDisconnect();
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+
+    // Reset error count after initial disconnect
+    errorCount = 0;
+
+    // Reconnection attempt fails — should NOT emit error
+    mockSocket.simulateError(new Error('ECONNREFUSED'));
+    expect(errorCount).toBe(0);
+  });
+
+  it('QA-14: reconnect timer is null after successful reconnect', () => {
+    connectClient();
+
+    simulateUnexpectedDisconnect();
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    mockSocket.simulateConnect();
+
+    // After successful reconnect: only 1 pending timer (keepalive interval), no reconnect timer
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  // ── Integration Smoke Tests ─────────────────────────────────
+
+  it('QA-15: full reconnection lifecycle with state re-sync', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+
+    // Populate initial state
+    mockSocket.simulateData('ssp.power.on\n');
+    mockSocket.simulateData('ssp.vol.[-25]\n');
+    expect(client.getPower()).toBe(true);
+    expect(client.getVolume()).toBe(-25);
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+
+    // Fail 2 attempts
+    for (let i = 0; i < 2; i++) {
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS);
+      mockSocket.simulateError(new Error('ECONNREFUSED'));
+      mockSocket.simulateClose();
+    }
+
+    // 3rd attempt succeeds
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS);
+    mockSocket.simulateConnect();
+
+    // ISP broadcasts new state dump
+    mockSocket.simulateData('ssp.power.off\n');
+    mockSocket.simulateData('ssp.vol.[-30]\n');
+
+    expect(client.getPower()).toBe(false);
+    expect(client.getVolume()).toBe(-30);
+  });
+
+  it('QA-16: reconnection with pending wakePromise', async () => {
+    const log = makeLog();
+    const client = connectClient(log);
+
+    // Set processor to Sleep
+    mockSocket.simulateData('ssp.procstate.[0]\n');
+
+    // Start ensureActive
+    const wakeResult = client.ensureActive(5000);
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+    expect(await wakeResult).toBe(false);
+
+    // Reconnect
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    mockSocket.simulateConnect();
+
+    // Set processor to active state so new ensureActive succeeds immediately
+    mockSocket.simulateData('ssp.procstate.[2]\n');
+    const newWake = await client.ensureActive(5000);
+    expect(newWake).toBe(true);
+  });
+
+  it('QA-17: rapid disconnect/reconnect — no double events', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    let connectedCount = 0;
+    client.on('connected', () => { connectedCount++; });
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+
+    // Reconnect immediately succeeds
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    mockSocket.simulateConnect();
+
+    expect(connectedCount).toBe(1); // exactly one reconnect connected event
+  });
+
+  // ── Error Handler Sibling Coverage ──────────────────────────
+
+  describe('error handler context family', () => {
+    it('initial connection failure: emits Recoverable error, logs at error level, no reconnection', () => {
+      const log = makeLog();
+      const client = new StormAudioClient(validConfig, log, socketFactory);
+      let errorCategory: string | null = null;
+      client.on('error', (err) => { errorCategory = err.category; });
+
+      client.connect();
+      mockSocket.simulateError(new Error('ECONNREFUSED'));
+      mockSocket.simulateClose();
+
+      expect(errorCategory).toBe(ErrorCategory.Recoverable);
+      expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Could not connect'));
+
+      const callCount = socketFactory.mock.calls.length;
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+      expect(socketFactory).toHaveBeenCalledTimes(callCount);
+    });
+
+    it('active connection dropped: logs warn "Connection lost", triggers reconnection via close', () => {
+      const log = makeLog();
+      connectClient(log);
+
+      mockSocket.simulateError(new Error('ECONNRESET'));
+      expect(log.warn).toHaveBeenCalledWith('[TCP] Connection lost. Reconnecting...');
+
+      mockSocket.simulateClose();
+      freshSocket();
+      const callsBefore = socketFactory.mock.calls.length;
+      vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+      expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
+    });
+
+    it('reconnection attempt failed: logs warn with attempt count, schedules next attempt', () => {
+      const log = makeLog();
+      connectClient(log);
+
+      // First disconnect
+      simulateUnexpectedDisconnect();
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+
+      // This reconnection attempt fails
+      mockSocket.simulateError(new Error('ECONNREFUSED'));
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Reconnection attempt'),
+      );
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`/${RECONNECT_MAX_RETRIES} failed`),
+      );
+    });
+  });
+
+  // ── Disconnect Timing Sibling Coverage ──────────────────────
+
+  describe('disconnect() timing family', () => {
+    it('disconnect() when idle: clean shutdown, no scheduleReconnect', () => {
+      const client = connectClient();
+      const callsBefore = socketFactory.mock.calls.length;
+      client.disconnect();
+
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+      expect(socketFactory).toHaveBeenCalledTimes(callsBefore);
+    });
+
+    it('disconnect() when reconnection timer is pending: timer cleared', () => {
+      const client = connectClient();
+      simulateUnexpectedDisconnect();
+
+      // Timer is now pending
+      client.disconnect();
+      freshSocket();
+      const callsBefore = socketFactory.mock.calls.length;
+
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+      expect(socketFactory).toHaveBeenCalledTimes(callsBefore);
+    });
+
+    it('disconnect() when socket is mid-connect during reconnection', () => {
+      const client = connectClient();
+      simulateUnexpectedDisconnect();
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS); // timer fires, new socket created
+
+      // Socket is connecting but not yet connected
+      client.disconnect();
+      expect(mockSocket.destroyed).toBe(true);
+
+      // No further reconnection after destroy triggers close
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
+      expect(mockSocket.destroyed).toBe(false); // fresh socket untouched
+    });
+  });
+
+  // ── Listener Cleanup Verification ───────────────────────────
+
+  describe('listener cleanup', () => {
+    it('QA-18: listenerCount returns to baseline after reconnection cycle', () => {
+      const client = connectClient();
+      const baselineCounts: Record<string, number> = {};
+      for (const event of ['connected', 'disconnected', 'error', 'power', 'volume', 'mute']) {
+        baselineCounts[event] = client.listenerCount(event);
+      }
+
+      // Reconnect cycle
+      simulateUnexpectedDisconnect();
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+      mockSocket.simulateConnect();
+
+      for (const event of ['connected', 'disconnected', 'error', 'power', 'volume', 'mute']) {
+        expect(client.listenerCount(event)).toBe(baselineCounts[event]);
+      }
+    });
+
+    it('QA-19: no timer leaks after intentional disconnect', () => {
+      const client = connectClient();
+      client.disconnect();
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('QA-20: no socket listener accumulation across failed reconnection attempts', () => {
+      connectClient();
+
+      // Multiple failed reconnection attempts
+      for (let i = 0; i < 5; i++) {
+        simulateUnexpectedDisconnect();
+        freshSocket();
+        vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS);
+        // Each failed attempt: error fires then close fires, socket destroyed
+        // New socket created by next scheduleReconnect
+      }
+
+      // socketFactory should have been called once per reconnection attempt + 1 initial
+      expect(socketFactory).toHaveBeenCalledTimes(1 + 5);
+    });
+  });
+
+  // ── Reconnection constants ──────────────────────────────────
+
+  describe('reconnection constants', () => {
+    it('RECONNECT_INITIAL_DELAY_MS is 1000', () => {
+      expect(RECONNECT_INITIAL_DELAY_MS).toBe(1000);
+    });
+
+    it('RECONNECT_MULTIPLIER is 2', () => {
+      expect(RECONNECT_MULTIPLIER).toBe(2);
+    });
+
+    it('RECONNECT_MAX_DELAY_MS is 60000', () => {
+      expect(RECONNECT_MAX_DELAY_MS).toBe(60000);
+    });
+
+    it('RECONNECT_MAX_RETRIES is 10', () => {
+      expect(RECONNECT_MAX_RETRIES).toBe(10);
+    });
+  });
+
+  // ── State re-sync ───────────────────────────────────────────
+
+  it('QA-4: state re-sync after reconnect — events emitted for all state values', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+
+    // Set initial state
+    mockSocket.simulateData('ssp.power.on\n');
+    mockSocket.simulateData('ssp.vol.[-25]\n');
+    mockSocket.simulateData('ssp.mute.off\n');
+    mockSocket.simulateData('ssp.input.[3]\n');
+
+    // Unexpected disconnect
+    simulateUnexpectedDisconnect();
+
+    // Reconnect
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    mockSocket.simulateConnect();
+
+    // Track events from state dump
+    let powerEvent = false;
+    let volumeEvent = false;
+    let muteEvent = false;
+    let inputEvent = false;
+    client.on('power', () => { powerEvent = true; });
+    client.on('volume', () => { volumeEvent = true; });
+    client.on('mute', () => { muteEvent = true; });
+    client.on('input', () => { inputEvent = true; });
+
+    // ISP broadcasts full state dump
+    mockSocket.simulateData('ssp.power.off\n');
+    mockSocket.simulateData('ssp.vol.[-30]\n');
+    mockSocket.simulateData('ssp.mute.on\n');
+    mockSocket.simulateData('ssp.input.[5]\n');
+
+    expect(powerEvent).toBe(true);
+    expect(volumeEvent).toBe(true);
+    expect(muteEvent).toBe(true);
+    expect(inputEvent).toBe(true);
+    expect(client.getPower()).toBe(false);
+    expect(client.getVolume()).toBe(-30);
+    expect(client.getMute()).toBe(true);
+    expect(client.getInput()).toBe(5);
+  });
+});
+
+describe('StormAudioClient — keepalive', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.on('error', () => {});
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  const freshSocket = () => {
+    mockSocket = new MockSocket();
+    socketFactory.mockReturnValue(mockSocket);
+    return mockSocket;
+  };
+
+  // ── Main Paths ──────────────────────────────────────────────
+
+  it('QA-1: sends ssp.keepalive\\n and logs debug after interval fires', () => {
+    const log = makeLog();
+    connectClient(log);
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    expect(mockSocket.written).toContain('ssp.keepalive\n');
+    expect(log.debug).toHaveBeenCalledWith('[TCP] Keepalive sent');
+  });
+
+  it('QA-2: keepalive timeout is cleared when any data is received', () => {
+    connectClient();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fires interval, starts 10s timeout
+    mockSocket.simulateData('ssp.power.on\n');      // any data clears timeout
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);   // would destroy if timeout still pending
+    expect(mockSocket.destroyed).toBe(false);
+  });
+
+  it('QA-3: keepalive timeout fires if no data received — destroys socket and logs warn', () => {
+    const log = makeLog();
+    connectClient(log);
+    // Save reference to connected socket (freshSocket() would reassign the variable)
+    const connectedSocket = mockSocket;
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fires keepalive, starts 10s timeout
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);  // timeout fires → socket.destroy()
+    expect(log.warn).toHaveBeenCalledWith('[TCP] Keepalive timeout — connection appears stale');
+    expect(connectedSocket.destroyed).toBe(true);
+  });
+
+  it('QA-4: keepalive stops on intentional disconnect()', () => {
+    const client = connectClient();
+    client.disconnect();
+    expect(vi.getTimerCount()).toBe(0); // no keepalive or reconnect timers pending
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS);
+    expect(mockSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(0);
+  });
+
+  it('QA-5: keepalive restarts after reconnection', () => {
+    connectClient();
+    mockSocket.simulateClose(); // unexpected close — stops keepalive, schedules reconnect
+    const reconnectSocket = freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    reconnectSocket.simulateConnect(); // restarts keepalive on new socket
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    expect(reconnectSocket.written).toContain('ssp.keepalive\n');
+  });
+
+  it('QA-6: two keepalive cycles send exactly 2 keepalives when data clears each timeout', () => {
+    connectClient();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    mockSocket.simulateData('ssp.power.on\n'); // clears first timeout
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    mockSocket.simulateData('ssp.power.on\n'); // clears second timeout
+    expect(mockSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(2);
+  });
+
+  // ── Edge Cases ──────────────────────────────────────────────
+
+  it('QA-7: keepalive timeout during pending wake resolves wake as false', async () => {
+    const client = connectClient();
+    mockSocket.simulateData('ssp.procstate.0\n'); // Sleep state
+    const connectedSocket = mockSocket; // save before freshSocket() reassigns the variable
+    freshSocket(); // ready for reconnect after destroy
+    const wakeResult = client.ensureActive();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // keepalive fires, timeout starts
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);  // timeout fires → destroy → wakeCancel
+    expect(await wakeResult).toBe(false);
+    expect(connectedSocket.destroyed).toBe(true);
+  });
+
+  it('QA-8: startKeepalive idempotency — exactly 1 keepalive fires per 30s after reconnect cycle', () => {
+    connectClient();
+    // Disconnect → reconnect cycle (startKeepalive called again after simulateConnect)
+    mockSocket.simulateClose();
+    const reconnectSocket = freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    reconnectSocket.simulateConnect();
+    // Run two full cycles — if interval doubled, we'd see 4 sends; idempotent = 2
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    reconnectSocket.simulateData('ssp.power.on\n'); // clear timeout
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
+    reconnectSocket.simulateData('ssp.power.on\n'); // clear timeout
+    expect(reconnectSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(2);
+  });
+
+  it('QA-9: stopKeepalive when no timers active — no error thrown', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    client.on('error', () => {});
+    client.connect(); // socket created but not connected — no keepalive started
+    expect(() => client.disconnect()).not.toThrow(); // disconnect calls stopKeepalive()
+  });
+
+  it('QA-10: data between keepalive sends does not reset the 30s interval', () => {
+    connectClient();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS / 2); // t=15s
+    mockSocket.simulateData('ssp.power.on\n');          // data at 15s
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS / 2); // t=30s — interval fires
+    // Interval is fixed, not reset by data — should still fire at 30s
+    expect(mockSocket.written).toContain('ssp.keepalive\n');
+  });
+
+  it('QA-11: keepalive echo response specifically clears the timeout', () => {
+    connectClient();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fire interval, start timeout
+    mockSocket.simulateData('ssp.keepalive\n');     // ISP echoes keepalive
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);   // would destroy if timeout not cleared
+    expect(mockSocket.destroyed).toBe(false);
+  });
+
+  it('QA-12: close handler stops keepalive BEFORE scheduling reconnect', () => {
+    connectClient(); // socketFactory called once
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fire interval, start 10s timeout
+    // Simulate unexpected close BEFORE freshSocket() so it fires on the connected socket
+    mockSocket.simulateClose(); // close handler → stopKeepalive + scheduleReconnect(1s)
+    // Set up fresh socket AFTER the close (factory used when reconnect timer fires)
+    const reconnectSocket = freshSocket();
+    // Fire reconnect timer (1s) → connect() → socketFactory() returns reconnectSocket
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    // Advance remaining keepalive timeout window — stale timeout must NOT fire
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS - RECONNECT_INITIAL_DELAY_MS);
+    expect(reconnectSocket.destroyed).toBe(false);
+    expect(socketFactory).toHaveBeenCalledTimes(2); // initial + 1 reconnect only
+  });
+
+  // ── Timer/Listener Cleanup ───────────────────────────────────
+
+  it('QA-23: no timer leaks after disconnect() — getTimerCount returns 0', () => {
+    const client = connectClient();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fire interval, start timeout
+    client.disconnect(); // stopKeepalive() clears both; intentional → no reconnect timer
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('QA-24: no keepalive fires after intentional disconnect advancing past full window', () => {
+    const client = connectClient();
+    client.disconnect();
+    vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS);
+    // socket was destroyed by disconnect() — no extra destroys from keepalive
+    // All timer-driven writes are gone: only 'ssp.close\n' from disconnect itself
+    const keepaliveWrites = mockSocket.written.filter(w => w === 'ssp.keepalive\n');
+    expect(keepaliveWrites).toHaveLength(0);
+  });
+
+  // ── Constants ────────────────────────────────────────────────
+
+  it('KEEPALIVE_INTERVAL_MS is 30000', () => {
+    expect(KEEPALIVE_INTERVAL_MS).toBe(30000);
+  });
+
+  it('KEEPALIVE_TIMEOUT_MS is 10000', () => {
+    expect(KEEPALIVE_TIMEOUT_MS).toBe(10000);
   });
 });
