@@ -189,6 +189,10 @@
       - Identify all pattern families in the ACs
       - For each family: verify every sibling is explicitly enumerated
       - Missing sibling → HIGH finding: "Sibling [X] not listed in coverage for family [Y]"
+      - **Cross-file annotation check (P1):** If siblings span multiple source files, verify each sibling
+        is annotated with its test file location (e.g., "tested in platform.test.ts")
+      - Missing cross-file annotation → MEDIUM finding: "Sibling [X] in family [Y] spans multiple
+        test files but no test location annotation provided"
     </action>
 
     <action>**Listener Cleanup:** Verify all listener-registering methods are identified

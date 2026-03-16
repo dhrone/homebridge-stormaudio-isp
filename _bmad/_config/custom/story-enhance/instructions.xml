@@ -58,6 +58,9 @@
       - When one case in a family is tested, identify ALL siblings that need the same test
       - Example: if testing power.unknown, also test mute.unknown, input.garbage, etc.
       - List sibling groups explicitly so the dev agent cannot skip any
+      - **Cross-file annotation (P1):** When siblings originate in multiple source files, annotate each
+        with its test file location (e.g., "tested in platform.test.ts" or "tested in stormAudioClient.test.ts")
+      - This prevents coverage gaps when code review audits siblings across test suites
     </action>
 
     <action>**Listener Cleanup Verification:**

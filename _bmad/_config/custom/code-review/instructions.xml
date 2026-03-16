@@ -99,6 +99,21 @@
     <action>Identify all test files from story File List and git changes</action>
     <action>Read EVERY test file completely</action>
 
+    <!-- QA numbering discipline verification (P3) -->
+    <critical>P3: Dev agents must produce a numbered checklist mapping each QA spec item to a named test.
+      Reviewers verify the mapping is present and accurate.</critical>
+    <check if="QA Test Specification exists in story">
+      <action>Check the story's Dev Agent Record or Completion Notes for a numbered QA-to-test mapping:
+        - Expected format: "QA-1: [spec item] → [test name in test file]" for each QA item
+        - If NO mapping exists → MEDIUM finding: "QA numbering checklist missing — dev agent did not produce QA item → test name mapping"
+        - If mapping exists, cross-reference each entry:
+          1. Verify the referenced test actually exists in the test file(s)
+          2. Verify the test assertions match the QA spec item's requirements
+          3. Unmapped QA item → HIGH finding: "QA-{{n}} has no test mapping"
+          4. Mapped but test not found → HIGH finding: "QA-{{n}} maps to [test name] but test does not exist"
+      </action>
+    </check>
+
     <!-- AC-anchored test verification -->
     <action>For EACH Acceptance Criterion:
       1. Identify which test(s) cover this AC
