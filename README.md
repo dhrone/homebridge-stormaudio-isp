@@ -6,7 +6,6 @@
 
 [![npm version](https://badgen.net/npm/v/homebridge-stormaudio-isp)](https://www.npmjs.com/package/homebridge-stormaudio-isp)
 [![npm downloads](https://badgen.net/npm/dt/homebridge-stormaudio-isp)](https://www.npmjs.com/package/homebridge-stormaudio-isp)
-[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 
 A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP immersive sound processors via Apple HomeKit. Control power, volume, mute, and input selection using the Home app and Siri.
 

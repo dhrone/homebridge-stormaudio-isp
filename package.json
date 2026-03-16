@@ -1,7 +1,7 @@
 {
   "name": "homebridge-stormaudio-isp",
   "displayName": "StormAudio ISP",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A Homebridge plugin for controlling StormAudio ISP processors via Apple HomeKit",
   "author": "dhrone",
   "license": "Apache-2.0",

@@ -7,6 +7,13 @@ _bmad/
 _bmad-output/
 docs/
 
+# Claude Code / AI tooling
+.claude/
+CLAUDE.md
+
+# Development scripts (API exploration, capture tools)
+scripts/
+
 # TypeScript config
 tsconfig.json
 tsconfig.eslint.json
