@@ -54,6 +54,14 @@
         ],
         "description": "HomeKit accessory type used for volume control. Fan is recommended — it avoids 'turn off all lights' muting your processor."
       },
+      "wakeTimeout": {
+        "title": "Wake Timeout (seconds)",
+        "type": "integer",
+        "default": 90,
+        "minimum": 30,
+        "maximum": 300,
+        "description": "How long to wait for the processor to boot after a power-on command (default: 90). Older models may need a higher value."
+      },
       "inputs": {
         "title": "Input Aliases",
         "type": "object",

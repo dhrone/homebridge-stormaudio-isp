@@ -27,6 +27,7 @@ interface RawConfig {
   volumeCeiling?: unknown;
   volumeFloor?: unknown;
   volumeControl?: unknown;
+  wakeTimeout?: unknown;
   inputs?: unknown;
   [key: string]: unknown;
 }
@@ -86,6 +87,16 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     log.debug('[Config] Using default volumeControl: fan');
   }
 
+  const wakeTimeout = config.wakeTimeout !== undefined ? (config.wakeTimeout as number) : undefined;
+  const resolvedWakeTimeout = wakeTimeout ?? 90;
+  if (resolvedWakeTimeout < 30 || resolvedWakeTimeout > 300) {
+    log.error(`[Config] Error: "wakeTimeout" must be 30-300 seconds. Got: ${resolvedWakeTimeout}`);
+    return null;
+  }
+  if (wakeTimeout === undefined) {
+    log.debug('[Config] Using default wakeTimeout: 90');
+  }
+
   return {
     host: config.host,
     port: resolvedPort,
@@ -93,6 +104,7 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     volumeCeiling: resolvedCeiling,
     volumeFloor: resolvedFloor,
     volumeControl: resolvedVolumeControl as 'fan' | 'lightbulb' | 'none',
+    wakeTimeout: resolvedWakeTimeout,
     inputs: (config.inputs as Record<string, string> | undefined) ?? {},
   };
 }

@@ -22,15 +22,20 @@ The only required configuration is your processor's IP address:
 }
 ```
 
-After starting Homebridge, the plugin connects to your processor, imports its input list, and publishes a Television accessory to HomeKit. You will need to pair it once (it appears as a separate accessory because it uses a Child Bridge).
+After starting Homebridge, the plugin connects to your processor, imports its input list, and publishes a Television accessory to HomeKit. Because the plugin runs on its own Child Bridge, you will need to add it to your Home app separately:
 
-**What you will see in the Home app after first connection:**
+1. In the Homebridge UI, go to the **Status** tab. You will see the StormAudio Child Bridge listed with its own pairing QR code and setup code.
+2. Open the **Home** app on your iPhone, tap **+**, then **Add Accessory**.
+3. Scan the QR code from the Homebridge UI, or tap **More Options** and enter the setup code manually.
+4. Once the bridge is added, HomeKit will ask you to configure the accessory (room assignment, name, etc.).
+
+**What you will see in the Home app:**
 
 - A **Television tile** named whatever you set as `name` (default: "StormAudio"). This controls power and input selection.
 - A **Fan tile** (default) or **Lightbulb tile** for volume control. This is your primary way to set volume by percentage and to mute/unmute.
 - An **input picker** inside the Television tile's detail view, listing all inputs imported from your processor.
 
-**First-time tip:** Inputs are imported automatically from your processor on the first connection. After Homebridge starts and connects, restart Homebridge once. This ensures HomeKit picks up the full input list. If input names appear generic, you can rename them in the Home app or configure aliases in the plugin settings (see [Input Switching](#input-switching) below).
+**First-time tip:** Inputs are imported automatically from your processor every time Homebridge starts, and they update in real time whenever you rename inputs in the StormAudio installer UI. If input names appear generic, the best fix is to rename them directly in your StormAudio's configuration — the plugin will pick up the changes automatically.
 
 ---
 
@@ -117,26 +122,26 @@ The processor switches immediately and the Home app confirms the selection.
 
 Replace "TV" with the name of the input and "Theater" with your accessory name. Siri input switching works but can be sensitive to naming -- see the tips below.
 
-**How input aliases work:** Your processor has built-in names for each input (like "HDMI 1", "HDMI 3", "AES/EBU"). These names may not be Siri-friendly. You can create aliases in the plugin configuration to give inputs shorter, more recognizable names:
+**Naming your inputs:** The best way to get Siri-friendly input names is to **rename them directly in your StormAudio's configuration** (via the StormAudio web interface or remote app). The plugin reads input names from the processor and automatically updates HomeKit when you rename them. This keeps a single source of truth on the processor.
+
+If you cannot change names on the processor, you can override individual inputs using aliases in the plugin configuration:
 
 ```json
 {
   "inputs": {
     "1": "TV",
-    "2": "Roon",
-    "4": "PS5",
-    "5": "Apple TV"
+    "4": "PS5"
   }
 }
 ```
 
-The keys are the input IDs (visible in the Homebridge log on startup), and the values are the names you want to see in HomeKit.
+The keys are the input IDs (visible in the Homebridge log on startup), and the values are the names you want to see in HomeKit. Aliases override the processor's names for those inputs only.
 
 **Tips for input names:**
 
 - **Short and distinctive names work best with Siri.** "TV", "PS5", "Roon" are better than "Living Room Television", "PlayStation 5 Console", "Roon Music Server".
 - **Avoid names that overlap with other accessories.** If you have a smart TV accessory also named "TV", Siri may get confused. Use something like "Apple TV" or "Shield" instead.
-- **You can also rename inputs directly in the Home app** by long-pressing the Television tile and editing input names. However, these Home app renames are cosmetic only -- they do not persist across re-pairings. Aliases in the plugin configuration do persist.
+- **You can also rename inputs directly in the Home app** by long-pressing the Television tile and editing input names. However, these Home app renames are cosmetic only -- they do not persist across re-pairings. Renaming on the processor is the most durable approach.
 
 **Input switching from sleep:** HomeKit does not allow input switching when the Television accessory is shown as off. To switch inputs when the processor is sleeping, first turn it on ("Hey Siri, turn on the Theater"), wait for it to boot, then switch inputs.
 
@@ -144,14 +149,14 @@ The keys are the input IDs (visible in the Homebridge log on startup), and the v
 
 ## Scenes and Automations
 
-HomeKit Scenes and Automations let you combine multiple actions into a single command or trigger. The plugin supports all the building blocks you need.
+HomeKit Scenes and Automations let you combine multiple actions into a single command or trigger. The plugin supports all the building blocks you need. For general instructions on creating scenes and automations, see Apple's guide: [Create scenes and automations with the Home app](https://support.apple.com/en-us/102313).
 
 ### Example: "Movie Night" Scene
 
 Create a Scene in the Home app called "Movie Night" that:
 - Turns on the Television accessory (powers on the processor)
 - Sets the fan/lightbulb proxy to 40% (sets volume to your preferred movie level)
-- Sets the input to Apple TV (if you have input aliases configured)
+- Sets the input to Apple TV
 
 Then say:
 > "Hey Siri, Movie Night"
@@ -205,30 +210,33 @@ The plugin registers as an External Platform Accessory, which means it runs on i
 - The plugin can restart independently without disrupting your entire Homebridge setup.
 - You can see the plugin's status separately in the Homebridge UI.
 
-To enable a Child Bridge explicitly, add a `_bridge` section to the platform configuration:
+To enable a Child Bridge explicitly via `config.json`, add a `_bridge` section inside your platform entry (alongside `platform`, `name`, and `host`):
 
 ```json
 {
-  "platform": "StormAudioISP",
-  "name": "Theater",
-  "host": "192.168.1.100",
-  "_bridge": {
-    "username": "CC:22:3D:E3:CE:31",
-    "port": 51827
-  }
+  "platforms": [
+    {
+      "platform": "StormAudioISP",
+      "name": "Theater",
+      "host": "192.168.1.100",
+      "_bridge": {
+        "username": "CC:22:3D:E3:CE:31",
+        "port": 51827
+      }
+    }
+  ]
 }
 ```
 
-The `username` must be a unique MAC-style address not used by your main bridge or other Child Bridges.
+The `username` must be a unique MAC-style address (six pairs of hexadecimal characters separated by colons) not used by your main bridge or other Child Bridges. You can generate a random one at [miniwebtool.com/mac-address-generator](https://miniwebtool.com/mac-address-generator/). The `port` must be a unique port number not used by other bridges.
 
-### First Connection: Restart Once for Inputs
+### First Connection
 
-When you first install the plugin and connect to your processor, the input list is imported automatically. However, HomeKit caches accessory structure aggressively. After the first successful connection, restart Homebridge once to ensure all inputs appear in the Home app's input picker. This is a one-time step.
+When you first install the plugin and connect to your processor, the input list is imported automatically and should appear in the Home app's input picker right away. Input names are read directly from the processor and update in real time whenever you rename them in the StormAudio installer UI.
 
-If input names still appear generic after restarting, you can:
-1. Remove the accessory from the Home app and re-pair it, or
-2. Configure input aliases in the plugin settings, or
-3. Rename inputs directly in the Home app (long-press the Television tile)
+If input names appear generic, you can:
+1. Rename inputs in your StormAudio's configuration (recommended -- the plugin picks up changes automatically), or
+2. Configure input aliases in the plugin settings as an override
 
 ### Multiple Rooms
 
@@ -261,7 +269,6 @@ The following features are recognized as potential future enhancements. The proc
 | **Zone 2 control** | Processor reports zone data; not yet exposed as a separate accessory |
 | **Dynamic range compression (night mode)** | Processor reports DRC state; not yet exposed as a HomeKit switch |
 | **Dialog enhancement** | Processor reports availability and level; not yet exposed |
-| **Auto-discovery** | You must configure the processor's IP address manually |
 | **Relative volume via Siri** | HomeKit platform limitation -- use absolute percentages instead |
 
 ---
@@ -271,11 +278,11 @@ The following features are recognized as potential future enhancements. The proc
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
 | Accessory shows "Not Responding" or appears off | Network connection lost between Homebridge and the processor | Check that the processor is powered on and reachable on your network. The plugin retries automatically -- it should recover on its own once the network is restored. |
-| Inputs not showing in the Home app | HomeKit cached the accessory before inputs were imported | Restart Homebridge once. If inputs still do not appear, remove the accessory from the Home app and re-pair it. |
+| Inputs not showing in the Home app | Accessory may need to be re-paired | Remove the accessory from the Home app and re-pair it. Check the Homebridge log for `[HomeKit] Input sources registered` to confirm inputs were imported. |
 | Siri says "I can't do that" for volume | Using relative command ("turn it up") instead of absolute | Use "Hey Siri, set Theater to 50%" instead. Relative volume via Siri is a HomeKit platform limitation. |
 | Volume changes are not audible | Configured volume range is too low or too narrow | Check `volumeFloor` and `volumeCeiling` in your configuration. With defaults (-100 to -20), low percentages may be inaudible on some speaker systems. Raise the floor (e.g., -80) for a more usable range. |
 | "Hey Siri, mute the Theater" does not work | Siri cannot route mute commands to the volume proxy | Use "Hey Siri, turn off Theater" to mute, and "Hey Siri, turn on Theater" to unmute. |
-| Processor takes 30-75 seconds to respond after power on | Normal boot time for StormAudio processors | This is expected. The processor is loading its configuration and room calibration. The plugin waits up to 90 seconds for the boot to complete. |
+| Processor takes 30-75 seconds to respond after power on | Normal boot time for StormAudio processors | This is expected. The processor is loading its configuration and room calibration. The plugin waits up to `wakeTimeout` seconds (default: 90, configurable up to 300). If your processor takes longer, increase `wakeTimeout` in the plugin settings. |
 | "Hey Siri" opens the StormAudio app instead of controlling HomeKit | Accessory name conflicts with an installed iOS app | Rename your accessory to something unique like "Theater" or "Processor" to avoid the conflict. |
 | Home app shows wrong volume/input after a network outage | State was not re-synced yet | Wait a few seconds after the connection is restored. The plugin automatically re-syncs all state from the processor on reconnection. |
 | Plugin appears to stop working after initial startup failure | Processor was not reachable when Homebridge started | The plugin retries automatically every 20 seconds indefinitely. Once the processor becomes reachable, the plugin will connect and begin working. No restart needed. |

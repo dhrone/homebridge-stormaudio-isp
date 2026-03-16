@@ -199,3 +199,44 @@ describe('validateConfig — volumeControl', () => {
     expect(log.error).toHaveBeenCalled();
   });
 });
+
+describe('validateConfig — wakeTimeout', () => {
+  it('defaults wakeTimeout to 90', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig }, log);
+    expect(result!.wakeTimeout).toBe(90);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('wakeTimeout'));
+  });
+
+  it('accepts wakeTimeout within range (120)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, wakeTimeout: 120 }, log);
+    expect(result!.wakeTimeout).toBe(120);
+  });
+
+  it('accepts wakeTimeout at lower boundary (30)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, wakeTimeout: 30 }, log);
+    expect(result!.wakeTimeout).toBe(30);
+  });
+
+  it('accepts wakeTimeout at upper boundary (300)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, wakeTimeout: 300 }, log);
+    expect(result!.wakeTimeout).toBe(300);
+  });
+
+  it('returns null for wakeTimeout below minimum (29)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, wakeTimeout: 29 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('wakeTimeout'));
+  });
+
+  it('returns null for wakeTimeout above maximum (301)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, wakeTimeout: 301 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('wakeTimeout'));
+  });
+});

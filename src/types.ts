@@ -29,6 +29,7 @@ export interface StormAudioConfig {
   volumeCeiling: number;
   volumeFloor: number;
   volumeControl: 'fan' | 'lightbulb' | 'none';
+  wakeTimeout: number;
   inputs: Record<string, string>;
   // IMPORTANT: keys are string representations of numeric IDs
   // e.g., { "3": "TV", "5": "PS5" }

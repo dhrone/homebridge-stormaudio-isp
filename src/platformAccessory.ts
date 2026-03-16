@@ -326,7 +326,7 @@ export class StormAudioAccessory {
   private async requiresActive(): Promise<boolean> {
     if (!this.connected) return false;
     if (this.client.getProcessorState() === ProcessorState.Active) return true;
-    const reached = await this.client.ensureActive();
+    const reached = await this.client.ensureActive(this.platform.validatedConfig!.wakeTimeout * 1000);
     if (!reached) {
       this.platform.log.debug('[State] Command dropped — processor did not reach active state');
     }
