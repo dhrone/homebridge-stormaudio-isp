@@ -2044,10 +2044,9 @@ describe('StormAudioClient — reconnection', () => {
     const client = connectClient(log);
     client.on('error', () => {});
 
-    // With RECONNECT_INITIAL_DELAY_MS=0: every delay is 0 * multiplier = 0, capped at 0.
-    // One entry per RECONNECT_MAX_RETRIES attempt (6); last iteration doesn't fail so
-    // the 5th close schedules retryCount=6 at 0ms (check is pre-increment, so still 0ms).
-    const expectedDelays = [0, 0, 0, 0, 0, 0];
+    // With RECONNECT_INITIAL_DELAY_MS=1000: delays are 1000, 2000, 4000, 8000, 16000, 16000.
+    // Backoff formula: delay *= RECONNECT_MULTIPLIER, capped at RECONNECT_MAX_DELAY_MS.
+    const expectedDelays = [1000, 2000, 4000, 8000, 16000, 16000];
 
     // First unexpected disconnect triggers reconnection cycle
     simulateUnexpectedDisconnect();
@@ -2056,8 +2055,8 @@ describe('StormAudioClient — reconnection', () => {
       freshSocket();
       const callsBefore = socketFactory.mock.calls.length;
 
-      // All delays are 0ms — advancing 0ms fires the timer
-      vi.advanceTimersByTime(0);
+      // Advance by the expected delay to fire the timer
+      vi.advanceTimersByTime(expectedDelays[i]);
       expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
 
       // Fail this attempt to continue to next backoff level
@@ -2115,7 +2114,7 @@ describe('StormAudioClient — reconnection', () => {
     const client = connectClient(log);
     client.on('error', () => {});
 
-    // Fail 3 times (delay is always 0 since initial=0)
+    // Fail 3 times (delays: 1000, 2000, 4000)
     for (let i = 0; i < 3; i++) {
       simulateUnexpectedDisconnect();
       freshSocket();
@@ -2128,20 +2127,20 @@ describe('StormAudioClient — reconnection', () => {
     // 3rd attempt succeeds
     mockSocket.simulateConnect();
 
-    // Now disconnect again — delay should restart at 0ms
+    // Now disconnect again — delay should restart at RECONNECT_INITIAL_DELAY_MS (1000ms)
     simulateUnexpectedDisconnect();
     const reconnectSocket = freshSocket();
     const callsBefore = socketFactory.mock.calls.length;
 
-    // Should reconnect immediately at 0ms (reset to initial delay)
-    vi.advanceTimersByTime(0);
+    // Should reconnect after initial delay (reset backoff)
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
     expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
     reconnectSocket.simulateConnect();
   });
 
   // ── Edge Cases ──────────────────────────────────────────────
 
-  it('QA-7: initial connection failure does NOT trigger reconnection', () => {
+  it('QA-7: initial connection failure triggers reconnection (processor may start after Homebridge)', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     let errorFired = false;
@@ -2156,12 +2155,14 @@ describe('StormAudioClient — reconnection', () => {
     mockSocket.simulateError(new Error('ECONNREFUSED'));
     mockSocket.simulateClose();
 
-    const callCountAfterClose = socketFactory.mock.calls.length;
-    vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
-
     expect(errorFired).toBe(true);
-    expect(socketFactory).toHaveBeenCalledTimes(callCountAfterClose); // no reconnect
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Could not connect'));
+
+    // Reconnection IS triggered — processor may power on after Homebridge starts
+    const callCountAfterClose = socketFactory.mock.calls.length;
+    freshSocket();
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+    expect(socketFactory).toHaveBeenCalledTimes(callCountAfterClose + 1);
   });
 
   it('QA-8: disconnect() during active reconnection timer clears the timer', () => {
@@ -2366,7 +2367,7 @@ describe('StormAudioClient — reconnection', () => {
   // ── Error Handler Sibling Coverage ──────────────────────────
 
   describe('error handler context family', () => {
-    it('initial connection failure: emits Recoverable error, logs at error level, no reconnection', () => {
+    it('initial connection failure: emits Recoverable error, logs at error level, triggers reconnection', () => {
       const log = makeLog();
       const client = new StormAudioClient(validConfig, log, socketFactory);
       let errorCategory: string | null = null;
@@ -2379,9 +2380,11 @@ describe('StormAudioClient — reconnection', () => {
       expect(errorCategory).toBe(ErrorCategory.Recoverable);
       expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Could not connect'));
 
+      // Reconnection IS triggered — initial failure schedules retry
       const callCount = socketFactory.mock.calls.length;
-      vi.advanceTimersByTime(RECONNECT_MAX_DELAY_MS * 2);
-      expect(socketFactory).toHaveBeenCalledTimes(callCount);
+      freshSocket();
+      vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
+      expect(socketFactory).toHaveBeenCalledTimes(callCount + 1);
     });
 
     it('active connection dropped: logs warn "Connection lost", triggers reconnection via close', () => {
@@ -2507,8 +2510,8 @@ describe('StormAudioClient — reconnection', () => {
   // ── Reconnection constants ──────────────────────────────────
 
   describe('reconnection constants', () => {
-    it('RECONNECT_INITIAL_DELAY_MS is 0', () => {
-      expect(RECONNECT_INITIAL_DELAY_MS).toBe(0);
+    it('RECONNECT_INITIAL_DELAY_MS is 1000', () => {
+      expect(RECONNECT_INITIAL_DELAY_MS).toBe(1000);
     });
 
     it('RECONNECT_MULTIPLIER is 2', () => {
@@ -2668,7 +2671,7 @@ describe('StormAudioClient — long-poll recovery', () => {
     expect(errorCallsAfterLongPoll).toBe(1); // still exactly one
   });
 
-  it('LP-3: failed long-poll attempt uses debug log (not warn)', () => {
+  it('LP-3: failed long-poll attempt logs processor still unreachable', () => {
     const log = makeLog();
     const client = connectClient(log);
     exhaustRetries(client);
@@ -2679,11 +2682,10 @@ describe('StormAudioClient — long-poll recovery', () => {
     // The attempt fails
     mockSocket.simulateError(new Error('ECONNREFUSED'));
 
-    // Should log at debug level — not warn
-    expect(log.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Checking connection'),
+    // Long-poll failures log at warn level with retry interval
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Processor still unreachable'),
     );
-    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('Checking connection'));
   });
 
   it('LP-4: failed long-poll schedules another 30s timer (indefinitely)', () => {
@@ -2706,7 +2708,7 @@ describe('StormAudioClient — long-poll recovery', () => {
     secondPollSocket.simulateConnect(); // clean up
   });
 
-  it('LP-5: successful long-poll attempt clears inLongPoll — backoff resets to 0ms', () => {
+  it('LP-5: successful long-poll attempt clears inLongPoll — backoff resets to initial delay', () => {
     const client = connectClient();
     exhaustRetries(client);
 
@@ -2715,15 +2717,15 @@ describe('StormAudioClient — long-poll recovery', () => {
     vi.advanceTimersByTime(RECONNECT_LONG_POLL_INTERVAL_MS);
     reconnectSocket.simulateConnect();
 
-    // After success, backoff should be reset — next disconnect uses 0ms initial delay
+    // After success, backoff should be reset — next disconnect uses RECONNECT_INITIAL_DELAY_MS
     reconnectSocket.simulateError(new Error('ECONNRESET'));
     reconnectSocket.simulateClose();
 
     const nextSocket = freshSocket();
     const callsBefore = socketFactory.mock.calls.length;
 
-    // Should reconnect immediately at 0ms (reset to initial delay, not long-poll interval)
-    vi.advanceTimersByTime(0);
+    // Should reconnect after initial delay (reset from long-poll, not long-poll interval)
+    vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
     expect(socketFactory).toHaveBeenCalledTimes(callsBefore + 1);
     nextSocket.simulateConnect(); // clean up
   });
