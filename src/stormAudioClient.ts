@@ -5,7 +5,9 @@ import {
   KEEPALIVE_INTERVAL_MS,
   KEEPALIVE_TIMEOUT_MS,
   PROCESSOR_WAKE_TIMEOUT_MS,
+  RECONNECT_CONNECT_TIMEOUT_MS,
   RECONNECT_INITIAL_DELAY_MS,
+  RECONNECT_LONG_POLL_INTERVAL_MS,
   RECONNECT_MAX_DELAY_MS,
   RECONNECT_MAX_RETRIES,
   RECONNECT_MULTIPLIER,
@@ -56,6 +58,7 @@ export class StormAudioClient extends EventEmitter {
   private wakePromise: Promise<boolean> | null = null;
   private wakeCancel: (() => void) | null = null;
   private reconnecting = false;
+  private inLongPoll = false;
   private intentionalDisconnect = false;
   private retryCount = 0;
   private backoffDelay = RECONNECT_INITIAL_DELAY_MS;
@@ -110,17 +113,24 @@ export class StormAudioClient extends EventEmitter {
       return;
     }
 
-    // Max retries exhausted
+    // Max retries exhausted — enter long-poll recovery (every 30s indefinitely)
     if (this.retryCount >= RECONNECT_MAX_RETRIES) {
-      this.reconnecting = false;
-      this.log.error(
-        '[TCP] Max reconnection retries exhausted. Processor may need reboot. Check network and power cycle the StormAudio.',
-      );
-      const stormError: StormAudioError = {
-        category: ErrorCategory.Fatal,
-        message: 'Max reconnection retries exhausted',
-      };
-      this.emit('error', stormError);
+      if (!this.inLongPoll) {
+        this.inLongPoll = true;
+        this.log.error(
+          '[TCP] Max reconnection retries exhausted. Processor may need reboot. Check network and power cycle the StormAudio.',
+        );
+        const stormError: StormAudioError = {
+          category: ErrorCategory.Fatal,
+          message: 'Max reconnection retries exhausted',
+        };
+        this.emit('error', stormError);
+      }
+      this.reconnecting = true;
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connect();
+      }, RECONNECT_LONG_POLL_INTERVAL_MS);
       return;
     }
 
@@ -154,6 +164,10 @@ export class StormAudioClient extends EventEmitter {
       this.log.debug('[TCP] Keepalive sent');
       this.keepaliveTimeout = setTimeout(() => {
         this.log.warn('[TCP] Keepalive timeout — connection appears stale');
+        // Set connected=false and emit 'disconnected' synchronously so HomeKit
+        // shows "Not Responding" immediately — before the async 'close' event fires.
+        this.connected = false;
+        this.emit('disconnected');
         this.socket?.destroy();
       }, KEEPALIVE_TIMEOUT_MS);
     }, KEEPALIVE_INTERVAL_MS);
@@ -176,11 +190,13 @@ export class StormAudioClient extends EventEmitter {
       this.reconnectTimer = null;
     }
     this.reconnecting = false;
+    this.inLongPoll = false;
   }
 
   private resetBackoff(): void {
     this.retryCount = 0;
     this.backoffDelay = RECONNECT_INITIAL_DELAY_MS;
+    this.inLongPoll = false;
   }
 
   connect(): void {
@@ -199,7 +215,13 @@ export class StormAudioClient extends EventEmitter {
 
     this.socket = this.socketFactory(host, port);
 
+    // Cap the connect-phase wait so each attempt fails fast instead of waiting
+    // for the OS TCP SYN timeout (~2 min). Cleared immediately on success.
+    this.socket.setTimeout(RECONNECT_CONNECT_TIMEOUT_MS);
+    this.socket.once('timeout', () => { this.socket?.destroy(new Error('Connection timed out')); });
+
     this.socket.on('connect', () => {
+      this.socket?.setTimeout(0); // Disable connect-phase timeout — keepalive owns timing now
       this.connected = true;
       if (this.reconnecting) {
         this.log.info(`[TCP] Reconnected to ${host}:${port}`);
@@ -224,10 +246,15 @@ export class StormAudioClient extends EventEmitter {
         // Active connection dropped
         this.log.warn(`[TCP] Connection lost. Reconnecting...`);
       } else if (this.reconnecting) {
-        // Reconnection attempt failed
-        this.log.warn(
-          `[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Retrying in ${this.backoffDelay / 1000}s`,
-        );
+        if (this.inLongPoll) {
+          this.log.warn(`[TCP] Processor still unreachable. Will retry in ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`);
+        } else if (this.retryCount >= RECONNECT_MAX_RETRIES) {
+          this.log.warn(`[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Reconnection effort has failed.`);
+        } else {
+          this.log.warn(
+            `[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Retrying in ${(this.backoffDelay + RECONNECT_CONNECT_TIMEOUT_MS) / 1000}s.`,
+          );
+        }
       } else {
         // Initial connection failure
         this.log.error(
@@ -258,7 +285,7 @@ export class StormAudioClient extends EventEmitter {
 
       this.emit('disconnected');
 
-      if (!this.intentionalDisconnect && (wasConnected || this.reconnecting)) {
+      if (!this.intentionalDisconnect) {
         this.scheduleReconnect();
       }
     });

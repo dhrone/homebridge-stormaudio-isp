@@ -40,7 +40,15 @@ export class StormAudioAccessory {
     // No polling is used. Network round-trips on LAN are inherently <1s.
 
     // Task 5: Track TCP connection status for HomeKit "Not Responding" support (AC: 3, 4)
-    this.client.on('disconnected', () => { this.connected = false; });
+    this.client.on('disconnected', () => {
+      this.connected = false;
+      // Push INACTIVE so the tile shows as unavailable — updateValue(HapStatusError) only
+      // produces a transient notification; HAP-NodeJS's internal cache holds the last valid
+      // value and HomeKit clears the error as soon as it re-reads.
+      this.tvService
+        .getCharacteristic(Characteristic.Active)
+        .updateValue(Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
+    });
     this.client.on('connected', () => { this.connected = true; });
 
     // Task 2: Register Television service
@@ -64,6 +72,7 @@ export class StormAudioAccessory {
     this.tvService
       .getCharacteristic(Characteristic.ActiveIdentifier)
       .onSet((value: CharacteristicValue) => {
+        this.ensureConnected();
         void this.requiresActive().then((active) => {
           if (!active) return;
           const inputId = value as number;
@@ -74,6 +83,7 @@ export class StormAudioAccessory {
 
     // Task 3/5: Handle power on/off commands
     this.tvService.getCharacteristic(Characteristic.Active).onSet((value: CharacteristicValue) => {
+      this.ensureConnected();
       const isOn = value === Characteristic.Active.ACTIVE;
       if (isOn) {
         // Optimistic update: show ON immediately
@@ -126,6 +136,7 @@ export class StormAudioAccessory {
 
     // Task 5: VolumeSelector handler (fire-and-forget to avoid blocking HAP-NodeJS during wake)
     speakerService.getCharacteristic(Characteristic.VolumeSelector).onSet((value: CharacteristicValue) => {
+      this.ensureConnected();
       void this.requiresActive().then((active) => {
         if (!active) return;
         if (value === Characteristic.VolumeSelector.INCREMENT) {
@@ -140,6 +151,7 @@ export class StormAudioAccessory {
 
     // Task 6: Mute handlers (fire-and-forget to avoid blocking HAP-NodeJS during wake)
     speakerService.getCharacteristic(Characteristic.Mute).onSet((value: CharacteristicValue) => {
+      this.ensureConnected();
       void this.requiresActive().then((active) => {
         if (!active) return;
         const muted = value as boolean;
@@ -173,6 +185,7 @@ export class StormAudioAccessory {
 
       // Volume level handlers (fire-and-forget to avoid blocking HAP-NodeJS during wake)
       proxyService.getCharacteristic(volumeChar).onSet((value: CharacteristicValue) => {
+        this.ensureConnected();
         void this.requiresActive().then((active) => {
           if (!active) return;
           const percentage = value as number;
@@ -188,6 +201,7 @@ export class StormAudioAccessory {
 
       // On/Off handlers linked to mute (fire-and-forget to avoid blocking HAP-NodeJS during wake)
       proxyService.getCharacteristic(Characteristic.On).onSet((value: CharacteristicValue) => {
+        this.ensureConnected();
         void this.requiresActive().then((active) => {
           if (!active) return;
           const on = value as boolean;
@@ -275,12 +289,42 @@ export class StormAudioAccessory {
 
   private ensureConnected(): void {
     if (!this.connected) {
+      // Schedule value reversion — HomeKit does not reliably auto-revert slider/numeric
+      // characteristics on onSet error, so we push the last known state after the throw.
+      // Also re-pushes INACTIVE so the TV tile stays visually unavailable.
+      setImmediate(() => { this.revertToLastKnownState(); });
       const { HapStatusError, HAPStatus } = this.platform.api.hap;
       throw new HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
   }
 
+  private revertToLastKnownState(): void {
+    if (this.connected) return;
+    const { Characteristic } = this.platform;
+    const config = this.platform.validatedConfig!;
+    // Keep TV tile showing as unavailable (INACTIVE is persistent; HapStatusError is transient)
+    this.tvService
+      .getCharacteristic(Characteristic.Active)
+      .updateValue(Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
+    // Revert mute and volume to last known state
+    this.speakerService
+      .getCharacteristic(Characteristic.Mute)
+      .updateValue(this.state.mute, EXTERNAL_CONTEXT);
+    this.speakerService
+      .getCharacteristic(Characteristic.Volume)
+      .updateValue(dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling), EXTERNAL_CONTEXT);
+    if (this.volumeProxyService && this.volumeProxyChar) {
+      this.volumeProxyService
+        .getCharacteristic(this.volumeProxyChar)!
+        .updateValue(dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling), EXTERNAL_CONTEXT);
+      this.volumeProxyService
+        .getCharacteristic(Characteristic.On)
+        .updateValue(!this.state.mute, EXTERNAL_CONTEXT);
+    }
+  }
+
   private async requiresActive(): Promise<boolean> {
+    if (!this.connected) return false;
     if (this.client.getProcessorState() === ProcessorState.Active) return true;
     const reached = await this.client.ensureActive();
     if (!reached) {
