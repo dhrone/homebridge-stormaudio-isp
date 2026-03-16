@@ -9,6 +9,7 @@ import { StormAudioClient } from '../../src/stormAudioClient';
 import { ProcessorState } from '../../src/types';
 import type { InputInfo, StormAudioConfig, StormAudioError } from '../../src/types';
 import { HarnessLogger } from './logger';
+import { sleepWithProgress, Spinner } from './spinner';
 import type { HardwareTestConfig, ResponseTimeStat, ScenarioResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ function createAndConnect(
       volumeCeiling: config.volumeCeiling,
       volumeFloor: config.volumeFloor,
       volumeControl: 'fan',
+      wakeTimeout: 90,
       inputs: {},
     };
 
@@ -108,6 +110,7 @@ function waitForStateDump(client: StormAudioClient, timeoutMs = 15000): Promise<
 export async function scenarioConnectionLifecycle(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  _spinner: Spinner,
 ): Promise<{ result: ScenarioResult; connectMs: number }> {
   const result = makeResult('1. Connection Lifecycle');
   const start = Date.now();
@@ -172,6 +175,7 @@ export async function scenarioConnectionLifecycle(
 export async function scenarioCommandRoundTrip(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  _spinner: Spinner,
 ): Promise<{ result: ScenarioResult; responseStats: ResponseTimeStat[] }> {
   const result = makeResult('2. Command Round-Trip');
   const responseStats: ResponseTimeStat[] = [];
@@ -311,6 +315,7 @@ export async function scenarioCommandRoundTrip(
 export async function scenarioInputListRetrieval(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  _spinner: Spinner,
 ): Promise<ScenarioResult> {
   const result = makeResult('3. Input List Retrieval');
   const start = Date.now();
@@ -365,7 +370,7 @@ export async function scenarioInputListRetrieval(
 // Scenario 4: Wake from Sleep
 // ---------------------------------------------------------------------------
 
-export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: HarnessLogger): Promise<ScenarioResult> {
+export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: HarnessLogger, spinner: Spinner): Promise<ScenarioResult> {
   const result = makeResult('4. Wake from Sleep');
   const start = Date.now();
 
@@ -416,7 +421,7 @@ export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: Har
 
       result.observations.push('Processor is now in sleep mode');
       // Wait a beat to let the processor settle
-      await sleep(2000);
+      await sleepWithProgress(2000, spinner, 'Letting processor settle...', 10, 15);
     } else if (procState === ProcessorState.Sleep) {
       result.observations.push('Processor is in sleep mode — will attempt wake');
     } else {
@@ -444,7 +449,7 @@ export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: Har
       if (settleResult === ProcessorState.Active) {
         // Try to sleep it
         client.setPower(false);
-        await sleep(10000);
+        await sleepWithProgress(10000, spinner, 'Waiting for processor to sleep...', 15, 30);
       }
     }
 
@@ -490,6 +495,7 @@ export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: Har
 export async function scenarioReconnection(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  _spinner: Spinner,
 ): Promise<{ result: ScenarioResult; reconnectMs: number | null }> {
   const result = makeResult('5. Reconnection');
   const start = Date.now();
@@ -587,6 +593,7 @@ export async function scenarioReconnection(
 export async function scenarioKeepalive(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  spinner: Spinner,
 ): Promise<{ result: ScenarioResult; keepalivesObserved: number }> {
   const result = makeResult('6. Keepalive');
   const start = Date.now();
@@ -604,7 +611,7 @@ export async function scenarioKeepalive(
     const logStartIndex = log.messages.length;
 
     // Wait 70 seconds (should see at least 2 keepalive cycles at 30s intervals)
-    await sleep(70000);
+    await sleepWithProgress(70000, spinner, 'Monitoring keepalive (70s)...', 10, 90);
 
     // Count keepalive messages in the log since we started monitoring
     for (let i = logStartIndex; i < log.messages.length; i++) {
@@ -641,6 +648,7 @@ export async function scenarioKeepalive(
 export async function scenarioStateConsistency(
   config: HardwareTestConfig,
   log: HarnessLogger,
+  _spinner: Spinner,
 ): Promise<ScenarioResult> {
   const result = makeResult('7. State Consistency');
   const start = Date.now();
@@ -721,7 +729,7 @@ export async function scenarioStateConsistency(
 // Scenario 8: Rapid Commands
 // ---------------------------------------------------------------------------
 
-export async function scenarioRapidCommands(config: HardwareTestConfig, log: HarnessLogger): Promise<ScenarioResult> {
+export async function scenarioRapidCommands(config: HardwareTestConfig, log: HarnessLogger, spinner: Spinner): Promise<ScenarioResult> {
   const result = makeResult('8. Rapid Commands');
   const start = Date.now();
 
@@ -761,7 +769,7 @@ export async function scenarioRapidCommands(config: HardwareTestConfig, log: Har
     }
 
     // Wait for responses
-    await sleep(5000);
+    await sleepWithProgress(5000, spinner, 'Waiting for rapid command responses...', 30, 80);
 
     client.removeListener('volume', volumeHandler);
 

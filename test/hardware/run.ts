@@ -41,6 +41,7 @@ import {
   scenarioStateConsistency,
   scenarioWakeFromSleep,
 } from './scenarios';
+import { Spinner } from './spinner';
 import type { HardwareTestConfig, HarnessReport, ResponseTimeStat, ScenarioResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -259,76 +260,79 @@ async function main(): Promise<void> {
   let reconnectMs: number | null = null;
   let keepalivesObserved = 0;
 
+  const spinner = new Spinner();
+
   // Define scenario registry
   const scenarioRunners: Array<{
     id: number;
+    name: string;
     run: () => Promise<void>;
   }> = [
     {
       id: 1,
+      name: 'Connection Lifecycle',
       run: async () => {
-        console.log('\n--- Scenario 1: Connection Lifecycle ---');
-        const { result, connectMs } = await scenarioConnectionLifecycle(config, log);
+        const { result, connectMs } = await scenarioConnectionLifecycle(config, log, spinner);
         allResults.push(result);
         initialConnectMs = connectMs;
       },
     },
     {
       id: 2,
+      name: 'Command Round-Trip',
       run: async () => {
-        console.log('\n--- Scenario 2: Command Round-Trip ---');
-        const { result, responseStats } = await scenarioCommandRoundTrip(config, log);
+        const { result, responseStats } = await scenarioCommandRoundTrip(config, log, spinner);
         allResults.push(result);
         allResponseStats.push(...responseStats);
       },
     },
     {
       id: 3,
+      name: 'Input List Retrieval',
       run: async () => {
-        console.log('\n--- Scenario 3: Input List Retrieval ---');
-        const result = await scenarioInputListRetrieval(config, log);
+        const result = await scenarioInputListRetrieval(config, log, spinner);
         allResults.push(result);
       },
     },
     {
       id: 4,
+      name: 'Wake from Sleep',
       run: async () => {
-        console.log('\n--- Scenario 4: Wake from Sleep ---');
-        const result = await scenarioWakeFromSleep(config, log);
+        const result = await scenarioWakeFromSleep(config, log, spinner);
         allResults.push(result);
       },
     },
     {
       id: 5,
+      name: 'Reconnection',
       run: async () => {
-        console.log('\n--- Scenario 5: Reconnection ---');
-        const { result, reconnectMs: rMs } = await scenarioReconnection(config, log);
+        const { result, reconnectMs: rMs } = await scenarioReconnection(config, log, spinner);
         allResults.push(result);
         reconnectMs = rMs;
       },
     },
     {
       id: 6,
+      name: 'Keepalive',
       run: async () => {
-        console.log('\n--- Scenario 6: Keepalive ---');
-        const { result, keepalivesObserved: k } = await scenarioKeepalive(config, log);
+        const { result, keepalivesObserved: k } = await scenarioKeepalive(config, log, spinner);
         allResults.push(result);
         keepalivesObserved = k;
       },
     },
     {
       id: 7,
+      name: 'State Consistency',
       run: async () => {
-        console.log('\n--- Scenario 7: State Consistency ---');
-        const result = await scenarioStateConsistency(config, log);
+        const result = await scenarioStateConsistency(config, log, spinner);
         allResults.push(result);
       },
     },
     {
       id: 8,
+      name: 'Rapid Commands',
       run: async () => {
-        console.log('\n--- Scenario 8: Rapid Commands ---');
-        const result = await scenarioRapidCommands(config, log);
+        const result = await scenarioRapidCommands(config, log, spinner);
         allResults.push(result);
       },
     },
@@ -343,15 +347,26 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  for (const scenario of scenariosToRun) {
+  for (let i = 0; i < scenariosToRun.length; i++) {
+    const scenario = scenariosToRun[i];
+    const basePct = Math.round((i / scenariosToRun.length) * 100);
+    const label = `Scenario ${scenario.id}: ${scenario.name}`;
+
+    spinner.start(label, basePct);
+
     try {
       await scenario.run();
+      spinner.stop();
+
+      const lastResult = allResults[allResults.length - 1];
+      const icon = lastResult.status === 'PASS' ? '[PASS]' : lastResult.status === 'FAIL' ? '[FAIL]' : '[SKIP]';
+      console.log(`${icon} ${label} (${lastResult.durationMs}ms)`);
     } catch (err) {
-      console.error(
-        `Scenario ${scenario.id} threw an unexpected error: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      spinner.stop();
+      console.log(`[FAIL] ${label} (crashed)`);
+      console.error(`  ${err instanceof Error ? err.message : String(err)}`);
       allResults.push({
-        name: `Scenario ${scenario.id} (crashed)`,
+        name: `${label} (crashed)`,
         status: 'FAIL',
         durationMs: 0,
         reason: err instanceof Error ? err.message : String(err),
