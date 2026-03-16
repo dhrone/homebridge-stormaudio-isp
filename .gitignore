@@ -53,3 +53,7 @@ coverage
 # Apple TV enhanced test config (credentials and Python venv)
 /test/hbConfig/appletv-enhanced/.venv/
 /test/hbConfig/appletv-enhanced/*/credentials.txt
+
+# Hardware test harness (local config and generated reports)
+/test/hardware/config.json
+/test/hardware/report.json

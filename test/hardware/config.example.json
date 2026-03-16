@@ -1,0 +1,10 @@
+{
+  "host": "192.168.1.100",
+  "port": 23,
+  "volumeFloor": -80,
+  "volumeCeiling": -20,
+  "testInputId": null,
+  "testVolumeDb": -60,
+  "skipDestructive": false,
+  "reportPath": "./test/hardware/report.json"
+}
