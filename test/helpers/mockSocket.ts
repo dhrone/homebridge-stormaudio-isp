@@ -10,9 +10,18 @@ export class MockSocket extends EventEmitter {
     return true;
   }
 
-  destroy(): void {
+  destroy(err?: Error): void {
     this.destroyed = true;
+    if (err) {
+      this.emit('error', err);
+    }
     this.emit('close');
+  }
+
+  // No-op stub so socket.setTimeout(ms) and socket.setTimeout(0) don't throw.
+  // Tests that need to verify timeout behavior use simulateTimeout() directly.
+  setTimeout(_ms: number): this {
+    return this;
   }
 
   simulateData(raw: string): void {
@@ -29,6 +38,11 @@ export class MockSocket extends EventEmitter {
 
   simulateClose(): void {
     this.emit('close');
+  }
+
+  // Fires the 'timeout' event, mimicking Node's socket.setTimeout() firing.
+  simulateTimeout(): void {
+    this.emit('timeout');
   }
 }
 

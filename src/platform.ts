@@ -10,6 +10,7 @@ import type {
 
 import { StormAudioAccessory } from './platformAccessory';
 import { PLUGIN_NAME } from './settings';
+import { RECONNECT_LONG_POLL_INTERVAL_MS } from './settings';
 import { StormAudioClient } from './stormAudioClient';
 import { ErrorCategory } from './types';
 import type { StormAudioConfig } from './types';
@@ -136,7 +137,7 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           // Reconnection is handled automatically by StormAudioClient.
           // Fatal errors (max retries exhausted) require user intervention.
           if (stormError.category === ErrorCategory.Fatal) {
-            this.log.error('[Platform] Reconnection failed permanently. Check network and power cycle the StormAudio.');
+            this.log.error(`[Platform] Reconnection has failed. Will reattempt connection every ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`);
           }
         });
         this.client.connect();

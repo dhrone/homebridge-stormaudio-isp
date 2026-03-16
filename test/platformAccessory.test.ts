@@ -1756,26 +1756,24 @@ describe('StormAudioAccessory — HomeKit connection status (Story 4.2)', () => 
 
   // ── Edge Cases ──────────────────────────────────────────────
 
-  it('QA-18: onSet handlers gracefully handle disconnected state — commands dropped silently', async () => {
+  it('QA-18: onSet handlers throw SERVICE_COMMUNICATION_FAILURE when disconnected', () => {
     const { accessory, client } = setup('lightbulb');
     client._emit('disconnected');
-    client.ensureActive.mockResolvedValue(false);
 
-    // Trigger onSet handlers that use requiresActive — none should throw
-    accessory._tvService._getCharacteristicMock('ActiveIdentifier')?._triggerSet(3);
-    accessory._speakerService._getCharacteristicMock('VolumeSelector')?._triggerSet(0);
-    accessory._speakerService._getCharacteristicMock('Mute')?._triggerSet(true);
-    accessory._lightbulbService._getCharacteristicMock('Brightness')?._triggerSet(50);
-    accessory._lightbulbService._getCharacteristicMock('On')?._triggerSet(false);
+    // Each onSet throws HapStatusError synchronously — ensureConnected() fires before fire-and-forget
+    expect(() => accessory._tvService._getCharacteristicMock('ActiveIdentifier')?._triggerSet(3)).toThrow();
+    expect(() => accessory._tvService._getCharacteristicMock('Active')?._triggerSet(1)).toThrow();
+    expect(() => accessory._speakerService._getCharacteristicMock('VolumeSelector')?._triggerSet(0)).toThrow();
+    expect(() => accessory._speakerService._getCharacteristicMock('Mute')?._triggerSet(true)).toThrow();
+    expect(() => accessory._lightbulbService._getCharacteristicMock('Brightness')?._triggerSet(50)).toThrow();
+    expect(() => accessory._lightbulbService._getCharacteristicMock('On')?._triggerSet(false)).toThrow();
 
-    // Flush fire-and-forget promises
-    await new Promise(r => setTimeout(r, 0));
-
-    // Commands should NOT be called — ensureActive returned false, handlers returned early
+    // Commands must never reach the client
     expect(client.setInput).not.toHaveBeenCalled();
     expect(client.volumeUp).not.toHaveBeenCalled();
     expect(client.setMute).not.toHaveBeenCalled();
     expect(client.setVolume).not.toHaveBeenCalled();
+    expect(client.setPower).not.toHaveBeenCalled();
   });
 
   it('QA-19: initial state is connected — onGet handlers succeed immediately after construction', () => {
