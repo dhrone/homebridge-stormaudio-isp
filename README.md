@@ -23,6 +23,7 @@ A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP imme
 - [Naming Tips](#naming-tips)
 - [Troubleshooting](#troubleshooting)
 - [Known Limitations](#known-limitations)
+- [Acknowledgments](#acknowledgments)
 - [Usage Guide](USAGE.md) -- Siri commands, scenes, automations, and tips
 
 ## Features
@@ -306,6 +307,12 @@ If the troubleshooting steps above do not resolve your issue, [open a GitHub iss
 - **Single processor** -- the plugin supports one StormAudio processor per platform instance. If you have multiple processors, add a separate `StormAudioISP` platform entry for each one.
 - **Volume step granularity** -- HomeKit volume characteristics use integer percentages, so each step maps to a whole-number dB value within your configured range. The processor supports 0.1 dB resolution, but HomeKit cannot represent fractional steps. With a wide volume range (e.g., 80 dB span), some adjacent percentage values may map to the same dB level and produce no audible change.
 - **Mute icon in Control Center** -- the mute button icon in the iOS Control Center remote widget may not always visually reflect the current mute state, due to a known iOS limitation with Television accessories.
+
+## Acknowledgments
+
+- [Homebridge](https://homebridge.io) -- for making HomeKit accessible to everyone and providing an outstanding plugin development ecosystem
+- [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) -- Breakthrough Method for Agile AI-Driven Development, the agent-based framework used to plan, spec, and manage this project from product brief through MVP delivery
+- [Claude](https://claude.ai) by [Anthropic](https://www.anthropic.com) -- AI assistant used throughout development via [Claude Code](https://claude.ai/claude-code) for architecture, implementation, code review, and testing
 
 ## License
 

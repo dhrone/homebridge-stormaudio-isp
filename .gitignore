@@ -4,6 +4,9 @@ dist/
 # Dependencies
 node_modules/
 
+# BMAD generated artifacts (planning docs, retros, sprint status)
+_bmad-output/
+
 # macOS
 .DS_Store
 
