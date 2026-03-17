@@ -18,6 +18,8 @@ const validConfig = {
   volumeCeiling: -20,
   volumeFloor: -100,
   volumeControl: 'lightbulb' as const,
+  wakeTimeout: 90,
+  commandInterval: 0,
   inputs: {},
 };
 

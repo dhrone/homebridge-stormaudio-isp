@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import * as net from 'net';
 
 import {
+  COMMAND_INTERVAL_MS,
   KEEPALIVE_INTERVAL_MS,
   KEEPALIVE_TIMEOUT_MS,
   PROCESSOR_WAKE_TIMEOUT_MS,
@@ -57,6 +58,9 @@ export class StormAudioClient extends EventEmitter {
   private pendingTriggerList: TriggerInfo[] | null = null;
   private wakePromise: Promise<boolean> | null = null;
   private wakeCancel: (() => void) | null = null;
+  private readonly commandQueue: string[] = [];
+  private commandDrainTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastCommandTime = 0;
   private reconnecting = false;
   private inLongPoll = false;
   private intentionalDisconnect = false;
@@ -268,12 +272,10 @@ export class StormAudioClient extends EventEmitter {
         this.emit('error', stormError);
       }
       // CRITICAL: Do NOT set this.connected = false here — that's the close handler's
-      // responsibility. Setting it here would cause wasConnected to always be false in
-      // the close handler for active-connection drops.
+      // responsibility.
     });
 
     this.socket.on('close', () => {
-      const wasConnected = this.connected;
       this.connected = false;
       this.socket = null;
 
@@ -302,6 +304,7 @@ export class StormAudioClient extends EventEmitter {
     }
 
     this.stopKeepalive();
+    this.flushCommandQueue();
 
     // Reset in-flight parsing state.
     // NOTE: if a new streaming list field is added to this class (e.g. pendingFooList),
@@ -478,8 +481,59 @@ export class StormAudioClient extends EventEmitter {
       this.log.debug(`[Command] Cannot send ${command.trim()}: not connected`);
       return;
     }
-    this.log.debug(`[Command] Sent: ${command.trim()}`);
-    this.socket.write(command);
+
+    const interval = this.config.commandInterval ?? COMMAND_INTERVAL_MS;
+    if (interval <= 0) {
+      this.log.debug(`[Command] Sent: ${command.trim()}`);
+      this.socket.write(command);
+      return;
+    }
+
+    this.commandQueue.push(command);
+    this.drainCommandQueue();
+  }
+
+  private drainCommandQueue(): void {
+    if (this.commandDrainTimer !== null) {
+      return; // already scheduled
+    }
+    if (this.commandQueue.length === 0) {
+      return;
+    }
+    if (!this.socket || !this.connected) {
+      this.commandQueue.length = 0;
+      return;
+    }
+
+    const interval = this.config.commandInterval ?? COMMAND_INTERVAL_MS;
+    const now = Date.now();
+    const elapsed = now - this.lastCommandTime;
+    const delay = Math.max(0, interval - elapsed);
+
+    this.commandDrainTimer = setTimeout(() => {
+      this.commandDrainTimer = null;
+
+      const cmd = this.commandQueue.shift();
+      if (!cmd || !this.socket || !this.connected) {
+        this.commandQueue.length = 0;
+        return;
+      }
+
+      this.log.debug(`[Command] Sent: ${cmd.trim()}`);
+      this.socket.write(cmd);
+      this.lastCommandTime = Date.now();
+
+      // Continue draining if more commands are queued
+      this.drainCommandQueue();
+    }, delay);
+  }
+
+  private flushCommandQueue(): void {
+    if (this.commandDrainTimer !== null) {
+      clearTimeout(this.commandDrainTimer);
+      this.commandDrainTimer = null;
+    }
+    this.commandQueue.length = 0;
   }
 
   private onData(data: Buffer): void {

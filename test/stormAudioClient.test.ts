@@ -31,6 +31,8 @@ const validConfig = {
   volumeCeiling: -20,
   volumeFloor: -100,
   volumeControl: 'lightbulb' as const,
+  wakeTimeout: 90,
+  commandInterval: 0,
   inputs: {},
 };
 
@@ -3585,5 +3587,128 @@ describe('StormAudioClient — log level filtering simulation (Story 4.3, AC 4)'
     // Should include both sent and received messages
     expect(debugCalls.some(m => m.includes('[Command] Sent:'))).toBe(true);
     expect(debugCalls.some(m => m.includes('[Command] Received:'))).toBe(true);
+  });
+});
+
+describe('StormAudioClient — command throttle (MC-9)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  const throttledConfig = { ...validConfig, commandInterval: 100 };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const connectClient = (config = throttledConfig, log = makeLog()) => {
+    const client = new StormAudioClient(config, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return { client, log };
+  };
+
+  it('first command is sent immediately (no prior commands)', () => {
+    const { client } = connectClient();
+    client.setPower(true);
+    vi.advanceTimersByTime(0);
+    expect(mockSocket.written).toContain('ssp.power.on\n');
+    client.disconnect();
+  });
+
+  it('second command is delayed by commandInterval', () => {
+    const { client } = connectClient();
+    client.setPower(true);
+    vi.advanceTimersByTime(0); // drain first
+    client.setPower(false);
+    // Not yet sent
+    expect(mockSocket.written).not.toContain('ssp.power.off\n');
+    vi.advanceTimersByTime(100);
+    expect(mockSocket.written).toContain('ssp.power.off\n');
+    client.disconnect();
+  });
+
+  it('multiple rapid commands are queued and drained serially', () => {
+    const { client } = connectClient();
+    client.setPower(true);
+    client.setVolume(-40);
+    client.setMute(true);
+
+    vi.advanceTimersByTime(0);
+    expect(mockSocket.written).toContain('ssp.power.on\n');
+    expect(mockSocket.written).not.toContain('ssp.vol.[-40]\n');
+
+    vi.advanceTimersByTime(100);
+    expect(mockSocket.written).toContain('ssp.vol.[-40]\n');
+    expect(mockSocket.written).not.toContain('ssp.mute.on\n');
+
+    vi.advanceTimersByTime(100);
+    expect(mockSocket.written).toContain('ssp.mute.on\n');
+    client.disconnect();
+  });
+
+  it('commandInterval: 0 sends all commands immediately (no queue)', () => {
+    const { client } = connectClient({ ...validConfig, commandInterval: 0 });
+    client.setPower(true);
+    client.setVolume(-40);
+    client.setMute(true);
+    // All sent synchronously — no timer needed
+    expect(mockSocket.written).toContain('ssp.power.on\n');
+    expect(mockSocket.written).toContain('ssp.vol.[-40]\n');
+    expect(mockSocket.written).toContain('ssp.mute.on\n');
+    client.disconnect();
+  });
+
+  it('disconnect() flushes the command queue and cancels drain timer', () => {
+    const { client } = connectClient();
+    client.setPower(true);
+    vi.advanceTimersByTime(0);
+    client.setVolume(-40);
+    client.setMute(true);
+    // Two commands queued
+    client.disconnect();
+    // Advance past where they would have drained
+    vi.advanceTimersByTime(500);
+    expect(mockSocket.written).not.toContain('ssp.vol.[-40]\n');
+    expect(mockSocket.written).not.toContain('ssp.mute.on\n');
+  });
+
+  it('queued commands are discarded if connection drops', () => {
+    const { client } = connectClient();
+    client.on('error', () => {}); // prevent unhandled error throw
+    client.setPower(true);
+    vi.advanceTimersByTime(0);
+    client.setVolume(-40);
+    // Simulate connection drop
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    mockSocket.simulateClose();
+    vi.advanceTimersByTime(200);
+    expect(mockSocket.written).not.toContain('ssp.vol.[-40]\n');
+    client.disconnect();
+  });
+
+  it('commands sent when not connected are rejected, not queued', () => {
+    const log = makeLog();
+    const client = new StormAudioClient(throttledConfig, log, socketFactory);
+    client.setPower(true);
+    vi.advanceTimersByTime(200);
+    expect(mockSocket.written).toHaveLength(0);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
+  });
+
+  it('each command is logged with [Command] Sent when drained', () => {
+    const { client, log } = connectClient();
+    client.setPower(true);
+    client.setVolume(-40);
+    vi.advanceTimersByTime(0);
+    expect(log.debug).toHaveBeenCalledWith('[Command] Sent: ssp.power.on');
+    vi.advanceTimersByTime(100);
+    expect(log.debug).toHaveBeenCalledWith('[Command] Sent: ssp.vol.[-40]');
+    client.disconnect();
   });
 });

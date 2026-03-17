@@ -73,6 +73,7 @@ function createAndConnect(
       volumeFloor: config.volumeFloor,
       volumeControl: 'fan',
       wakeTimeout: 90,
+      commandInterval: 0,
       inputs: {},
     };
 

@@ -45,6 +45,7 @@ function createClient(config: HardwareTestConfig, log: HarnessLogger): StormAudi
     volumeFloor: config.volumeFloor,
     volumeControl: 'fan',
     wakeTimeout: 90,
+    commandInterval: 0,
     inputs: {},
   };
 

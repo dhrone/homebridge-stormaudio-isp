@@ -240,3 +240,44 @@ describe('validateConfig — wakeTimeout', () => {
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining('wakeTimeout'));
   });
 });
+
+describe('validateConfig — commandInterval', () => {
+  it('defaults commandInterval to 100 when not provided', () => {
+    const log = makeLog();
+    const result = validateConfig(baseConfig, log);
+    expect(result!.commandInterval).toBe(100);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('commandInterval'));
+  });
+
+  it('accepts commandInterval within range (50)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, commandInterval: 50 }, log);
+    expect(result!.commandInterval).toBe(50);
+  });
+
+  it('accepts commandInterval at lower boundary (0)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, commandInterval: 0 }, log);
+    expect(result!.commandInterval).toBe(0);
+  });
+
+  it('accepts commandInterval at upper boundary (1000)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, commandInterval: 1000 }, log);
+    expect(result!.commandInterval).toBe(1000);
+  });
+
+  it('returns null for commandInterval below minimum (-1)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, commandInterval: -1 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('commandInterval'));
+  });
+
+  it('returns null for commandInterval above maximum (1001)', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, commandInterval: 1001 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('commandInterval'));
+  });
+});

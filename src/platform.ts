@@ -28,6 +28,7 @@ interface RawConfig {
   volumeFloor?: unknown;
   volumeControl?: unknown;
   wakeTimeout?: unknown;
+  commandInterval?: unknown;
   inputs?: unknown;
   [key: string]: unknown;
 }
@@ -97,6 +98,16 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     log.debug('[Config] Using default wakeTimeout: 90');
   }
 
+  const commandInterval = config.commandInterval !== undefined ? (config.commandInterval as number) : undefined;
+  const resolvedCommandInterval = commandInterval ?? 100;
+  if (resolvedCommandInterval < 0 || resolvedCommandInterval > 1000) {
+    log.error(`[Config] Error: "commandInterval" must be 0-1000 ms. Got: ${resolvedCommandInterval}`);
+    return null;
+  }
+  if (commandInterval === undefined) {
+    log.debug('[Config] Using default commandInterval: 100');
+  }
+
   return {
     host: config.host,
     port: resolvedPort,
@@ -105,6 +116,7 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     volumeFloor: resolvedFloor,
     volumeControl: resolvedVolumeControl as 'fan' | 'lightbulb' | 'none',
     wakeTimeout: resolvedWakeTimeout,
+    commandInterval: resolvedCommandInterval,
     inputs: (config.inputs as Record<string, string> | undefined) ?? {},
   };
 }
