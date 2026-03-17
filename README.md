@@ -39,6 +39,7 @@ A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP imme
 
 ## Requirements
 
+- A server to run Homebridge. See the [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) for details.
 - **Homebridge** 1.8.0 or later (including 2.0 beta)
 - **Node.js** 20.0.0 or later
 - **StormAudio ISP processor** (ISP, ISP Elite, ISP Core, or other models with the TCP/IP control API)
