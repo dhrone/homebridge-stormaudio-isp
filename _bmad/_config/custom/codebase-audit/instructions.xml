@@ -1,0 +1,453 @@
+<workflow>
+  <critical>The workflow execution engine is governed by: {project-root}/_bmad/core/tasks/workflow.xml</critical>
+  <critical>You MUST have already loaded and processed: {installed_path}/workflow.yaml</critical>
+  <critical>Communicate all responses in {communication_language} and generate all documents in {document_output_language}</critical>
+
+  <critical>STRUCTURED CODEBASE AUDIT — consistency, maintainability, and metrics report.</critical>
+  <critical>10 finding categories + automated metrics. Fresh-eyes approach: treat every file as if seen for the first time.</critical>
+  <critical>Do not audit files outside the application source. Always exclude _bmad/, _bmad-output/, node_modules/, .cursor/, .windsurf/, .claude/ directories.</critical>
+  <critical>Output: a single structured markdown report written to {implementation_artifacts}.</critical>
+
+  <!-- FINDING CONVENTIONS — referenced by all category steps -->
+  <critical>SEVERITY LEVELS: CRITICAL (breaks correctness or security), HIGH (likely bug or significant risk),
+    MEDIUM (maintainability concern or inconsistency worth fixing), LOW (cosmetic or stylistic),
+    NON-ISSUE (POSITIVE) (exemplary pattern worth noting as a project strength).</critical>
+  <critical>FINDING IDs: Use the format F{{category}}.{{sequence}} — e.g., F1.1, F1.2, F2.1, F3.1.
+    Each finding MUST have a unique ID, a severity, a file:line citation, and a description with suggested fix.</critical>
+  <critical>POSITIVE FINDINGS: In EVERY category, actively look for exemplary patterns and note them as
+    NON-ISSUE (POSITIVE). Strengths matter as much as weaknesses for a complete audit picture.</critical>
+
+  <step n="1" goal="Initialize audit — scope, context, and prior baselines">
+    <action>Determine audit scope:
+      - Default: all source files (src/**), all test files (test/**), config files (package.json, tsconfig*.json, eslint.config.*, config.schema.json, .gitignore)
+      - If user specifies a narrower scope, use that instead
+    </action>
+    <action>Set {{audit_date}} = current date</action>
+    <action>Set {{audit_timestamp}} = current date and time in ISO format (YYYY-MM-DDTHH-MM)</action>
+    <action>Set {{reviewer_model}} = your model identity</action>
+
+    <invoke-protocol name="discover_inputs" />
+    <action>Load {project_context} for coding standards (if exists)</action>
+
+    <!-- Load prior audit for trend comparison -->
+    <action>Search {implementation_artifacts} for previous *codebase-audit*.md files</action>
+    <check if="prior audit(s) exist">
+      <action>Load ONLY the most recent prior audit (by date in filename)</action>
+      <action>Set {{prior_audit}} = loaded content</action>
+      <action>Set {{has_baseline}} = true</action>
+      <action>Extract prior metrics for trend comparison</action>
+    </check>
+    <check if="no prior audit">
+      <action>Set {{has_baseline}} = false</action>
+      <action>Note: this is the baseline audit — no trend comparison available</action>
+    </check>
+
+    <!-- Load sprint/epic history for defect density trend -->
+    <check if="sprint status file exists at {sprint_status}">
+      <action>Load {sprint_status} for epic/story completion context</action>
+    </check>
+
+    <!-- Estimate scope size -->
+    <action>Count source files, test files, and config files in scope (file listing only — do not read yet)</action>
+    <action>Set {{total_file_count}} = total files in scope</action>
+
+    <output>**Codebase Audit initialized**
+      Scope: {{scope description}} ({{total_file_count}} files)
+      Reviewer: {{reviewer_model}}
+      Baseline comparison: {{has_baseline ? "yes — comparing against prior audit" : "no — this will be the baseline"}}
+    </output>
+
+    <!-- Size guard -->
+    <check if="{{total_file_count}} > 50">
+      <ask>This audit covers {{total_file_count}} files, which is a large scope. Options:
+        1. **Proceed** — audit all files (may require multiple passes)
+        2. **Narrow scope** — specify which directories or file patterns to focus on
+        3. **Source only** — skip test files for now, audit source + config only
+
+        Choose [1], [2], or [3]:</ask>
+    </check>
+  </step>
+
+  <step n="2" goal="Read all source files in scope">
+    <critical>Read EVERY file in scope completely. Do not skip or skim files.</critical>
+    <critical>Build a mental model of the entire codebase before making findings.</critical>
+    <critical>If the codebase is large (50+ files), read files in batches by directory, completing each
+      directory before moving to the next. Prioritize source files, then test files, then config files.</critical>
+
+    <action>Discover all files in scope:
+      1. List all source files (src/**)
+      2. List all test files (test/**)
+      3. List all config files in project root
+    </action>
+    <action>Read every source file completely</action>
+    <action>Read every test file completely</action>
+    <action>Read every config file completely</action>
+    <action>Note file count for each category (exact LOC will be measured by command in the metrics step)</action>
+  </step>
+
+  <step n="3" goal="Category 1 — Naming Consistency">
+    <action>Audit naming patterns across all source files:
+      1. **Import organization** — duplicate imports from same module, inconsistent import grouping
+      2. **Interface/type naming** — same concept named differently across files, naming convention violations
+      3. **Event naming** — casing consistency, naming convention alignment
+      4. **Variable/function naming** — casing consistency, descriptive names, abbreviation consistency
+      5. **Comment style markers** — sprint-tracking artifacts, consistency of marker format
+    </action>
+    <action>For each finding: assign ID (F1.N), severity (CRITICAL/HIGH/MEDIUM/LOW/NON-ISSUE POSITIVE), cite file:line, describe the issue and suggested fix</action>
+    <action>Note any exemplary naming patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="4" goal="Category 2 — Error Handling Consistency">
+    <action>Audit error handling patterns:
+      1. **Error classification** — are errors categorized consistently (e.g., severity levels, typed errors)?
+      2. **Error propagation** — are errors propagated or silently swallowed? Is the intent documented?
+      3. **Try/catch coverage** — async operations without error handling, missing catch blocks
+      4. **EventEmitter error listeners** — every consumer of an EventEmitter MUST have an 'error' listener
+      5. **Error message quality** — sufficient context for debugging? Consistent format?
+    </action>
+    <action>For each finding: assign ID (F2.N), severity, cite file:line</action>
+    <action>Note any exemplary error handling patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="5" goal="Category 3 — Logging Consistency">
+    <action>Audit logging patterns:
+      1. **Log tag prefixes** — structured tag usage consistency across files
+      2. **Log level policy** — is there a documented policy? Is it followed consistently?
+      3. **String formatting** — template literals vs concatenation consistency within files
+      4. **Sensitive data** — passwords, tokens, or PII logged at any level?
+      5. **Debug verbosity** — sufficient for troubleshooting without being excessive?
+    </action>
+    <action>For each finding: assign ID (F3.N), severity, cite file:line</action>
+    <action>Note any exemplary logging patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="6" goal="Category 4 — Type Safety">
+    <action>Audit type safety (adapt to the project's language — TypeScript, Flow, etc.):
+      1. **Type escape hatches** — `as any`, `as unknown as X`, untyped casts — count, justify, and assess risk
+      2. **Unguarded type assertions** — casts without prior type guards or validation
+      3. **Implicit any** — explicit or implicit `any` in function signatures
+      4. **Strict mode compliance** — are strict compiler settings being leveraged fully?
+      5. **Generic constraints** — opportunities for better type inference missed?
+    </action>
+    <action>For each finding: assign ID (F4.N), severity, cite file:line</action>
+    <action>Note any exemplary type-safety patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="7" goal="Category 5 — Dead Code">
+    <action>Audit for dead code:
+      1. **Unused variables** — assigned but never read
+      2. **Unused imports** — imported but never referenced
+      3. **Unreachable code** — code after returns, impossible branches
+      4. **Populated but unconsumed data** — collections/maps/objects built but never queried
+      5. **Forward-looking code** — types, interfaces, or parse logic for features not yet consumed (note as intentional vs accidental)
+      6. **Boilerplate remnants** — template/scaffold code that was never customized
+    </action>
+    <action>For each finding: assign ID (F5.N), severity, cite file:line</action>
+    <action>Note any cases where code appears dead but is intentionally forward-looking as NON-ISSUE (POSITIVE) with explanation</action>
+  </step>
+
+  <step n="8" goal="Category 6 — Test Consistency">
+    <action>Audit test quality and consistency:
+      1. **Test/source alignment** — does every source file have corresponding test coverage?
+      2. **Helper duplication** — shared test utilities duplicated across files instead of extracted
+      3. **Mock quality** — mocks that suppress type safety, brittle mocks tied to implementation details
+      4. **Assertion quality** — specific value assertions vs truthy/falsy, proper error message testing
+      5. **Test isolation** — tests dependent on execution order, shared mutable state
+      6. **Cleanup discipline** — missing afterEach/afterAll cleanup, orphaned timers, leaked listeners
+      7. **Coverage gaps** — source paths not exercised by any test
+    </action>
+    <action>For each finding: assign ID (F6.N), severity, cite file:line</action>
+    <action>Note any exemplary test patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="9" goal="Category 7 — Comment Quality">
+    <action>Audit comment quality:
+      1. **Stale comments** — comments that reference code/variables that no longer exist or have changed
+      2. **Sprint-tracking noise** — task/story markers that aid traceability but create maintainer noise
+      3. **Missing documentation** — non-obvious patterns, guard clauses, or workarounds without explanation
+      4. **Exemplary documentation** — note particularly good inline documentation as NON-ISSUE (POSITIVE)
+      5. **TODO/FIXME/HACK markers** — are they tracked? Still relevant?
+    </action>
+    <action>For each finding: assign ID (F7.N), severity, cite file:line</action>
+  </step>
+
+  <step n="10" goal="Category 8 — Config/Schema Alignment">
+    <action>Audit config and schema consistency:
+      1. **Schema vs code validation** — do required fields, defaults, and allowed values match?
+      2. **Schema strictness** — additionalProperties policy, type enforcement
+      3. **Default value alignment** — defaults in schema, code, and documentation match?
+      4. **Config field coverage** — all config fields used in code? Any config fields undocumented?
+    </action>
+    <action>For each finding: assign ID (F8.N), severity, cite file:line</action>
+    <action>Note well-aligned schema/code as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="11" goal="Category 9 — Dependency Hygiene">
+    <action>Audit dependencies:
+      1. **Production dependencies** — count, necessity, size impact
+      2. **Native modules** — platform-specific dependencies that could cause CI/deployment issues
+      3. **Version pinning** — caret vs exact, lockfile presence
+      4. **Peer dependencies** — declared and version-compatible?
+      5. **Unused dependencies** — listed but not imported anywhere in source
+      6. **Security** — known vulnerabilities (check if audit info is available from the package manager)
+    </action>
+    <action>For each finding: assign ID (F9.N), severity, cite file:line</action>
+    <action>Note exemplary dependency practices (e.g., zero prod deps, minimal footprint) as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="12" goal="Category 10 — Cross-File Pattern Drift">
+    <action>Audit consistency of patterns across files:
+      1. **API encapsulation** — do similar accessor methods follow the same return-value strategy (copies vs references)?
+      2. **Initialization consistency** — same concept initialized to matching values across files?
+      3. **Architecture pattern adherence** — DI patterns, factory usage, event handling all consistent with project conventions?
+      4. **Evolution drift** — earlier code following different conventions than later code?
+      5. **Import/export style** — default vs named exports, barrel files, re-export patterns consistent?
+    </action>
+    <action>For each finding: assign ID (F10.N), severity, cite file:line</action>
+    <action>Note consistent cross-file patterns as NON-ISSUE (POSITIVE)</action>
+  </step>
+
+  <step n="13" goal="Checkpoint — present category findings before metrics">
+    <action>Count findings so far by severity: {{critical_count}}, {{high_count}}, {{medium_count}}, {{low_count}}, {{positive_count}}</action>
+
+    <output>**Category audit complete — {{critical_count + high_count + medium_count + low_count}} findings across 10 categories**
+      CRITICAL: {{critical_count}} | HIGH: {{high_count}} | MEDIUM: {{medium_count}} | LOW: {{low_count}} | POSITIVE: {{positive_count}}
+
+      Proceeding to collect automated metrics (test coverage, complexity, build health)...
+    </output>
+
+    <ask>Review the findings so far before I collect metrics? (y/n)</ask>
+    <check if="user says yes">
+      <action>Present all findings organized by category, then wait for user to confirm before proceeding</action>
+    </check>
+  </step>
+
+  <step n="14" goal="Collect automated metrics">
+    <critical>Run actual commands to collect real metrics. Do not estimate or guess.</critical>
+    <critical>Detect the project's tooling from package.json scripts and devDependencies.
+      Do NOT assume a specific test runner, linter, or compiler — discover them first.</critical>
+
+    <!-- Detect tooling -->
+    <action>Read package.json to determine:
+      - Test runner (look for vitest, jest, mocha, ava, etc. in devDependencies and scripts)
+      - Linter (look for eslint, biome, oxlint, etc. in devDependencies and scripts)
+      - Compiler (look for typescript, tsc, swc, etc. in devDependencies and scripts)
+      - Coverage tool (look for c8, v8, istanbul, etc. in devDependencies or vitest/jest config)
+    </action>
+    <action>Set {{test_cmd}}, {{lint_cmd}}, {{compile_cmd}}, {{coverage_cmd}} based on discovered tooling</action>
+
+    <!-- Test Coverage -->
+    <critical>Coverage MUST be scoped to source files only (e.g., src/**). Scripts, tools, and other
+      non-source directories inflate the denominator and produce misleading "All files" totals.
+      Use coverage include/exclude flags to restrict to the audit scope.</critical>
+    <action>Run {{coverage_cmd}} with source-scoped include (e.g., --coverage.include='src/**' for vitest,
+      --collectCoverageFrom='src/**' for jest, or equivalent for the detected tool)</action>
+    <action>Record per-file coverage: % Stmts, % Branch, % Funcs, % Lines, uncovered lines</action>
+    <action>Record overall coverage percentages — verify "All files" reflects ONLY source files in scope</action>
+
+    <!-- Size and Testing Investment -->
+    <critical>Use actual commands for LOC — do not estimate or eyeball line counts.</critical>
+    <action>Run `wc -l` (or `cloc` if available) on source and test files to get exact LOC:
+      - Source files and LOC: e.g., `wc -l src/**/*.ts` (adapt glob to project structure)
+      - Test files and LOC: e.g., `wc -l test/**/*.test.ts`
+      - Compute Test:Source LOC ratio from the totals
+    </action>
+    <action>Extract from test runner output (already collected during coverage run):
+      - Total test count
+      - Tests passing / failing
+    </action>
+    <action>Extract from package.json:
+      - Production dependencies count (from `dependencies`)
+      - Dev dependencies count (from `devDependencies`)
+    </action>
+
+    <!-- Complexity -->
+    <action>Measure cyclomatic complexity:
+      - Use the project's linter with a complexity rule, or manual analysis if no linter available
+      - List all functions exceeding a complexity threshold of 5 with their complexity score
+      - Identify top hotspot functions
+    </action>
+    <action>Check nesting depth:
+      - Use linter max-depth rule or manual inspection
+      - Report maximum nesting depth found
+    </action>
+    <action>Report inheritance depth by running `grep -n 'class .* extends' src/**/*.ts` (adapt to project language):
+      - List all classes, their extends chain, and maximum depth
+      - If no grep results, report maximum depth as 0 (no inheritance)
+    </action>
+
+    <!-- Defect Density -->
+    <critical>Use the exact source LOC from the `wc -l` output above — not an estimate.</critical>
+    <check if="prior audit or code review history available">
+      <action>Calculate defect density trend:
+        - Findings per epic/milestone
+        - Severity distribution per epic/milestone
+        - CRITICAL+HIGH findings per KLOC over time
+      </action>
+    </check>
+    <check if="no prior history">
+      <action>Report current findings as baseline density:
+        - All findings / KLOC
+        - Substantive defects (CRITICAL+HIGH) / KLOC
+      </action>
+    </check>
+
+    <!-- Build and Lint Health -->
+    <action>Run and report:
+      - Compilation check: {{compile_cmd}} — count errors
+      - Linter: {{lint_cmd}} — count errors and warnings
+    </action>
+    <check if="any command fails to run">
+      <action>Report the failure as a finding (category 9 — Dependency Hygiene) and continue with remaining metrics</action>
+    </check>
+  </step>
+
+  <step n="15" goal="Compile report and compare to baseline">
+    <!-- Compile findings -->
+    <action>Count findings by severity: {{critical_count}}, {{high_count}}, {{medium_count}}, {{low_count}}, {{positive_count}}</action>
+    <action>Count findings by category (1-10)</action>
+
+    <!-- Baseline comparison -->
+    <check if="{{has_baseline}} == true">
+      <action>Compare to prior audit:
+        - Findings resolved since last audit
+        - New findings not in prior audit
+        - Findings that persisted (still open)
+        - Metric trends (coverage, complexity, defect density, test count, LOC)
+      </action>
+    </check>
+
+    <!-- Generate recommendations summary -->
+    <action>Create prioritized recommendations table:
+      | Priority | Action | Finding Ref |
+      Sort by: CRITICAL first, then HIGH, then MEDIUM. Omit LOW from recommendations table (list separately).</action>
+
+    <!-- Generate executive summary -->
+    <action>Write executive summary (1 paragraph):
+      - Characterize the state of the codebase
+      - Highlight strongest patterns (referencing POSITIVE findings) and biggest risks
+      - Overall verdict: "critical issues" / "significant issues" / "minor issues" / "clean"
+    </action>
+
+    <!-- Generate detailed assessment -->
+    <action>Write detailed assessment (2-3 paragraphs):
+      - Expand on the executive summary with category-level observations
+      - Note quality trends if baseline comparison is available
+      - Identify the highest-leverage improvements
+    </action>
+  </step>
+
+  <step n="16" goal="Write the audit report">
+    <action>Set {{report_file}} = {implementation_artifacts}/codebase-audit-{{audit_timestamp}}.md</action>
+
+    <action>Write the complete report to {{report_file}} using this structure:
+
+      # Codebase Consistency and Maintainability Audit
+
+      **Date:** {{audit_date}}
+      **Reviewer:** {{reviewer_model}}
+      **Scope:** {{scope description}}
+
+      ---
+
+      ## Executive Summary
+
+      {{executive summary paragraph}}
+
+      ---
+
+      ## Findings by Category
+
+      ### 1. Naming Consistency
+      {{findings with ID (F1.N), severity, file:line, description}}
+
+      ### 2. Error Handling Consistency
+      {{findings with ID (F2.N)}}
+
+      ### 3. Logging Consistency
+      {{findings with ID (F3.N)}}
+
+      ### 4. Type Safety
+      {{findings with ID (F4.N)}}
+
+      ### 5. Dead Code
+      {{findings with ID (F5.N)}}
+
+      ### 6. Test Consistency
+      {{findings with ID (F6.N)}}
+
+      ### 7. Comment Quality
+      {{findings with ID (F7.N)}}
+
+      ### 8. Config/Schema Alignment
+      {{findings with ID (F8.N)}}
+
+      ### 9. Dependency Hygiene
+      {{findings with ID (F9.N)}}
+
+      ### 10. Cross-File Pattern Drift
+      {{findings with ID (F10.N)}}
+
+      ---
+
+      ## Recommendations Summary
+
+      {{prioritized recommendations table — CRITICAL, HIGH, MEDIUM only}}
+
+      ---
+
+      ## Overall Assessment
+
+      {{detailed assessment — 2-3 paragraphs expanding on executive summary}}
+
+      ---
+
+      ## Codebase Metrics
+
+      ### Test Coverage
+      {{per-file coverage table}}
+
+      ### Size and Testing Investment
+      {{metrics table}}
+
+      ### Complexity Metrics
+      #### Cyclomatic Complexity
+      {{hotspot table with notes}}
+
+      #### Nesting Depth
+      {{result}}
+
+      #### Depth of Inheritance
+      {{class table}}
+
+      ### Reliability Metrics
+      #### Defect Density
+      {{trend table if baseline exists, otherwise baseline values}}
+
+      ### Build and Lint Health
+      {{results table}}
+
+      ---
+
+      ## Baseline Comparison
+      {{if has_baseline: trend analysis with resolved/new/persisted findings and metric deltas.
+        Otherwise: "This is the baseline audit."}}
+    </action>
+
+    <action>Save {{report_file}}</action>
+
+    <output>**CODEBASE AUDIT COMPLETE, {user_name}!**
+
+      **Date:** {{audit_date}}
+      **Reviewer:** {{reviewer_model}}
+      **Report:** {{report_file}}
+
+      **Findings:** {{critical_count}} Critical, {{high_count}} High, {{medium_count}} Medium, {{low_count}} Low, {{positive_count}} Positive
+      **Overall:** {{overall verdict}}
+      {{if has_baseline: "Baseline comparison included — see report for trends."}}
+
+      Would you like me to address any of the findings?
+    </output>
+  </step>
+
+</workflow>

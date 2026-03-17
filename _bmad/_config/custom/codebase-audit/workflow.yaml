@@ -1,0 +1,35 @@
+# Custom Codebase Audit Workflow
+# MC-8: Reusable structured codebase consistency, maintainability, and metrics report
+name: custom-codebase-audit
+description: 'Structured codebase audit producing findings by category (naming, error handling, logging, types, dead code, test consistency, comments, config/schema, dependencies, cross-file drift) plus automated metrics (test coverage, complexity, defect density, build/lint health, size/test ratios). Output: structured markdown report. Use when the user says "run codebase audit" or "audit the codebase"'
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmm/config.yaml"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+document_output_language: "{config_source}:document_output_language"
+date: system-generated
+planning_artifacts: "{config_source}:planning_artifacts"
+implementation_artifacts: "{config_source}:implementation_artifacts"
+sprint_status: "{implementation_artifacts}/sprint-status.yaml"
+
+# Workflow components
+installed_path: "{project-root}/_bmad/_config/custom/codebase-audit"
+instructions: "{installed_path}/instructions.xml"
+validation: false
+template: false
+
+project_context: "**/project-context.md"
+
+# Smart input file references
+input_file_patterns:
+  architecture:
+    description: "System architecture for audit context"
+    whole: "{planning_artifacts}/*architecture*.md"
+    sharded: "{planning_artifacts}/*architecture*/*.md"
+    load_strategy: "FULL_LOAD"
+  prior_audits:
+    description: "Previous codebase audit reports for trend comparison — load index only, instructions select most recent"
+    whole: "{implementation_artifacts}/*codebase-audit*.md"
+    sharded: "{implementation_artifacts}/*codebase-audit*/*.md"
+    load_strategy: "SELECTIVE_LOAD"
