@@ -3692,6 +3692,28 @@ describe('StormAudioClient — command throttle (MC-9)', () => {
     client.disconnect();
   });
 
+  it('close handler flushes queue immediately (no stale commands on reconnect)', () => {
+    const { client } = connectClient();
+    client.on('error', () => {}); // prevent unhandled error throw
+    client.setPower(true);
+    vi.advanceTimersByTime(0);
+    // Queue commands then drop connection before drain fires
+    client.setVolume(-40);
+    client.setMute(true);
+    mockSocket.simulateError(new Error('ECONNRESET'));
+    mockSocket.simulateClose();
+    // Simulate reconnection with a new socket before old drain timer would fire
+    const newSocket = new MockSocket();
+    socketFactory.mockReturnValue(newSocket);
+    client.connect();
+    newSocket.simulateConnect();
+    // Advance past original drain interval — stale commands must not appear
+    vi.advanceTimersByTime(500);
+    expect(newSocket.written).not.toContain('ssp.vol.[-40]\n');
+    expect(newSocket.written).not.toContain('ssp.mute.on\n');
+    client.disconnect();
+  });
+
   it('commands sent when not connected are rejected, not queued', () => {
     const log = makeLog();
     const client = new StormAudioClient(throttledConfig, log, socketFactory);

@@ -284,6 +284,7 @@ export class StormAudioClient extends EventEmitter {
       }
 
       this.stopKeepalive();
+      this.flushCommandQueue();
 
       this.emit('disconnected');
 
