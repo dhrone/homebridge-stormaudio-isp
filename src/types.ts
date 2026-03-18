@@ -22,6 +22,14 @@ export interface InputInfo {
   type?: string;
 }
 
+export interface Zone2Config {
+  zoneId: number;
+  name: string;
+  volumeCeiling: number;
+  volumeFloor: number;
+  volumeControl: 'fan' | 'lightbulb' | 'none';
+}
+
 export interface StormAudioConfig {
   host: string;
   port: number;
@@ -36,6 +44,7 @@ export interface StormAudioConfig {
   // e.g., { "3": "TV", "5": "PS5" }
   // When looking up by numeric inputId, always convert:
   //   config.inputs[String(inputId)]
+  zone2?: Zone2Config;
 }
 
 // --- Grouped state sub-interfaces (all fields required — validated output types) ---
@@ -154,6 +163,7 @@ export interface StormAudioState {
   volume: number;  // raw dB value (float on wire, stored as number)
   mute: boolean;
   input: number;   // input ID
+  inputZone2: number; // Zone 2 active input ID
   processorState: ProcessorState;
   // New grouped state
   identity: IdentityInfo;
@@ -209,4 +219,6 @@ export interface StormAudioEvents {
   triggerState: (triggerId: number, on: boolean) => void;
   // New events — misc
   msgStatus: (id: number) => void;
+  // Zone 2 input tracking
+  inputZone2: (inputId: number) => void;
 }

@@ -12,8 +12,9 @@ import { StormAudioAccessory } from './platformAccessory';
 import { PLUGIN_NAME } from './settings';
 import { RECONNECT_LONG_POLL_INTERVAL_MS } from './settings';
 import { StormAudioClient } from './stormAudioClient';
+import { StormAudioZone2Accessory } from './zone2Accessory';
 import { ErrorCategory } from './types';
-import type { StormAudioConfig } from './types';
+import type { StormAudioConfig, Zone2Config, ZoneState } from './types';
 
 interface ConfigLogger {
   error(message: string, ...args: unknown[]): void;
@@ -30,6 +31,7 @@ interface RawConfig {
   wakeTimeout?: unknown;
   commandInterval?: unknown;
   inputs?: unknown;
+  zone2?: unknown;
   [key: string]: unknown;
 }
 
@@ -108,6 +110,69 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     log.debug('[Config] Using default commandInterval: 100');
   }
 
+  // Zone 2 config validation
+  let resolvedZone2: Zone2Config | undefined;
+  if (config.zone2 !== undefined) {
+    if (typeof config.zone2 !== 'object' || config.zone2 === null || Array.isArray(config.zone2)) {
+      log.error('[Config] Error: "zone2" must be an object if provided.');
+      return null;
+    }
+    const raw2 = config.zone2 as Record<string, unknown>;
+
+    let resolvedZoneId: number;
+    if (raw2.zoneId === undefined) {
+      resolvedZoneId = 1;
+      log.debug('[Config] zone2.zoneId not specified — defaulting to Zone 1 (Downmix). If no audio is heard, create a dedicated zone in the StormAudio web interface and set zone2.zoneId.');
+    } else {
+      resolvedZoneId = raw2.zoneId as number;
+    }
+
+    const zone2Name = typeof raw2.name === 'string' ? raw2.name : 'Zone 2';
+    if (raw2.name === undefined) {
+      log.debug('[Config] Using default zone2.name: Zone 2');
+    }
+
+    const zone2VolumeFloor = raw2.volumeFloor !== undefined ? (raw2.volumeFloor as number) : -80;
+    if (raw2.volumeFloor === undefined) {
+      log.debug('[Config] Using default zone2.volumeFloor: -80');
+    }
+    if (zone2VolumeFloor < -100 || zone2VolumeFloor > 0) {
+      log.error('[Config] Error: "zone2.volumeFloor" must be -100 to 0');
+      return null;
+    }
+
+    const zone2VolumeCeiling = raw2.volumeCeiling !== undefined ? (raw2.volumeCeiling as number) : 0;
+    if (raw2.volumeCeiling === undefined) {
+      log.debug('[Config] Using default zone2.volumeCeiling: 0');
+    }
+    if (zone2VolumeCeiling < -100 || zone2VolumeCeiling > 0) {
+      log.error('[Config] Error: "zone2.volumeCeiling" must be -100 to 0');
+      return null;
+    }
+    if (zone2VolumeFloor >= zone2VolumeCeiling) {
+      log.error('[Config] Error: "zone2.volumeFloor" must be less than "zone2.volumeCeiling"');
+      return null;
+    }
+
+    const zone2VolumeControl = raw2.volumeControl as string | undefined;
+    const resolvedZone2VolumeControl = zone2VolumeControl ?? 'none';
+    if (resolvedZone2VolumeControl !== 'fan' && resolvedZone2VolumeControl !== 'lightbulb' && resolvedZone2VolumeControl !== 'none') {
+      log.error(`[Config] Error: "zone2.volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedZone2VolumeControl}`);
+      return null;
+    }
+    if (!zone2VolumeControl) {
+      log.debug('[Config] Using default zone2.volumeControl: none');
+    }
+
+    resolvedZone2 = {
+      zoneId: resolvedZoneId,
+      name: zone2Name,
+      volumeFloor: zone2VolumeFloor,
+      volumeCeiling: zone2VolumeCeiling,
+      volumeControl: resolvedZone2VolumeControl as 'fan' | 'lightbulb' | 'none',
+    };
+  }
+
   return {
     host: config.host,
     port: resolvedPort,
@@ -118,6 +183,7 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     wakeTimeout: resolvedWakeTimeout,
     commandInterval: resolvedCommandInterval,
     inputs: (config.inputs as Record<string, string> | undefined) ?? {},
+    zone2: resolvedZone2,
   };
 }
 
@@ -175,6 +241,37 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
         this.client.once('inputList', () => {
           this.api.publishExternalAccessories(PLUGIN_NAME, [accessory]);
           this.log.info('[HomeKit] Published StormAudio accessory: ' + this.validatedConfig!.name);
+        });
+
+        // Zone 2: persistent zoneList listener — logs all zones on every connection (ZFR3)
+        // and creates the Zone 2 external accessory once when zone list first arrives.
+        let zone2Published = false;
+        this.client.on('zoneList', (zones: ZoneState[]) => {
+          // AC 1: Log all zones at INFO on every connection
+          for (const z of zones) {
+            const type = z.id === 1 ? 'built-in' : 'user zone';
+            this.log.info(`[State] Zone ${z.id}: "${z.name}" (${type})`);
+          }
+
+          // Zone 2 creation — only once
+          if (zone2Published || !this.validatedConfig?.zone2) return;
+
+          const zone2Config = this.validatedConfig!.zone2!;
+          const targetZone = zones.find(z => z.id === zone2Config.zoneId);
+          if (!targetZone) {
+            // AC 4: zoneId not found
+            this.log.error(`[Config] zone2.zoneId ${zone2Config.zoneId} not found in zone list — Zone 2 accessory will not be created`);
+            return;
+          }
+
+          // Create Zone 2 external accessory
+          const zone2Uuid = this.api.hap.uuid.generate(`stormaudio-isp-zone2-${zone2Config.zoneId}`);
+          const zone2Accessory = new this.api.platformAccessory(zone2Config.name, zone2Uuid);
+          zone2Accessory.category = this.api.hap.Categories.TELEVISION;
+          new StormAudioZone2Accessory(this, zone2Accessory, this.client!, zone2Config);
+          this.api.publishExternalAccessories(PLUGIN_NAME, [zone2Accessory]);
+          zone2Published = true;
+          this.log.info('[HomeKit] Published Zone 2 accessory: ' + zone2Config.name);
         });
       }
     });

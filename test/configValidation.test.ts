@@ -281,3 +281,134 @@ describe('validateConfig — commandInterval', () => {
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining('commandInterval'));
   });
 });
+
+describe('validateConfig — zone2 (Story 5.1)', () => {
+  // Sibling: zone2 absent → no error, zone2 undefined on config
+  it('zone2 absent — returns config with zone2 undefined, no errors', () => {
+    const log = makeLog();
+    const result = validateConfig(baseConfig, log);
+    expect(result).not.toBeNull();
+    expect(result!.zone2).toBeUndefined();
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  // Sibling: zone2 present but not an object → error
+  it('zone2 is a string — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: 'invalid' }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('zone2'));
+  });
+
+  it('zone2 is a number — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: 42 }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('zone2'));
+  });
+
+  it('zone2 is an array — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: [1, 2] }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('zone2'));
+  });
+
+  // Sibling: zone2 present, zoneId present → normal creation
+  it('zone2 with explicit zoneId — returns config with zone2 populated', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 13 } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.zone2).toBeDefined();
+    expect(result!.zone2!.zoneId).toBe(13);
+  });
+
+  // Sibling: zone2 present, zoneId omitted → default to 1
+  it('zone2 with zoneId omitted — defaults to 1 and logs debug message', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: {} }, log);
+    expect(result).not.toBeNull();
+    expect(result!.zone2!.zoneId).toBe(1);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('zone2.zoneId not specified'));
+  });
+
+  it('zone2 default name is "Zone 2" when omitted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
+    expect(result!.zone2!.name).toBe('Zone 2');
+  });
+
+  it('zone2 uses provided name', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, name: 'Patio' } }, log);
+    expect(result!.zone2!.name).toBe('Patio');
+  });
+
+  it('zone2 default volumeFloor is -80 when omitted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
+    expect(result!.zone2!.volumeFloor).toBe(-80);
+  });
+
+  it('zone2 default volumeCeiling is 0 when omitted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
+    expect(result!.zone2!.volumeCeiling).toBe(0);
+  });
+
+  it('zone2 default volumeControl is "none" when omitted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
+    expect(result!.zone2!.volumeControl).toBe('none');
+  });
+
+  // Sibling: floor >= ceiling → error
+  it('zone2 floor >= ceiling — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeFloor: -20, volumeCeiling: -80 } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('volumeFloor'));
+  });
+
+  it('zone2 floor == ceiling — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeFloor: -40, volumeCeiling: -40 } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('volumeFloor'));
+  });
+
+  // Sibling: floor/ceiling out of range → error
+  it('zone2 volumeFloor below -100 — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeFloor: -200 } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('volumeFloor'));
+  });
+
+  it('zone2 volumeCeiling above 0 — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeFloor: -80, volumeCeiling: 10 } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('volumeCeiling'));
+  });
+
+  // Sibling: invalid volumeControl → error
+  it('zone2 invalid volumeControl — returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeControl: 'knob' } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('volumeControl'));
+  });
+
+  it('zone2 volumeControl "fan" is accepted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeControl: 'fan' } }, log);
+    expect(result!.zone2!.volumeControl).toBe('fan');
+  });
+
+  it('zone2 volumeControl "lightbulb" is accepted', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeControl: 'lightbulb' } }, log);
+    expect(result!.zone2!.volumeControl).toBe('lightbulb');
+  });
+});

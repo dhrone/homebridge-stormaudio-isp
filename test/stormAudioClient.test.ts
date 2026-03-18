@@ -989,11 +989,13 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
     expect(received).toEqual([]);
   });
 
-  it('ssp.inputZone2.[0] — logged as informational', () => {
-    const log = makeLog();
-    connectClient(log);
+  it('ssp.inputZone2.[0] — emits inputZone2 event and updates state', () => {
+    const client = connectClient();
+    const received: number[] = [];
+    client.on('inputZone2', (id: number) => { received.push(id); });
     mockSocket.simulateData('ssp.inputZone2.[0]\n');
-    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('Informational'));
+    expect(received).toEqual([0]);
+    expect(client.getInputZone2()).toBe(0);
   });
 
   it('ssp.inputHdmiPassThru.[1] → audioConfig.inputHdmiPassThru = 1', () => {
@@ -3732,5 +3734,90 @@ describe('StormAudioClient — command throttle (MC-9)', () => {
     vi.advanceTimersByTime(100);
     expect(log.debug).toHaveBeenCalledWith('[Command] Sent: ssp.vol.[-40]');
     client.disconnect();
+  });
+});
+
+describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  // inputZone2 siblings (3 tests)
+  it('ssp.inputZone2.[6] — emits inputZone2 event with value 6 and updates state', () => {
+    const client = connectClient();
+    const received: number[] = [];
+    client.on('inputZone2', (id: number) => { received.push(id); });
+    mockSocket.simulateData('ssp.inputZone2.[6]\n');
+    expect(received).toEqual([6]);
+    expect(client.getInputZone2()).toBe(6);
+  });
+
+  it('ssp.inputZone2.[0] — emits inputZone2 event with value 0 and updates state', () => {
+    const client = connectClient();
+    const received: number[] = [];
+    client.on('inputZone2', (id: number) => { received.push(id); });
+    mockSocket.simulateData('ssp.inputZone2.[0]\n');
+    expect(received).toEqual([0]);
+    expect(client.getInputZone2()).toBe(0);
+  });
+
+  it('ssp.inputZone2.garbage — logs debug unrecognized, no event emitted, state unchanged', () => {
+    const log = makeLog();
+    const client = connectClient(log);
+    const received: number[] = [];
+    client.on('inputZone2', (id: number) => { received.push(id); });
+    mockSocket.simulateData('ssp.inputZone2.garbage\n');
+    expect(received).toHaveLength(0);
+    expect(client.getInputZone2()).toBe(0);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message'));
+  });
+
+  it('getInputZone2() returns 0 initially', () => {
+    const client = connectClient();
+    expect(client.getInputZone2()).toBe(0);
+  });
+
+  // Zone 2 command methods
+  it('setZoneMute(13, true) sends ssp.zones.mute.[13, 1]', () => {
+    const client = connectClient();
+    client.setZoneMute(13, true);
+    expect(mockSocket.written).toContain('ssp.zones.mute.[13, 1]\n');
+  });
+
+  it('setZoneMute(13, false) sends ssp.zones.mute.[13, 0]', () => {
+    const client = connectClient();
+    client.setZoneMute(13, false);
+    expect(mockSocket.written).toContain('ssp.zones.mute.[13, 0]\n');
+  });
+
+  it('setZoneVolume(13, -40) sends ssp.zones.volume.[13, -40]', () => {
+    const client = connectClient();
+    client.setZoneVolume(13, -40);
+    expect(mockSocket.written).toContain('ssp.zones.volume.[13, -40]\n');
+  });
+
+  it('setZoneMute uses integer 1 (not string "on") for muted=true', () => {
+    const client = connectClient();
+    client.setZoneMute(13, true);
+    expect(mockSocket.written.some(w => w.includes('[13, 1]'))).toBe(true);
+    expect(mockSocket.written.some(w => w.includes('"on"') || w.includes('.on'))).toBe(false);
+  });
+
+  it('setZoneMute uses integer 0 (not string "off") for muted=false', () => {
+    const client = connectClient();
+    client.setZoneMute(13, false);
+    expect(mockSocket.written.some(w => w.includes('[13, 0]'))).toBe(true);
+    expect(mockSocket.written.some(w => w.includes('"off"') || w.includes('.off'))).toBe(false);
   });
 });

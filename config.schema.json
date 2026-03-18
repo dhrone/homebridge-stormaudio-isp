@@ -77,6 +77,50 @@
         "additionalProperties": {
           "type": "string"
         }
+      },
+      "zone2": {
+        "title": "Zone 2",
+        "type": "object",
+        "properties": {
+          "zoneId": {
+            "title": "Zone ID",
+            "type": "integer",
+            "description": "Zone ID from your StormAudio processor. Check the Homebridge log — the plugin logs all zones (with their IDs) at INFO level on every connection."
+          },
+          "name": {
+            "title": "Zone 2 Name",
+            "type": "string",
+            "default": "Zone 2",
+            "description": "Display name for the Zone 2 accessory in HomeKit (e.g., 'Patio')"
+          },
+          "volumeControl": {
+            "title": "Zone 2 Volume Control",
+            "type": "string",
+            "default": "none",
+            "oneOf": [
+              { "title": "None (volume via TelevisionSpeaker only)", "enum": ["none"] },
+              { "title": "Fan (speed slider)", "enum": ["fan"] },
+              { "title": "Lightbulb (brightness slider)", "enum": ["lightbulb"] }
+            ],
+            "description": "Volume proxy for Zone 2. Default is 'none' — volume control is available via the TV tile's remote buttons."
+          },
+          "volumeFloor": {
+            "title": "Zone 2 Volume Floor (dB)",
+            "type": "number",
+            "default": -80,
+            "minimum": -100,
+            "maximum": 0,
+            "description": "Minimum dB for Zone 2 volume mapping (maps to 0%). Default: -80"
+          },
+          "volumeCeiling": {
+            "title": "Zone 2 Volume Ceiling (dB)",
+            "type": "number",
+            "default": 0,
+            "minimum": -100,
+            "maximum": 0,
+            "description": "Maximum dB for Zone 2 volume mapping (maps to 100%). Default: 0"
+          }
+        }
       }
     }
   }

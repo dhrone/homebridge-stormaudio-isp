@@ -13,6 +13,7 @@ vi.mock('../src/stormAudioClient', () => {
         on: emitter.on.bind(emitter),
         once: emitter.once.bind(emitter),
         emit: emitter.emit.bind(emitter),
+        listenerCount: emitter.listenerCount.bind(emitter),
         connect: vi.fn(),
         disconnect: vi.fn(),
         setPower: vi.fn(),
@@ -25,6 +26,13 @@ vi.mock('../src/stormAudioClient', () => {
 vi.mock('../src/platformAccessory', () => {
   return {
     StormAudioAccessory: vi.fn(),
+  };
+});
+
+// --- Mock StormAudioZone2Accessory ---
+vi.mock('../src/zone2Accessory', () => {
+  return {
+    StormAudioZone2Accessory: vi.fn(),
   };
 });
 
@@ -265,5 +273,139 @@ describe('StormAudioPlatform — configureAccessory', () => {
     platform.configureAccessory(mockAccessory as never);
 
     expect(log.info).toHaveBeenCalledWith('Loading accessory from cache:', 'Theater');
+  });
+});
+
+describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let log: ReturnType<typeof createMockLog>;
+
+  const zone2Config = {
+    ...validConfig,
+    zone2: { zoneId: 13, name: 'Patio' },
+  };
+
+  // Sample zone state entries (matches ZoneState interface shape used by platform event)
+  const zone1 = { id: 1, name: 'Downmix', layout: 0, type: 0, useZone2Source: false, volume: -40, delay: 0, eq: 0, lipsync: 0, mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0 };
+  const zone13 = { id: 13, name: 'Patio', layout: 0, type: 0, useZone2Source: false, volume: -50, delay: 0, eq: 0, lipsync: 0, mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = createMockApi();
+    log = createMockLog();
+  });
+
+  // Zone type label siblings (AC 1)
+  it('logs Zone ID 1 as (built-in)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', [zone1]);
+    expect(log.info).toHaveBeenCalledWith('[State] Zone 1: "Downmix" (built-in)');
+  });
+
+  it('logs Zone ID != 1 as (user zone)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', [zone13]);
+    expect(log.info).toHaveBeenCalledWith('[State] Zone 13: "Patio" (user zone)');
+  });
+
+  // Zone logging fires without zone2 config (AC 1 — always fires)
+  it('logs all zones even when no zone2 config', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', [zone1, zone13]);
+    expect(log.info).toHaveBeenCalledWith('[State] Zone 1: "Downmix" (built-in)');
+    expect(log.info).toHaveBeenCalledWith('[State] Zone 13: "Patio" (user zone)');
+    // No Zone 2 accessory created
+    const calls = (api.publishExternalAccessories as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.every(c => (c[1] as { displayName: string }[])[0]?.displayName === validConfig.name)).toBe(true);
+  });
+
+  // Zone 2 accessory created when zone found (AC 3)
+  it('creates Zone 2 accessory when zoneId found in zone list', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioZone2Accessory } = await import('../src/zone2Accessory');
+    api.hap.uuid.generate = vi.fn()
+      .mockReturnValueOnce('mock-main-uuid')
+      .mockReturnValueOnce('mock-zone2-uuid');
+
+    new StormAudioPlatform(log as never, zone2Config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', [zone1, zone13]);
+
+    expect(StormAudioZone2Accessory).toHaveBeenCalledTimes(1);
+    expect(log.info).toHaveBeenCalledWith('[HomeKit] Published Zone 2 accessory: Patio');
+    // Zone 2 is published immediately when zoneList arrives with the matching zone
+    expect(api.publishExternalAccessories).toHaveBeenCalled();
+  });
+
+  // Zone 2 zoneId not found → error log, no accessory (AC 4)
+  it('logs error when zone2.zoneId not found in zone list', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const missingZoneConfig = { ...validConfig, zone2: { zoneId: 99 } };
+    new StormAudioPlatform(log as never, missingZoneConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', [zone1, zone13]);
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('zone2.zoneId 99 not found'));
+  });
+
+  // Empty zone list — zoneId not found (AC 30 equivalent)
+  it('handles empty zone list — logs error if zone2 configured', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, zone2Config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('zoneList', []);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('zone2.zoneId 13 not found'));
+  });
+
+  // Zone 2 accessory created only once even when zoneList fires twice (persistent listener)
+  it('creates Zone 2 accessory only once when zoneList fires twice', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioZone2Accessory } = await import('../src/zone2Accessory');
+    new StormAudioPlatform(log as never, zone2Config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+
+    clientInstance.emit('zoneList', [zone1, zone13]);
+    clientInstance.emit('zoneList', [zone1, zone13]); // second emit (reconnect)
+
+    expect(StormAudioZone2Accessory).toHaveBeenCalledTimes(1);
+  });
+
+  // Zone logging fires on both first and second zoneList emit (persistent listener, AC 1 ZFR3)
+  it('logs zone names on both first and second zoneList emit (reconnect scenario)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, zone2Config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+
+    clientInstance.emit('zoneList', [zone1]);
+    clientInstance.emit('zoneList', [zone1]); // reconnect
+
+    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map(c => c[0] as string);
+    const zoneLogCount = infoCalls.filter(m => m.includes('[State] Zone 1:')).length;
+    expect(zoneLogCount).toBe(2);
+  });
+
+  // Verify zoneList listener count remains at +1 after emit (persistent, not once)
+  it('zoneList listener count stays at 1 after first emit (not once — persistent)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, zone2Config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    const beforeCount = clientInstance.listenerCount('zoneList');
+    clientInstance.emit('zoneList', [zone1, zone13]);
+    expect(clientInstance.listenerCount('zoneList')).toBe(beforeCount); // stays same, not removed
   });
 });

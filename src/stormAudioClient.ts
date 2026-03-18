@@ -74,6 +74,7 @@ export class StormAudioClient extends EventEmitter {
     volume: -40,
     mute: false,
     input: 0,
+    inputZone2: 0,
     processorState: ProcessorState.Sleep,
     identity: { version: '', brand: '', model: '' },
     streamInfo: { stream: '', sampleRate: '', format: '' },
@@ -354,6 +355,14 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand('ssp.vol.down\n');
   }
 
+  setZoneMute(zoneId: number, muted: boolean): void {
+    this.sendCommand(`ssp.zones.mute.[${zoneId}, ${muted ? 1 : 0}]\n`);
+  }
+
+  setZoneVolume(zoneId: number, dB: number): void {
+    this.sendCommand(`ssp.zones.volume.[${zoneId}, ${dB}]\n`);
+  }
+
   getVolume(): number {
     return this.state.volume;
   }
@@ -372,6 +381,10 @@ export class StormAudioClient extends EventEmitter {
 
   getInput(): number {
     return this.state.input;
+  }
+
+  getInputZone2(): number {
+    return this.state.inputZone2;
   }
 
   getIdentity(): IdentityInfo {
@@ -875,8 +888,18 @@ export class StormAudioClient extends EventEmitter {
         break;
       }
 
+      case 'inputZone2': {
+        const id = parseInt(value, 10);
+        if (!isNaN(id)) {
+          this.state.inputZone2 = id;
+          this.emit('inputZone2', id);
+        } else {
+          this.log.debug('[Command] Unrecognized message: ' + message);
+        }
+        break;
+      }
+
       // --- Informational: log debug only ---
-      case 'inputZone2':
       case 'inputHdmiMatrixMode':
       case 'display':
       case 'osd':
