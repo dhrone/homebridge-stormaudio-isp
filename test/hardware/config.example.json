@@ -6,5 +6,9 @@
   "testInputId": null,
   "testVolumeDb": -60,
   "skipDestructive": false,
-  "reportPath": "./test/hardware/report.json"
+  "reportPath": "./test/hardware/report.json",
+  "zone2ZoneId": null,
+  "testZone2InputId": null,
+  "zone2VolumeFloor": -80,
+  "zone2VolumeCeiling": 0
 }

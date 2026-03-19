@@ -15,6 +15,17 @@ export interface HardwareTestConfig {
   skipDestructive: boolean;
   /** Path to write JSON report. null = console only. */
   reportPath: string | null;
+
+  // --- Zone 2 fields ---
+
+  /** Zone ID for Zone 2 testing. null = skip Zone 2 scenarios. */
+  zone2ZoneId: number | null;
+  /** Zone 2-capable input ID for source selection tests. null = auto-detect. */
+  testZone2InputId: number | null;
+  /** Volume floor in dB for Zone 2. */
+  zone2VolumeFloor: number;
+  /** Volume ceiling in dB for Zone 2. */
+  zone2VolumeCeiling: number;
 }
 
 export type ScenarioStatus = 'PASS' | 'FAIL' | 'SKIP';

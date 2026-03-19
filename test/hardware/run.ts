@@ -43,6 +43,23 @@ import {
 } from './scenarios';
 import { Spinner } from './spinner';
 import type { HardwareTestConfig, HarnessReport, ResponseTimeStat, ScenarioResult } from './types';
+import {
+  scenarioBidirectionalMute,
+  scenarioBidirectionalSource,
+  scenarioBidirectionalVolume,
+  scenarioFollowMain,
+  scenarioIndependentSource,
+  scenarioInvalidZoneId,
+  scenarioSleepZone2Inactive,
+  scenarioWakeZone2Restored,
+  scenarioZone2InputDetection,
+  scenarioZone2MuteCommand,
+  scenarioZone2VolumeCommand,
+  scenarioZone2VolumeMapping,
+  scenarioZoneListParsing,
+  scenarioZoneListPersistence,
+  scenarioZonePersistenceOnReconnect,
+} from './zone2Scenarios';
 
 // ---------------------------------------------------------------------------
 // Configuration loading
@@ -74,6 +91,18 @@ function loadConfig(): HardwareTestConfig {
     testVolumeDb: parseFloat(process.env.STORM_TEST_VOLUME ?? '') || (fileConfig.testVolumeDb ?? -60),
     skipDestructive: process.env.STORM_SKIP_DESTRUCTIVE === 'true' || fileConfig.skipDestructive === true,
     reportPath: process.env.STORM_REPORT_PATH ?? fileConfig.reportPath ?? null,
+    zone2ZoneId:
+      process.env.STORM_ZONE2_ZONE_ID !== undefined
+        ? parseInt(process.env.STORM_ZONE2_ZONE_ID, 10)
+        : (fileConfig.zone2ZoneId ?? null),
+    testZone2InputId:
+      process.env.STORM_ZONE2_INPUT_ID !== undefined
+        ? parseInt(process.env.STORM_ZONE2_INPUT_ID, 10)
+        : (fileConfig.testZone2InputId ?? null),
+    zone2VolumeFloor:
+      parseFloat(process.env.STORM_ZONE2_VOLUME_FLOOR ?? '') || (fileConfig.zone2VolumeFloor ?? -80),
+    zone2VolumeCeiling:
+      parseFloat(process.env.STORM_ZONE2_VOLUME_CEILING ?? '') || (fileConfig.zone2VolumeCeiling ?? 0),
   };
 
   if (!config.host) {
@@ -139,6 +168,9 @@ async function confirmRun(config: HardwareTestConfig): Promise<boolean> {
     console.log(`Target:  ${config.host}:${config.port}`);
     console.log(`Volume:  floor=${config.volumeFloor}dB, ceiling=${config.volumeCeiling}dB`);
     console.log(`Test vol: ${config.testVolumeDb}dB`);
+    console.log(
+      `Zone 2:  ${config.zone2ZoneId !== null ? `zoneId=${config.zone2ZoneId}, floor=${config.zone2VolumeFloor}dB, ceiling=${config.zone2VolumeCeiling}dB` : 'DISABLED (no zone2ZoneId)'}`,
+    );
     console.log(`Destructive tests: ${config.skipDestructive ? 'SKIPPED' : 'ENABLED'}`);
     console.log('');
     console.log('This harness will connect to a REAL StormAudio processor and');
@@ -333,6 +365,131 @@ async function main(): Promise<void> {
       name: 'Rapid Commands',
       run: async () => {
         const result = await scenarioRapidCommands(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+
+    // --- Zone 2 scenarios (A1-A15 from Epic 5 smoke test) ---
+
+    {
+      id: 9,
+      name: 'Zone List Parsing (A1)',
+      run: async () => {
+        const result = await scenarioZoneListParsing(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 10,
+      name: 'Zone 2 Mute Command (A2)',
+      run: async () => {
+        const { result, responseStats } = await scenarioZone2MuteCommand(config, log, spinner);
+        allResults.push(result);
+        allResponseStats.push(...responseStats);
+      },
+    },
+    {
+      id: 11,
+      name: 'Zone 2 Volume Command (A3)',
+      run: async () => {
+        const { result, responseStats } = await scenarioZone2VolumeCommand(config, log, spinner);
+        allResults.push(result);
+        allResponseStats.push(...responseStats);
+      },
+    },
+    {
+      id: 12,
+      name: 'Zone 2 Volume Mapping (A4)',
+      run: async () => {
+        const result = await scenarioZone2VolumeMapping(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 13,
+      name: 'Follow Main Command (A5)',
+      run: async () => {
+        const result = await scenarioFollowMain(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 14,
+      name: 'Independent Source (A6)',
+      run: async () => {
+        const result = await scenarioIndependentSource(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 15,
+      name: 'Bidirectional Sync — Mute (A7)',
+      run: async () => {
+        const result = await scenarioBidirectionalMute(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 16,
+      name: 'Bidirectional Sync — Volume (A8)',
+      run: async () => {
+        const result = await scenarioBidirectionalVolume(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 17,
+      name: 'Bidirectional Sync — Source (A9)',
+      run: async () => {
+        const result = await scenarioBidirectionalSource(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 18,
+      name: 'Zone List Persistence (A10)',
+      run: async () => {
+        const result = await scenarioZoneListPersistence(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 19,
+      name: 'Sleep → Zone 2 Inactive (A11)',
+      run: async () => {
+        const result = await scenarioSleepZone2Inactive(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 20,
+      name: 'Wake → Zone 2 Restored (A12)',
+      run: async () => {
+        const result = await scenarioWakeZone2Restored(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 21,
+      name: 'Invalid Zone ID (A13)',
+      run: async () => {
+        const result = await scenarioInvalidZoneId(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 22,
+      name: 'Zone 2 Input Detection (A14)',
+      run: async () => {
+        const result = await scenarioZone2InputDetection(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 23,
+      name: 'Zone Persistence on Reconnect (A15)',
+      run: async () => {
+        const result = await scenarioZonePersistenceOnReconnect(config, log, spinner);
         allResults.push(result);
       },
     },
