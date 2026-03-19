@@ -14,6 +14,16 @@
       "volumeCeiling": -20,
       "volumeFloor": -80,
       "volumeControl": "fan",
+      "zone2": {
+        "zoneId": 13,
+        "name": "Patio",
+        "volumeControl": "fan",
+        "volumeFloor": -80,
+        "volumeCeiling": 0
+      },
+      "inputs": {
+        "6": "Patio Music"
+      },
       "_bridge": {
         "username": "CC:22:3D:E3:CE:31",
         "port": 51827

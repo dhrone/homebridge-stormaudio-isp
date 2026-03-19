@@ -25,7 +25,7 @@ import * as path from 'path';
 
 import { StormAudioClient } from '../../src/stormAudioClient';
 import { ProcessorState } from '../../src/types';
-import type { StormAudioConfig, StormAudioError, ZoneState, ZoneProfileInfo } from '../../src/types';
+import type { StormAudioConfig, StormAudioError, ZoneState } from '../../src/types';
 import { HarnessLogger } from './logger';
 import type { HardwareTestConfig } from './types';
 
@@ -95,47 +95,23 @@ function sendAndWaitZoneUpdate(
   timeoutMs = 5000,
 ): Promise<{ zoneId: number; field: string; value: unknown } | null> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      client.removeListener('zoneUpdate', handler);
-      resolve(null);
-    }, timeoutMs);
-
+    // handler and timer reference each other — unavoidable circular declaration
     const handler = (zoneId: number, field: string, value: unknown): void => {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       clearTimeout(timer);
       client.removeListener('zoneUpdate', handler);
       resolve({ zoneId, field, value });
     };
 
-    client.on('zoneUpdate', handler);
-    // Use the internal sendCommand by calling through a known method
-    // Since there's no public zone command API, we send raw via the socket
-    (client as any).sendCommand(command + '\n');
-  });
-}
-
-/**
- * Send a raw command and capture ALL messages received for a duration.
- * Useful for observing cascading broadcasts or unexpected responses.
- */
-function sendAndCapture(
-  client: StormAudioClient,
-  command: string,
-  captureMs = 3000,
-): Promise<{ zoneId: number; field: string; value: unknown }[]> {
-  return new Promise((resolve) => {
-    const events: { zoneId: number; field: string; value: unknown }[] = [];
-
-    const handler = (zoneId: number, field: string, value: unknown): void => {
-      events.push({ zoneId, field, value });
-    };
-
-    client.on('zoneUpdate', handler);
-    (client as any).sendCommand(command + '\n');
-
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       client.removeListener('zoneUpdate', handler);
-      resolve(events);
-    }, captureMs);
+      resolve(null);
+    }, timeoutMs);
+
+    client.on('zoneUpdate', handler);
+    // Use the internal sendCommand — no public zone command API exists
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).sendCommand(command + '\n');
   });
 }
 
@@ -280,32 +256,36 @@ async function testInputZone2(client: StormAudioClient): Promise<void> {
   // Since we don't have a dedicated handler, we listen for any event
   const events: string[] = [];
 
+  // Access private internals for raw protocol testing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const internals = client as any as { sendCommand: (cmd: string) => void; log: { debug: (msg: string) => void } };
+
   // Temporarily capture all debug log output to see raw messages
-  const originalDebug = (client as any).log.debug;
-  (client as any).log.debug = (msg: string) => {
+  const originalDebug = internals.log.debug;
+  internals.log.debug = (msg: string) => {
     if (msg.includes('inputZone2') || msg.includes('Zone2')) {
       events.push(msg);
     }
-    originalDebug.call((client as any).log, msg);
+    originalDebug.call(internals.log, msg);
   };
 
   // Try setting inputZone2 to current value (safe — no actual change)
   console.log('Sending: ssp.inputZone2.[0]');
-  (client as any).sendCommand('ssp.inputZone2.[0]\n');
+  internals.sendCommand('ssp.inputZone2.[0]\n');
   await sleep(3000);
 
   // Try different values
   console.log('Sending: ssp.inputZone2.[1]');
-  (client as any).sendCommand('ssp.inputZone2.[1]\n');
+  internals.sendCommand('ssp.inputZone2.[1]\n');
   await sleep(3000);
 
   // Restore
   console.log('Sending: ssp.inputZone2.[0]');
-  (client as any).sendCommand('ssp.inputZone2.[0]\n');
+  internals.sendCommand('ssp.inputZone2.[0]\n');
   await sleep(3000);
 
   // Restore original debug
-  (client as any).log.debug = originalDebug;
+  internals.log.debug = originalDebug;
 
   console.log(`\nCaptured ${events.length} inputZone2-related messages:`);
   for (const e of events) {

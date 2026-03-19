@@ -7,6 +7,8 @@ import type {
   PlatformConfig,
   Service,
 } from 'homebridge';
+import { StorageService } from 'homebridge/lib/storageService';
+import path from 'path';
 
 import { StormAudioAccessory } from './platformAccessory';
 import { PLUGIN_NAME } from './settings';
@@ -194,6 +196,7 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
 
   private client: StormAudioClient | null = null;
+  private storageService: StorageService | null = null;
   public readonly validatedConfig: StormAudioConfig | null = null;
 
   constructor(
@@ -209,6 +212,11 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
       this.log.error('[Config] Plugin disabled due to configuration errors.');
       return;
     }
+
+    this.storageService = new StorageService(
+      path.join(this.api.user.storagePath(), 'homebridge-stormaudio-isp'),
+    );
+    this.storageService.initSync();
 
     this.log.debug('Finished initializing platform:', this.validatedConfig.name);
 
@@ -253,6 +261,17 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
             this.log.info(`[State] Zone ${z.id}: "${z.name}" (${type})`);
           }
 
+          // Persist zone list to plugin storage on every connection (AC 1, Story 5.3)
+          const zonesArray = zones.map(z => ({ id: z.id, name: z.name }));
+          if (this.storageService) {
+            void this.storageService.setItem('zones', zonesArray).then(() => {
+              this.log.debug(`[Config] Persisted ${zonesArray.length} zones to plugin storage`);
+            }).catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              this.log.debug(`[Config] Failed to persist zone list to storage: ${message}`);
+            });
+          }
+
           // Zone 2 creation — only once
           if (zone2Published || !this.validatedConfig?.zone2) return;
 
@@ -268,8 +287,9 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           const zone2Uuid = this.api.hap.uuid.generate(`stormaudio-isp-zone2-${zone2Config.zoneId}`);
           const zone2Accessory = new this.api.platformAccessory(zone2Config.name, zone2Uuid);
           zone2Accessory.category = this.api.hap.Categories.TELEVISION;
-          new StormAudioZone2Accessory(this, zone2Accessory, this.client!, zone2Config);
+          const zone2 = new StormAudioZone2Accessory(this, zone2Accessory, this.client!, zone2Config);
           this.api.publishExternalAccessories(PLUGIN_NAME, [zone2Accessory]);
+          zone2.replayCachedInputs();
           zone2Published = true;
           this.log.info('[HomeKit] Published Zone 2 accessory: ' + zone2Config.name);
         });

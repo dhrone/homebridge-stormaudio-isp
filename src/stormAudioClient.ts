@@ -396,6 +396,10 @@ export class StormAudioClient extends EventEmitter {
     return this.state.inputZone2;
   }
 
+  getInputList(): InputInfo[] {
+    return [...this.lastInputList];
+  }
+
   getZone2Inputs(): InputInfo[] {
     return this.lastInputList.filter(i => i.zone2AudioInId !== 0);
   }

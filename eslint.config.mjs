@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'scripts/', 'vitest.config.ts'] },
+  { ignores: ['dist/', 'node_modules/', 'scripts/', 'vitest.config.ts', 'homebridge-ui/', 'coverage/'] },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.ts'],

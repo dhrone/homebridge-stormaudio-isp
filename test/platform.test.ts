@@ -4,6 +4,14 @@ import { EventEmitter } from 'events';
 
 import { StormAudioPlatform } from '../src/platform';
 
+// --- Mock StorageService (homebridge internal) ---
+vi.mock('homebridge/lib/storageService', () => ({
+  StorageService: vi.fn().mockImplementation(() => ({
+    initSync: vi.fn(),
+    setItem: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 // --- Mock StormAudioClient ---
 vi.mock('../src/stormAudioClient', () => {
   return {
@@ -32,7 +40,9 @@ vi.mock('../src/platformAccessory', () => {
 // --- Mock StormAudioZone2Accessory ---
 vi.mock('../src/zone2Accessory', () => {
   return {
-    StormAudioZone2Accessory: vi.fn(),
+    StormAudioZone2Accessory: vi.fn().mockImplementation(() => ({
+      replayCachedInputs: vi.fn(),
+    })),
   };
 });
 
@@ -42,6 +52,9 @@ function createMockApi() {
   const eventHandlers = new Map<string, ((...args: unknown[]) => void)[]>();
 
   return {
+    user: {
+      storagePath: vi.fn().mockReturnValue('/tmp/test-storage'),
+    },
     hap: {
       Service: { Television: 'Television' },
       Characteristic: {
@@ -407,5 +420,126 @@ describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
     const beforeCount = clientInstance.listenerCount('zoneList');
     clientInstance.emit('zoneList', [zone1, zone13]);
     expect(clientInstance.listenerCount('zoneList')).toBe(beforeCount); // stays same, not removed
+  });
+});
+
+describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let log: ReturnType<typeof createMockLog>;
+
+  // Zone definitions: Downmix (built-in via name + layout), and user zones
+  const z1Downmix = {
+    id: 1, name: 'Downmix', layout: 2000, type: 0,
+    useZone2Source: false, volume: -40, delay: 0, eq: 0, lipsync: 0,
+    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+  };
+  const z13User = {
+    id: 13, name: 'Zone 2', layout: 0, type: 0,
+    useZone2Source: false, volume: -50, delay: 0, eq: 0, lipsync: 0,
+    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+  };
+  const z14User = {
+    id: 14, name: 'Zone 3', layout: 0, type: 0,
+    useZone2Source: false, volume: -60, delay: 0, eq: 0, lipsync: 0,
+    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = createMockApi();
+    log = createMockLog();
+  });
+
+  async function setupPlatform(config: typeof validConfig = validConfig) {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StorageService } = await import('homebridge/lib/storageService');
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    const client = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    const storage = (StorageService as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    return { client, storage };
+  }
+
+  // P1-1: StorageService constructed with correct path
+  it('initializes StorageService with correct storage path', async () => {
+    const { StorageService } = await import('homebridge/lib/storageService');
+    await setupPlatform();
+    expect(StorageService).toHaveBeenCalledWith(
+      '/tmp/test-storage/homebridge-stormaudio-isp',
+    );
+  });
+
+  // P1-2: initSync() called during construction
+  it('calls initSync() on StorageService during platform construction', async () => {
+    const { storage } = await setupPlatform();
+    expect(storage.initSync).toHaveBeenCalledOnce();
+  });
+
+  // QA-1: setItem called with zone array on zoneList event
+  it('QA-1: calls storageService.setItem with { id, name } zone array when zoneList fires', async () => {
+    const { client, storage } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix, z13User]);
+    expect(storage.setItem).toHaveBeenCalledWith('zones', [
+      { id: 1, name: 'Downmix' },
+      { id: 13, name: 'Zone 2' },
+    ]);
+  });
+
+  // QA-1b: storage write failure — plugin does not throw, logs DEBUG
+  it('QA-1b: storage write failure — plugin does not throw and logs DEBUG error message', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StorageService } = await import('homebridge/lib/storageService');
+    const failingSetItem = vi.fn().mockRejectedValue(new Error('disk full'));
+    (StorageService as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+      initSync: vi.fn(),
+      setItem: failingSetItem,
+    }));
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+
+    expect(() => clientInstance.emit('zoneList', [z1Downmix])).not.toThrow();
+    await new Promise(resolve => setTimeout(resolve, 0)); // flush microtasks
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to persist zone list to storage: disk full'),
+    );
+  });
+
+  // QA-4: Each zone entry has id (number) and name (string) — no type field
+  it('QA-4: each stored zone entry has id (number) and name (string), no type field', async () => {
+    const { client, storage } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix, z13User]);
+    const zones = storage.setItem.mock.calls[0][1] as { id: number; name: string }[];
+    for (const z of zones) {
+      expect(typeof z.id).toBe('number');
+      expect(typeof z.name).toBe('string');
+      expect(Object.keys(z)).toEqual(['id', 'name']);
+    }
+  });
+
+  // QA-16: Single zone — stored as { id, name }
+  it('QA-16: single zone → stored as { id, name } only', async () => {
+    const { client, storage } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix]);
+    expect(storage.setItem).toHaveBeenCalledWith('zones', [{ id: 1, name: 'Downmix' }]);
+  });
+
+  // QA-17: Multiple zones — all stored as { id, name }
+  it('QA-17: multiple zones all stored as { id, name }', async () => {
+    const { client, storage } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix, z13User, z14User]);
+    expect(storage.setItem).toHaveBeenCalledWith('zones', [
+      { id: 1, name: 'Downmix' },
+      { id: 13, name: 'Zone 2' },
+      { id: 14, name: 'Zone 3' },
+    ]);
+  });
+
+  // QA-18: Storage updated on reconnect — setItem called twice
+  it('QA-18: storage updated on every connection — setItem called again on reconnect', async () => {
+    const { client, storage } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix]);
+    client.emit('zoneList', [z1Downmix]); // simulate reconnect
+    expect(storage.setItem).toHaveBeenCalledTimes(2);
   });
 });

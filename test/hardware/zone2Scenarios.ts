@@ -63,6 +63,18 @@ function waitForZoneUpdate(
 ): Promise<unknown | null> {
   return new Promise((resolve) => {
     let settled = false;
+
+    // handler and timer reference each other — unavoidable circular declaration
+    const handler = (zoneId: number, field: string, value: unknown): void => {
+      if (!settled && zoneId === targetZoneId && field === targetField) {
+        settled = true;
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        clearTimeout(timer);
+        client.removeListener('zoneUpdate', handler);
+        resolve(value);
+      }
+    };
+
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
@@ -70,15 +82,6 @@ function waitForZoneUpdate(
         resolve(null);
       }
     }, timeoutMs);
-
-    const handler = (zoneId: number, field: string, value: unknown): void => {
-      if (!settled && zoneId === targetZoneId && field === targetField) {
-        settled = true;
-        clearTimeout(timer);
-        client.removeListener('zoneUpdate', handler);
-        resolve(value);
-      }
-    };
 
     client.on('zoneUpdate', handler);
   });

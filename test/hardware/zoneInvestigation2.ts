@@ -60,10 +60,6 @@ function connectAndWait(client: StormAudioClient, timeoutMs = 15000): Promise<vo
   });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Send a command and capture ALL responses (zone updates, errors, any debug) for a window.
  */
@@ -84,6 +80,7 @@ function sendAndObserve(
     client.on('zoneUpdate', zoneHandler);
     client.on('error', errorHandler);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (client as any).sendCommand(command + '\n');
 
     setTimeout(() => {
