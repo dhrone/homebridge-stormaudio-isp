@@ -19,6 +19,7 @@ export interface StormAudioError {
 export interface InputInfo {
   id: number;
   name: string;
+  zone2AudioInId: number;
   type?: string;
 }
 

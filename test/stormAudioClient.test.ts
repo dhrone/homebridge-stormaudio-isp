@@ -584,8 +584,8 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
       'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
     ]);
     expect(received).toHaveLength(2);
-    expect(received![0]).toEqual({ id: 1, name: 'Apple TV' });
-    expect(received![1]).toEqual({ id: 2, name: 'PS5' });
+    expect(received![0]).toEqual({ id: 1, name: 'Apple TV', zone2AudioInId: 0 });
+    expect(received![1]).toEqual({ id: 2, name: 'PS5', zone2AudioInId: 0 });
   });
 
   it('MP2: inputList InputInfo has id:number and name:string shape', () => {
@@ -603,7 +603,7 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     client.on('inputList', (inputs) => { received = inputs; });
     sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(received).toHaveLength(1);
-    expect(received![0]).toEqual({ id: 1, name: 'TV' });
+    expect(received![0]).toEqual({ id: 1, name: 'TV', zone2AudioInId: 0 });
   });
 
   it('EC1: empty list (start/end with no entries) emits inputList with []', () => {
@@ -624,8 +624,8 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
       'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
     ]);
     expect(received).toHaveLength(1);
-    expect(received![0]).toEqual({ id: 2, name: 'PS5' });
-    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed list entry:'));
+    expect(received![0]).toEqual({ id: 2, name: 'PS5', zone2AudioInId: 0 });
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
   });
 
   it('EC3: entry with wrong types (id not number) is skipped, debug log emitted', () => {
@@ -638,8 +638,8 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
       'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
     ]);
     expect(received).toHaveLength(1);
-    expect(received![0]).toEqual({ id: 2, name: 'PS5' });
-    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed list entry:'));
+    expect(received![0]).toEqual({ id: 2, name: 'PS5', zone2AudioInId: 0 });
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
   });
 
   it('EC5: input list sequence does NOT emit input event', () => {
@@ -714,6 +714,177 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('listenerCount: inputList listener count is 0 at baseline (no self-registration)', () => {
     const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
     expect(client.listenerCount('inputList')).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Story 5.2 — zone2AudioInId parsing, getZone2Inputs, setZoneUseZone2, setInputZone2
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  const sendInputList = (entries: string[]) => {
+    mockSocket.simulateData('ssp.input.start\n');
+    for (const entry of entries) {
+      mockSocket.simulateData(entry + '\n');
+    }
+    mockSocket.simulateData('ssp.input.end\n');
+  };
+
+  // QA #1: Input list includes zone2AudioInId
+  it('QA1: parses zone2AudioInId from index 4 — zone2AudioInId=0 and zone2AudioInId=18', () => {
+    const client = connectClient();
+    let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    sendInputList([
+      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]',
+    ]);
+    expect(received).toHaveLength(2);
+    expect(received![0]).toEqual({ id: 1, name: 'TV', zone2AudioInId: 0 });
+    expect(received![1]).toEqual({ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 });
+  });
+
+  // zone2AudioInId parsing siblings
+  it('input with zone2AudioInId=0 → InputInfo has zone2AudioInId=0', () => {
+    const client = connectClient();
+    let received: { zone2AudioInId: number }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
+    expect(received![0].zone2AudioInId).toBe(0);
+  });
+
+  it('input with zone2AudioInId=18 → InputInfo has zone2AudioInId=18', () => {
+    const client = connectClient();
+    let received: { zone2AudioInId: number }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    sendInputList(['ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]']);
+    expect(received![0].zone2AudioInId).toBe(18);
+  });
+
+  // QA #31: graceful degradation — input with < 5 fields defaults zone2AudioInId=0
+  it('QA31: input with < 5 fields → zone2AudioInId defaults to 0', () => {
+    const client = connectClient();
+    let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1]']);
+    expect(received).toHaveLength(1);
+    expect(received![0]).toEqual({ id: 1, name: 'TV', zone2AudioInId: 0 });
+  });
+
+  // Regex fallback also extracts zone2AudioInId
+  it('malformed JSON with regex fallback extracts zone2AudioInId from index 4', () => {
+    const client = connectClient();
+    let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    // Malformed JSON (nested quotes in later fields, but first 5 fields parseable)
+    sendInputList(['ssp.input.list.["Z2-RCA", 6, 7, 18, 19, 0, "["bad"]", 0]']);
+    expect(received).toHaveLength(1);
+    expect(received![0].id).toBe(6);
+    expect(received![0].name).toBe('Z2-RCA');
+    expect(received![0].zone2AudioInId).toBe(19);
+  });
+
+  // QA #2: getZone2Inputs filters correctly
+  it('QA2: getZone2Inputs() returns only inputs with zone2AudioInId !== 0', () => {
+    const client = connectClient();
+    sendInputList([
+      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["Roon", 2, 0, 17, 0, 0, 0.0, 0]',
+      'ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]',
+      'ssp.input.list.["Z2-RCA2", 7, 0, 19, 19, 0, 0.0, 0]',
+    ]);
+    const zone2Inputs = client.getZone2Inputs();
+    expect(zone2Inputs).toHaveLength(2);
+    expect(zone2Inputs[0]).toEqual({ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 });
+    expect(zone2Inputs[1]).toEqual({ id: 7, name: 'Z2-RCA2', zone2AudioInId: 19 });
+  });
+
+  it('getZone2Inputs() returns empty when all inputs have zone2AudioInId=0', () => {
+    const client = connectClient();
+    sendInputList([
+      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["Roon", 2, 0, 17, 0, 0, 0.0, 0]',
+    ]);
+    expect(client.getZone2Inputs()).toHaveLength(0);
+  });
+
+  it('getZone2Inputs() returns all when all inputs have zone2AudioInId !== 0', () => {
+    const client = connectClient();
+    sendInputList([
+      'ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]',
+      'ssp.input.list.["Z2-RCA2", 7, 0, 19, 19, 0, 0.0, 0]',
+    ]);
+    expect(client.getZone2Inputs()).toHaveLength(2);
+  });
+
+  it('getZone2Inputs() returns empty before any input list is received', () => {
+    const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
+    expect(client.getZone2Inputs()).toEqual([]);
+  });
+
+  // Existing parsing behavior preserved — parseListEntryNameId still used for presets
+  it('existing input list tests still produce correct id and name', () => {
+    const client = connectClient();
+    let received: { id: number; name: string }[] | null = null;
+    client.on('inputList', (inputs) => { received = inputs; });
+    sendInputList([
+      'ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]',
+      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
+    ]);
+    expect(received![0].id).toBe(1);
+    expect(received![0].name).toBe('Apple TV');
+    expect(received![1].id).toBe(2);
+    expect(received![1].name).toBe('PS5');
+  });
+});
+
+describe('StormAudioClient — setZoneUseZone2 and setInputZone2 (Story 5.2)', () => {
+  let mockSocket: MockSocket;
+  let socketFactory: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockSocket = new MockSocket();
+    socketFactory = vi.fn().mockReturnValue(mockSocket);
+  });
+
+  const connectClient = (log = makeLog()) => {
+    const client = new StormAudioClient(validConfig, log, socketFactory);
+    client.connect();
+    mockSocket.simulateConnect();
+    return client;
+  };
+
+  it('setZoneUseZone2(13, false) sends ssp.zones.useZone2.[13, 0]', () => {
+    const client = connectClient();
+    client.setZoneUseZone2(13, false);
+    expect(mockSocket.written).toContain('ssp.zones.useZone2.[13, 0]\n');
+  });
+
+  it('setZoneUseZone2(13, true) sends ssp.zones.useZone2.[13, 1]', () => {
+    const client = connectClient();
+    client.setZoneUseZone2(13, true);
+    expect(mockSocket.written).toContain('ssp.zones.useZone2.[13, 1]\n');
+  });
+
+  it('setInputZone2(6) sends ssp.inputZone2.[6]', () => {
+    const client = connectClient();
+    client.setInputZone2(6);
+    expect(mockSocket.written).toContain('ssp.inputZone2.[6]\n');
   });
 });
 

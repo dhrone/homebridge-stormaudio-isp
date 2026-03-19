@@ -61,6 +61,7 @@ export class StormAudioClient extends EventEmitter {
   private readonly commandQueue: string[] = [];
   private commandDrainTimer: ReturnType<typeof setTimeout> | null = null;
   private lastCommandTime = 0;
+  private lastInputList: InputInfo[] = [];
   private reconnecting = false;
   private inLongPoll = false;
   private intentionalDisconnect = false;
@@ -363,6 +364,14 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand(`ssp.zones.volume.[${zoneId}, ${dB}]\n`);
   }
 
+  setZoneUseZone2(zoneId: number, use: boolean): void {
+    this.sendCommand(`ssp.zones.useZone2.[${zoneId}, ${use ? 1 : 0}]\n`);
+  }
+
+  setInputZone2(inputId: number): void {
+    this.sendCommand(`ssp.inputZone2.[${inputId}]\n`);
+  }
+
   getVolume(): number {
     return this.state.volume;
   }
@@ -385,6 +394,10 @@ export class StormAudioClient extends EventEmitter {
 
   getInputZone2(): number {
     return this.state.inputZone2;
+  }
+
+  getZone2Inputs(): InputInfo[] {
+    return this.lastInputList.filter(i => i.zone2AudioInId !== 0);
   }
 
   getIdentity(): IdentityInfo {
@@ -922,12 +935,13 @@ export class StormAudioClient extends EventEmitter {
       if (this.pendingInputList) {
         const inputs = this.pendingInputList;
         this.pendingInputList = null;
+        this.lastInputList = inputs;
         this.log.info(`[State] Received input list: ${inputs.length} inputs`);
         this.emit('inputList', inputs);
       }
     } else if (value.startsWith('list')) {
       const raw = value.slice(5) + ']';
-      const entry = this.parseListEntryNameId(raw);
+      const entry = this.parseInputListEntry(raw);
       if (entry) {
         if (!this.pendingInputList) {
           this.pendingInputList = [];
@@ -1299,6 +1313,29 @@ export class StormAudioClient extends EventEmitter {
   }
 
   // --- List entry parsers ---
+
+  private parseInputListEntry(raw: string): InputInfo | null {
+    // raw: '["name", id, videoInId, audioInId, zone2AudioInId, reserved, delay, reserved]'
+    // Extract name (0), id (1), zone2AudioInId (4) from the 8-field input array
+    try {
+      const arr = JSON.parse(raw) as unknown[];
+      if (Array.isArray(arr) && typeof arr[0] === 'string' && typeof arr[1] === 'number') {
+        const zone2AudioInId = arr.length >= 5 && typeof arr[4] === 'number' ? arr[4] : 0;
+        return { id: arr[1], name: arr[0], zone2AudioInId };
+      }
+    } catch {
+      // JSON.parse fails for entries with nested quotes — fall back to regex
+      const match = raw.match(/^\["([^"]*)",\s*(\d+)/);
+      if (match) {
+        // Try to extract zone2AudioInId from index 4 via a broader regex
+        const fields = raw.match(/^\["[^"]*",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)/);
+        const zone2AudioInId = fields ? parseInt(fields[4], 10) : 0;
+        return { id: parseInt(match[2], 10), name: match[1], zone2AudioInId };
+      }
+    }
+    this.log.debug('[State] Skipped malformed input list entry: ' + raw);
+    return null;
+  }
 
   private parseListEntryNameId(raw: string): { id: number; name: string } | null {
     // raw: '["name", id, ...]' — JSON array, extract name (index 0) and id (index 1)

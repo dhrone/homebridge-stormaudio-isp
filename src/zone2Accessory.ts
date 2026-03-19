@@ -4,7 +4,7 @@ import type { StormAudioPlatform } from './platform';
 import { dBToPercentage, percentageToDB } from './platformAccessory';
 import type { StormAudioClient } from './stormAudioClient';
 import { ProcessorState } from './types';
-import type { Zone2Config } from './types';
+import type { InputInfo, Zone2Config } from './types';
 
 const EXTERNAL_CONTEXT = { source: 'stormaudio' };
 
@@ -13,7 +13,8 @@ export class StormAudioZone2Accessory {
   private speakerService!: Service;
   private volumeProxyService?: Service;
   private volumeProxyChar?: string;
-  private readonly state = { mute: false, volume: -80, input: 0 };
+  private readonly state = { mute: false, volume: -80, useZone2Source: false, inputZone2: 0 };
+  private zone2InputIds = new Set<number>();
   private connected = true;
 
   constructor(
@@ -24,6 +25,10 @@ export class StormAudioZone2Accessory {
   ) {
     const { Characteristic } = this.platform;
     const { zoneId, name, volumeFloor, volumeCeiling, volumeControl } = zone2Config;
+    const config = this.platform.validatedConfig!;
+
+    // Initialize inputZone2 from client-tracked state (may have arrived before accessory created)
+    this.state.inputZone2 = this.client.getInputZone2();
 
     // Connection state tracking
     this.client.on('disconnected', () => {
@@ -69,6 +74,26 @@ export class StormAudioZone2Accessory {
     this.tvService.getCharacteristic(Characteristic.Active).onGet(() => {
       this.ensureConnected();
       return this.state.mute ? Characteristic.Active.INACTIVE : Characteristic.Active.ACTIVE;
+    });
+
+    // ActiveIdentifier onSet — source selection (Story 5.2 AC 6, 7)
+    this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).onSet((value: CharacteristicValue) => {
+      this.ensureConnected();
+      const inputId = value as number;
+      if (inputId === 0) {
+        // Follow Main
+        this.client.setZoneUseZone2(zoneId, false);
+      } else {
+        // Independent source — useZone2 MUST be sent BEFORE inputZone2
+        this.client.setZoneUseZone2(zoneId, true);
+        this.client.setInputZone2(inputId);
+      }
+    });
+
+    // ActiveIdentifier onGet — returns tracked state
+    this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).onGet(() => {
+      if (!this.state.useZone2Source) return 0;
+      return this.zone2InputIds.has(this.state.inputZone2) ? this.state.inputZone2 : 0;
     });
 
     // TelevisionSpeaker service
@@ -149,7 +174,7 @@ export class StormAudioZone2Accessory {
     const proxyService = this.volumeProxyService;
     const proxyVolumeChar = this.volumeProxyChar;
 
-    // Bidirectional sync — zoneUpdate listener (AC 10, 11)
+    // Bidirectional sync — zoneUpdate listener (AC 10, 11; Story 5.2 AC 8, 9)
     this.client.on('zoneUpdate', (eventZoneId: number, field: string, value: unknown) => {
       if (eventZoneId !== zoneId) return;
 
@@ -176,8 +201,78 @@ export class StormAudioZone2Accessory {
         if (proxyService && proxyVolumeChar) {
           proxyService.getCharacteristic(proxyVolumeChar)!.updateValue(percentage, EXTERNAL_CONTEXT);
         }
+      } else if (field === 'useZone2Source') {
+        // Story 5.2 AC 8, 9: useZone2Source broadcast
+        this.state.useZone2Source = value as boolean;
+        if (!this.state.useZone2Source) {
+          // Follow Main — push ActiveIdentifier=0
+          this.tvService
+            .getCharacteristic(Characteristic.ActiveIdentifier)
+            .updateValue(0, EXTERNAL_CONTEXT);
+        } else {
+          // Independent mode — push ActiveIdentifier to inputZone2 (with fallback)
+          const targetId = this.zone2InputIds.has(this.state.inputZone2) ? this.state.inputZone2 : 0;
+          this.tvService
+            .getCharacteristic(Characteristic.ActiveIdentifier)
+            .updateValue(targetId, EXTERNAL_CONTEXT);
+        }
       }
-      // Other fields (useZone2, etc.) silently ignored — deferred to Story 5.2
+    });
+
+    // Story 5.2 AC 10, 11: inputZone2 broadcast tracking
+    this.client.on('inputZone2', (inputId: number) => {
+      this.state.inputZone2 = inputId;
+      if (this.state.useZone2Source) {
+        // Independent mode — push ActiveIdentifier to new input
+        this.tvService
+          .getCharacteristic(Characteristic.ActiveIdentifier)
+          .updateValue(inputId, EXTERNAL_CONTEXT);
+      }
+      // Follow Main mode — update state only, no HomeKit push
+    });
+
+    // Story 5.2 AC 3: Zone 2 InputSource registration from input list
+    this.client.on('inputList', (inputs: InputInfo[]) => {
+      const newZone2Ids = new Set<number>();
+
+      for (const input of inputs) {
+        if (input.zone2AudioInId === 0) continue;
+        newZone2Ids.add(input.id);
+
+        const subtype = `zone2-input-${input.id}`;
+        const alias = config.inputs[String(input.id)];
+        const displayName = alias ?? input.name;
+
+        const svc =
+          this.accessory.getService(subtype) ||
+          this.accessory.addService(this.platform.Service.InputSource, displayName, subtype);
+        svc.setCharacteristic(Characteristic.Identifier, input.id);
+        svc.setCharacteristic(Characteristic.ConfiguredName, displayName);
+        svc.setCharacteristic(Characteristic.IsConfigured, Characteristic.IsConfigured.CONFIGURED);
+        svc.setCharacteristic(Characteristic.InputSourceType, Characteristic.InputSourceType.OTHER);
+        svc.setCharacteristic(Characteristic.CurrentVisibilityState, Characteristic.CurrentVisibilityState.SHOWN);
+        this.tvService.addLinkedService(svc);
+      }
+
+      // Handle capability changes (AC 12, 13)
+      // Inputs that lost Zone 2 capability
+      for (const oldId of this.zone2InputIds) {
+        if (!newZone2Ids.has(oldId)) {
+          const svc = this.accessory.getService(`zone2-input-${oldId}`);
+          if (svc) {
+            svc.setCharacteristic(Characteristic.CurrentVisibilityState, Characteristic.CurrentVisibilityState.HIDDEN);
+          }
+          // If this was the active input, revert to Follow Main
+          if (this.state.useZone2Source && this.state.inputZone2 === oldId) {
+            this.tvService
+              .getCharacteristic(Characteristic.ActiveIdentifier)
+              .updateValue(0, EXTERNAL_CONTEXT);
+            this.client.setZoneUseZone2(zoneId, false);
+          }
+        }
+      }
+
+      this.zone2InputIds = newZone2Ids;
     });
 
     // Processor sleep/wake handling (AC 12, 13)
