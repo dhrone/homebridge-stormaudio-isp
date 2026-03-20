@@ -372,6 +372,18 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand(`ssp.inputZone2.[${inputId}]\n`);
   }
 
+  setPreset(id: number): void {
+    this.sendCommand(`ssp.preset.[${id}]\n`);
+  }
+
+  setTrigger(triggerId: number, on: boolean): void {
+    this.sendCommand(`ssp.trig${triggerId}.${on ? 'on' : 'off'}\n`);
+  }
+
+  getTriggerStates(): Map<number, boolean> {
+    return new Map(this.state.triggerStates);
+  }
+
   getVolume(): number {
     return this.state.volume;
   }

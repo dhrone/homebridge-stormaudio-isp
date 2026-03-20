@@ -31,6 +31,21 @@ export interface Zone2Config {
   volumeControl: 'fan' | 'lightbulb' | 'none';
 }
 
+export interface PresetsConfig {
+  enabled: boolean;
+  name: string;
+  aliases: Record<string, string>;
+  // IMPORTANT: keys are string representations of preset IDs
+  // e.g., { "9": "Movie Night", "12": "Music" }
+  // When looking up by numeric presetId, always convert:
+  //   config.presets.aliases[String(presetId)]
+}
+
+export interface TriggerConfig {
+  name: string;
+  type: 'switch' | 'contact';
+}
+
 export interface StormAudioConfig {
   host: string;
   port: number;
@@ -46,6 +61,8 @@ export interface StormAudioConfig {
   // When looking up by numeric inputId, always convert:
   //   config.inputs[String(inputId)]
   zone2?: Zone2Config;
+  presets?: PresetsConfig;
+  triggers?: Record<string, TriggerConfig>;
 }
 
 // --- Grouped state sub-interfaces (all fields required — validated output types) ---

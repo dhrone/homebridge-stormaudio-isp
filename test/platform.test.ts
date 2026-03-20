@@ -46,6 +46,22 @@ vi.mock('../src/zone2Accessory', () => {
   };
 });
 
+// --- Mock StormAudioPresetAccessory ---
+vi.mock('../src/presetAccessory', () => {
+  return {
+    StormAudioPresetAccessory: vi.fn().mockImplementation(() => ({
+      replayCachedPresets: vi.fn(),
+    })),
+  };
+});
+
+// --- Mock StormAudioTriggerAccessory ---
+vi.mock('../src/triggerAccessory', () => {
+  return {
+    StormAudioTriggerAccessory: vi.fn(),
+  };
+});
+
 // --- Helpers ---
 
 function createMockApi() {
@@ -61,7 +77,7 @@ function createMockApi() {
         Name: 'Name',
         Active: Object.assign('Active', { ACTIVE: 1, INACTIVE: 0 }),
       },
-      Categories: { TELEVISION: 31 },
+      Categories: { TELEVISION: 31, SWITCH: 8 },
       uuid: { generate: vi.fn().mockReturnValue('mock-uuid') },
     },
     platformAccessory: vi.fn().mockImplementation((name: string, uuid: string) => ({
@@ -541,5 +557,223 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
     client.emit('zoneList', [z1Downmix]);
     client.emit('zoneList', [z1Downmix]); // simulate reconnect
     expect(storage.setItem).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Presets: presetList handling (Story 6.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('StormAudioPlatform — presets presetList handling (Story 6.1)', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let log: ReturnType<typeof createMockLog>;
+
+  const presetsConfig = {
+    ...validConfig,
+    presets: { enabled: true, name: 'Presets' },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = createMockApi();
+    log = createMockLog();
+  });
+
+  // Preset logging always fires regardless of config
+  it('logs preset info on presetList event even when presets disabled', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }, { id: 12, name: 'Music' }]);
+    expect(log.info).toHaveBeenCalledWith('[State] Preset 9: "Theater 1"');
+    expect(log.info).toHaveBeenCalledWith('[State] Preset 12: "Music"');
+  });
+
+  // Preset accessory created when enabled
+  it('creates preset accessory when presets.enabled=true and presetList fires', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioPresetAccessory } = await import('../src/presetAccessory');
+    new StormAudioPlatform(log as never, presetsConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]);
+    expect(StormAudioPresetAccessory).toHaveBeenCalledTimes(1);
+    expect(log.info).toHaveBeenCalledWith('[HomeKit] Published Preset accessory: Presets');
+  });
+
+  // No preset accessory when disabled
+  it('does NOT create preset accessory when presets.enabled=false', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioPresetAccessory } = await import('../src/presetAccessory');
+    const disabledConfig = { ...validConfig, presets: { enabled: false } };
+    new StormAudioPlatform(log as never, disabledConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]);
+    expect(StormAudioPresetAccessory).not.toHaveBeenCalled();
+  });
+
+  // No preset accessory when no presets config
+  it('does NOT create preset accessory when no presets config', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioPresetAccessory } = await import('../src/presetAccessory');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', []);
+    expect(StormAudioPresetAccessory).not.toHaveBeenCalled();
+  });
+
+  // Preset accessory created only once on reconnect
+  it('creates preset accessory only once when presetList fires twice', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioPresetAccessory } = await import('../src/presetAccessory');
+    new StormAudioPlatform(log as never, presetsConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]);
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]); // reconnect
+    expect(StormAudioPresetAccessory).toHaveBeenCalledTimes(1);
+  });
+
+  // Preset logging fires on both first and second presetList emit (persistent listener)
+  it('logs preset names on both first and second presetList emit (reconnect scenario)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, presetsConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]);
+    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]); // reconnect
+    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map(c => c[0] as string);
+    const presetLogCount = infoCalls.filter(m => m.includes('[State] Preset 9:')).length;
+    expect(presetLogCount).toBe(2);
+  });
+
+  // presetList listener is persistent (not once)
+  it('presetList listener count stays at 1 after first emit (persistent, not once)', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, presetsConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    const beforeCount = clientInstance.listenerCount('presetList');
+    clientInstance.emit('presetList', []);
+    expect(clientInstance.listenerCount('presetList')).toBe(beforeCount);
+  });
+
+  // UUID generated with correct seed
+  it('generates preset accessory UUID with seed "stormaudio-isp-presets"', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    new StormAudioPlatform(log as never, presetsConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    clientInstance.emit('presetList', []);
+    expect(api.hap.uuid.generate).toHaveBeenCalledWith('stormaudio-isp-presets');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Triggers: accessory creation (Story 6.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('StormAudioPlatform — trigger accessory creation (Story 6.2)', () => {
+  let api: ReturnType<typeof createMockApi>;
+  let log: ReturnType<typeof createMockLog>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = createMockApi();
+    log = createMockLog();
+  });
+
+  it('creates switch accessory for trigger configured as switch', async () => {
+    const { StormAudioClient } = await import('../src/stormAudioClient');
+    const { StormAudioTriggerAccessory } = await import('../src/triggerAccessory');
+    const config = { ...validConfig, triggers: { '1': { name: 'Amp Power', type: 'switch' } } };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    void StormAudioClient; // used indirectly
+    expect(StormAudioTriggerAccessory).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      1,
+      { name: 'Amp Power', type: 'switch' },
+    );
+  });
+
+  it('creates contact sensor accessory for trigger configured as contact', async () => {
+    const { StormAudioTriggerAccessory } = await import('../src/triggerAccessory');
+    const config = { ...validConfig, triggers: { '2': { name: 'Screen Down', type: 'contact' } } };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(StormAudioTriggerAccessory).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      2,
+      { name: 'Screen Down', type: 'contact' },
+    );
+  });
+
+  it('publishes all trigger accessories in one publishExternalAccessories call', async () => {
+    const config = {
+      ...validConfig,
+      triggers: {
+        '1': { name: 'Amp Power', type: 'switch' },
+        '3': { name: 'Screen Down', type: 'contact' },
+      },
+    };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+
+    // Find the publish call that has multiple trigger accessories
+    const triggerPublishCall = (api.publishExternalAccessories as ReturnType<typeof vi.fn>).mock.calls
+      .find((c: unknown[]) => Array.isArray(c[1]) && (c[1] as unknown[]).length === 2);
+    expect(triggerPublishCall).toBeDefined();
+  });
+
+  it('does not create trigger accessories when triggers config is absent', async () => {
+    const { StormAudioTriggerAccessory } = await import('../src/triggerAccessory');
+    new StormAudioPlatform(log as never, validConfig as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(StormAudioTriggerAccessory).not.toHaveBeenCalled();
+  });
+
+  it('logs info for each trigger created', async () => {
+    const config = { ...validConfig, triggers: { '1': { name: 'Amp Power', type: 'switch' } } };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining('[HomeKit] Created trigger 1'));
+  });
+
+  it('logs published trigger count', async () => {
+    const config = { ...validConfig, triggers: { '1': { name: 'Amp', type: 'switch' } } };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining('[HomeKit] Published 1 trigger accessory'));
+  });
+
+  it('all 4 triggers configured — StormAudioTriggerAccessory called 4 times', async () => {
+    const { StormAudioTriggerAccessory } = await import('../src/triggerAccessory');
+    const config = {
+      ...validConfig,
+      triggers: {
+        '1': { name: 'T1', type: 'switch' },
+        '2': { name: 'T2', type: 'switch' },
+        '3': { name: 'T3', type: 'contact' },
+        '4': { name: 'T4', type: 'contact' },
+      },
+    };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(StormAudioTriggerAccessory).toHaveBeenCalledTimes(4);
+  });
+
+  it('generates UUID with trigger ID seed for each trigger', async () => {
+    const config = { ...validConfig, triggers: { '1': { name: 'Amp', type: 'switch' } } };
+    new StormAudioPlatform(log as never, config as never, api as never);
+    api._trigger('didFinishLaunching');
+    expect(api.hap.uuid.generate).toHaveBeenCalledWith('stormaudio-isp-trigger-1');
   });
 });

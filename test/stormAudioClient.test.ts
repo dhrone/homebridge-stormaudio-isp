@@ -3991,4 +3991,42 @@ describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
     expect(mockSocket.written.some(w => w.includes('[13, 0]'))).toBe(true);
     expect(mockSocket.written.some(w => w.includes('"off"') || w.includes('.off'))).toBe(false);
   });
+
+  // setPreset command method (Story 6.1)
+  it('setPreset(9) sends ssp.preset.[9]', () => {
+    const client = connectClient();
+    client.setPreset(9);
+    expect(mockSocket.written).toContain('ssp.preset.[9]\n');
+  });
+
+  it('setPreset(12) sends ssp.preset.[12]', () => {
+    const client = connectClient();
+    client.setPreset(12);
+    expect(mockSocket.written).toContain('ssp.preset.[12]\n');
+  });
+
+  // setTrigger command method (Story 6.2)
+  it('setTrigger(1, true) sends ssp.trig1.on', () => {
+    const client = connectClient();
+    client.setTrigger(1, true);
+    expect(mockSocket.written).toContain('ssp.trig1.on\n');
+  });
+
+  it('setTrigger(1, false) sends ssp.trig1.off', () => {
+    const client = connectClient();
+    client.setTrigger(1, false);
+    expect(mockSocket.written).toContain('ssp.trig1.off\n');
+  });
+
+  it('setTrigger(4, true) sends ssp.trig4.on', () => {
+    const client = connectClient();
+    client.setTrigger(4, true);
+    expect(mockSocket.written).toContain('ssp.trig4.on\n');
+  });
+
+  it('setTrigger(4, false) sends ssp.trig4.off', () => {
+    const client = connectClient();
+    client.setTrigger(4, false);
+    expect(mockSocket.written).toContain('ssp.trig4.off\n');
+  });
 });
