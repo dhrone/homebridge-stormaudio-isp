@@ -24,6 +24,8 @@
  *   STORM_TEST_INPUT   - input ID for input tests (default: auto)
  *   STORM_SKIP_DESTRUCTIVE - set to "true" to skip state-changing tests
  *   STORM_REPORT_PATH  - path for JSON report output
+ *   STORM_TEST_PRESET_ID - preset ID for preset command tests (default: skip)
+ *   STORM_TEST_TRIGGER_ID - trigger ID (1-4) for trigger command tests (default: skip)
  */
 
 import * as fs from 'fs';
@@ -43,6 +45,14 @@ import {
 } from './scenarios';
 import { Spinner } from './spinner';
 import type { HardwareTestConfig, HarnessReport, ResponseTimeStat, ScenarioResult } from './types';
+import {
+  scenarioPresetCommandRoundTrip,
+  scenarioPresetListRetrieval,
+  scenarioPresetWakeFromSleep,
+  scenarioTriggerBidirectionalSync,
+  scenarioTriggerCommandRoundTrip,
+  scenarioTriggerStateRetrieval,
+} from './presetTriggerScenarios';
 import {
   scenarioBidirectionalMute,
   scenarioBidirectionalSource,
@@ -103,6 +113,14 @@ function loadConfig(): HardwareTestConfig {
       parseFloat(process.env.STORM_ZONE2_VOLUME_FLOOR ?? '') || (fileConfig.zone2VolumeFloor ?? -80),
     zone2VolumeCeiling:
       parseFloat(process.env.STORM_ZONE2_VOLUME_CEILING ?? '') || (fileConfig.zone2VolumeCeiling ?? 0),
+    testPresetId:
+      process.env.STORM_TEST_PRESET_ID !== undefined
+        ? parseInt(process.env.STORM_TEST_PRESET_ID, 10)
+        : (fileConfig.testPresetId ?? null),
+    testTriggerId:
+      process.env.STORM_TEST_TRIGGER_ID !== undefined
+        ? parseInt(process.env.STORM_TEST_TRIGGER_ID, 10)
+        : (fileConfig.testTriggerId ?? null),
   };
 
   if (!config.host) {
@@ -170,6 +188,12 @@ async function confirmRun(config: HardwareTestConfig): Promise<boolean> {
     console.log(`Test vol: ${config.testVolumeDb}dB`);
     console.log(
       `Zone 2:  ${config.zone2ZoneId !== null ? `zoneId=${config.zone2ZoneId}, floor=${config.zone2VolumeFloor}dB, ceiling=${config.zone2VolumeCeiling}dB` : 'DISABLED (no zone2ZoneId)'}`,
+    );
+    console.log(
+      `Presets: ${config.testPresetId !== null ? `testPresetId=${config.testPresetId}` : 'SKIP command tests (no testPresetId)'}`,
+    );
+    console.log(
+      `Triggers: ${config.testTriggerId !== null ? `testTriggerId=${config.testTriggerId}` : 'SKIP command tests (no testTriggerId)'}`,
     );
     console.log(`Destructive tests: ${config.skipDestructive ? 'SKIPPED' : 'ENABLED'}`);
     console.log('');
@@ -490,6 +514,59 @@ async function main(): Promise<void> {
       name: 'Zone Persistence on Reconnect (A15)',
       run: async () => {
         const result = await scenarioZonePersistenceOnReconnect(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+
+    // --- Preset & Trigger scenarios (P1-P6 from Epic 6 smoke test) ---
+
+    {
+      id: 24,
+      name: 'Preset List Retrieval (P1)',
+      run: async () => {
+        const result = await scenarioPresetListRetrieval(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 25,
+      name: 'Trigger State Retrieval (P2)',
+      run: async () => {
+        const result = await scenarioTriggerStateRetrieval(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 26,
+      name: 'Preset Command Round-Trip (P3)',
+      run: async () => {
+        const { result, responseStats } = await scenarioPresetCommandRoundTrip(config, log, spinner);
+        allResults.push(result);
+        allResponseStats.push(...responseStats);
+      },
+    },
+    {
+      id: 27,
+      name: 'Preset Wake from Sleep (P4)',
+      run: async () => {
+        const result = await scenarioPresetWakeFromSleep(config, log, spinner);
+        allResults.push(result);
+      },
+    },
+    {
+      id: 28,
+      name: 'Trigger Command Round-Trip (P5)',
+      run: async () => {
+        const { result, responseStats } = await scenarioTriggerCommandRoundTrip(config, log, spinner);
+        allResults.push(result);
+        allResponseStats.push(...responseStats);
+      },
+    },
+    {
+      id: 29,
+      name: 'Trigger Bidirectional Sync (P6)',
+      run: async () => {
+        const result = await scenarioTriggerBidirectionalSync(config, log, spinner);
         allResults.push(result);
       },
     },

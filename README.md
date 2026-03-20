@@ -449,6 +449,8 @@ If the troubleshooting steps above do not resolve your issue, [open a GitHub iss
 - **Mute icon in Control Center** -- the mute button icon in the iOS Control Center remote widget may not always visually reflect the current mute state, due to a known iOS limitation with Television accessories.
 - **Zone 2 "Follow Main" source** -- when Zone 2 is set to follow the main zone's input, the Zone 2 source cannot be changed independently from HomeKit. To use independent Zone 2 sources, the zone must have its own audio inputs assigned in the StormAudio configuration.
 - **Trigger auto-switching is informational** -- triggers that change automatically when the processor changes inputs or presets (auto-switching) are reflected in HomeKit in real time, but the plugin does not control which triggers fire on which input. That logic is configured on the processor itself.
+- **HomeKit detail view does not live-refresh** -- when viewing the input or preset list inside a Television tile's detail view, external changes (from the processor remote, web UI, etc.) are not reflected until you navigate out and back in. The room-level tile updates correctly. This is a HomeKit platform behavior affecting all Television accessories.
+- **Contact sensors are not visible tiles** -- contact sensor triggers do not appear as tiles in the Home app. They are accessible only as automation conditions. This is standard HomeKit behavior for contact sensor accessories.
 - **Surround mode switching** -- not yet exposed to HomeKit.
 
 ## Acknowledgments

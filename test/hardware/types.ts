@@ -26,6 +26,13 @@ export interface HardwareTestConfig {
   zone2VolumeFloor: number;
   /** Volume ceiling in dB for Zone 2. */
   zone2VolumeCeiling: number;
+
+  // --- Preset & Trigger fields ---
+
+  /** Preset ID for preset command tests. null = skip preset command scenarios. */
+  testPresetId: number | null;
+  /** Trigger ID (1-4) for trigger command tests. null = skip trigger command scenarios. */
+  testTriggerId: number | null;
 }
 
 export type ScenarioStatus = 'PASS' | 'FAIL' | 'SKIP';

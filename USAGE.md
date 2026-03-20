@@ -212,6 +212,8 @@ The preset accessory appears as a Television tile in HomeKit. Its "inputs" are y
 
 The processor switches immediately and the tile confirms the selection. The preset list is automatically imported from the processor at connection time.
 
+**Note on the detail view:** If you are inside the preset tile's detail view and the preset changes externally (from the processor remote, web UI, or another app), the list selection does not update in real time. Navigate back to the room view and re-enter the detail view to see the updated selection. The room-level tile itself does update correctly. This is a HomeKit platform behavior that affects all Television accessories, not specific to this plugin.
+
 ### Presets in Scenes and Automations
 
 The most powerful use of presets is in HomeKit Scenes. Create a "Movie Night" scene that sets the preset along with other settings:
@@ -262,6 +264,8 @@ A trigger configured as a Switch can be turned on and off from HomeKit. Changes 
 ### Contact Sensor Mode (Read-Only Automation Trigger)
 
 A trigger configured as a Contact Sensor is read-only — it cannot be controlled from HomeKit. Instead, it acts as an automation input: when the trigger activates (sensor opens/closes), you can trigger other HomeKit actions.
+
+**Important:** Contact sensors do not appear as visible tiles in the Home app. They are only accessible as conditions when creating automations. To verify a contact sensor is working, create an automation using it as a trigger condition — you will see the sensor listed there with its current state.
 
 **Example automation:**
 > When "Screen Down" sensor detects contact → dim the lights to 20%
@@ -407,9 +411,11 @@ This helps with Siri disambiguation. If you say "Hey Siri, turn on the Theater" 
 
 ### Bidirectional Sync
 
-Any change made on the processor itself -- using the physical remote, front panel, web interface, or another control app -- is reflected in the Home app within about a second. You do not need to worry about the Home app getting out of sync. This works for power, volume, mute, and input selection.
+Any change made on the processor itself -- using the physical remote, front panel, web interface, or another control app -- is reflected in the Home app within about a second. You do not need to worry about the Home app getting out of sync. This works for power, volume, mute, input selection, presets, and triggers.
 
 If the network connection drops and you make changes on the processor while it is disconnected, the plugin re-syncs all state automatically when the connection is restored. The Home app will show the correct current state after reconnection.
+
+**HomeKit detail view caveat:** When you are inside a Television tile's detail view (viewing the input or preset list), external state changes are not reflected in real time within that view. The room-level tile updates correctly, but you must navigate out of the detail view and back in to see the updated selection. This is a HomeKit platform behavior that affects all Television accessories -- the plugin is pushing updates correctly, but the Home app's detail view does not refresh while open.
 
 ---
 
