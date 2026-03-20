@@ -147,6 +147,133 @@ The keys are the input IDs (visible in the Homebridge log on startup), and the v
 
 ---
 
+## Zone 2 (Multi-Room Audio)
+
+If you have a second audio zone configured (e.g., patio speakers, an outdoor zone), it appears as a separate Television accessory in HomeKit.
+
+### Power
+
+Zone 2 does not have independent power in the StormAudio architecture — only the main processor powers on and off. The Zone 2 accessory uses **mute/unmute to simulate power**:
+
+- **"Turn on" Zone 2** = unmute (audio plays)
+- **"Turn off" Zone 2** = mute (audio silenced, zone stays active)
+
+**Turn on Zone 2:**
+> "Hey Siri, turn on the Patio"
+
+**Turn off Zone 2:**
+> "Hey Siri, turn off the Patio"
+
+Replace "Patio" with whatever name you gave your Zone 2 accessory.
+
+### Volume
+
+Zone 2 volume is controlled the same way as the main zone — through a volume proxy (fan or lightbulb, if configured) and the iOS Control Center remote buttons.
+
+**Set Zone 2 volume:**
+> "Hey Siri, set Patio to 40%"
+
+Zone 2 has its own volume floor and ceiling configured independently from the main zone. The default range maps -80 dB (0%) to 0 dB (100%), which is appropriate for most zone amplifiers.
+
+### Mute
+
+> "Hey Siri, turn off the Patio"
+
+This mutes Zone 2. To unmute:
+
+> "Hey Siri, turn on the Patio"
+
+### Source Selection
+
+Zone 2 source selection depends on how your processor is configured:
+
+- **Follow Main** -- Zone 2 plays whatever the main zone is playing. Source cannot be selected independently from HomeKit; it follows the main zone's input automatically.
+- **Independent source** -- if Zone 2 has its own audio inputs assigned in the StormAudio configuration, you can switch them independently using the Zone 2 accessory's input picker in the Home app (same as the main zone).
+
+To switch Zone 2 sources when in independent mode, long-press the Zone 2 Television tile and tap the input selector.
+
+---
+
+## Presets
+
+Theater presets are saved configurations on the StormAudio processor (audio processing, room correction, surround mode) that let you switch the entire sound profile with one action.
+
+### What Presets Do
+
+Selecting a preset on the processor changes the audio processing configuration — for example, switching between a "Movie" preset (full surround) and a "Music" preset (stereo direct). Presets are created and named in the StormAudio configuration.
+
+### Selecting a Preset from the Home App
+
+The preset accessory appears as a Television tile in HomeKit. Its "inputs" are your available presets:
+
+1. Long-press the Presets tile to open its detail view
+2. Tap the input selector
+3. Choose the preset you want
+
+The processor switches immediately and the tile confirms the selection. The preset list is automatically imported from the processor at connection time.
+
+### Presets in Scenes and Automations
+
+The most powerful use of presets is in HomeKit Scenes. Create a "Movie Night" scene that sets the preset along with other settings:
+
+> Scene: "Movie Night"
+> - Presets accessory → set to "Movie Night" preset
+> - Theater fan → set to 40% volume
+> - Amp Power switch → on
+> - Screen Down → (triggered automatically by amp power, if configured)
+
+Then say:
+> "Hey Siri, Movie Night"
+
+### Preset Aliases
+
+If processor preset names are not Siri-friendly, you can override them with aliases in the configuration:
+
+```json
+"presets": {
+  "enabled": true,
+  "aliases": {
+    "9": "Movie Night",
+    "12": "Music"
+  }
+}
+```
+
+Preset IDs appear in the Homebridge log when presets are imported. Aliases work the same way as input aliases — they override names for the specified IDs only.
+
+---
+
+## Triggers
+
+Hardware triggers are relay outputs on the StormAudio processor that control external equipment (amplifiers, projectors, motorized screens, curtains, lighting relays). The plugin can expose them to HomeKit as switches or contact sensors.
+
+### Switch Mode (Bidirectional Control)
+
+A trigger configured as a Switch can be turned on and off from HomeKit. Changes are immediate and bidirectional — trigger state changes from the processor (auto-switching on wake/preset/input) are reflected in HomeKit in real time.
+
+**Turn on a trigger:**
+> "Hey Siri, turn on Amp Power"
+
+**Include in a scene:**
+> Scene: "Movie Night"
+> - Amp Power switch → on
+> - Projector switch → on
+
+### Contact Sensor Mode (Read-Only Automation Trigger)
+
+A trigger configured as a Contact Sensor is read-only — it cannot be controlled from HomeKit. Instead, it acts as an automation input: when the trigger activates (sensor opens/closes), you can trigger other HomeKit actions.
+
+**Example automation:**
+> When "Screen Down" sensor detects contact → dim the lights to 20%
+
+Contact sensors retain their last known state even during brief network disconnections, so automations based on sensor state continue working during outages.
+
+### When No Trigger Accessories Appear
+
+If no trigger accessories are visible in HomeKit, check that at least one trigger in the `triggers` config section has `"type": "switch"` or `"type": "contact"`. Triggers with `"type": "none"` (the default) are not exposed.
+
+---
+
 ## Scenes and Automations
 
 HomeKit Scenes and Automations let you combine multiple actions into a single command or trigger. The plugin supports all the building blocks you need. For general instructions on creating scenes and automations, see Apple's guide: [Create scenes and automations with the Home app](https://support.apple.com/en-us/102313).
@@ -157,6 +284,9 @@ Create a Scene in the Home app called "Movie Night" that:
 - Turns on the Television accessory (powers on the processor)
 - Sets the fan/lightbulb proxy to 40% (sets volume to your preferred movie level)
 - Sets the input to Apple TV
+- Sets the Presets accessory to your "Movie Night" preset (switches audio processing)
+- Turns on the Amp Power switch (trigger 1)
+- Turns on the Projector switch (trigger 3)
 
 Then say:
 > "Hey Siri, Movie Night"
@@ -167,31 +297,57 @@ Everything happens at once. If the processor is sleeping, it wakes automatically
 
 Create a time-based Automation that runs at 11:00 PM:
 - Turns off the Television accessory (powers off the processor)
+- Turns off the Amp Power switch
+- Turns off the Zone 2 accessory (mutes patio)
 
 Or use a presence-based Automation:
 - When the last person leaves the house, turn off the Television accessory
+
+### Example: Screen Automation
+
+If your screen trigger is configured as a Contact Sensor:
+
+> When "Screen Down" sensor detects contact → dim the lights to 20% and set the temperature to movie mode
 
 ### What can be included in scenes and automations
 
 | Action | How to set it |
 |--------|---------------|
-| Power on/off | Television accessory on/off |
+| Power on/off | Television accessory (main zone) on/off |
 | Volume level | Fan or lightbulb proxy brightness/speed percentage |
 | Mute/unmute | Fan or lightbulb proxy on/off |
 | Input selection | Television accessory active input |
+| Zone 2 on/off | Zone 2 Television accessory on/off (mute/unmute) |
+| Zone 2 volume | Zone 2 fan or lightbulb proxy (if configured) |
+| Zone 2 source | Zone 2 Television accessory active input (if independent mode) |
+| Preset selection | Presets Television accessory active input |
+| Trigger on/off | Trigger Switch accessory on/off |
+| Automation from trigger | Trigger Contact Sensor state |
 
-### What cannot be automated (today)
+### What cannot be automated
 
 - **Surround mode switching** -- not yet exposed to HomeKit
-- **Preset activation** -- not yet exposed to HomeKit
 - **Dynamic range compression (night mode)** -- not yet exposed to HomeKit
-- **Trigger outputs** (screen, curtains) -- not yet exposed to HomeKit
-
-These capabilities are recognized as future enhancements. The processor already reports this information to the plugin; it just has not been wired into HomeKit controls yet.
 
 ---
 
 ## Tips and Tricks
+
+### Dedicated HomeKit Room for Theater Controls
+
+As you add Zone 2, presets, and trigger accessories, your Home app can quickly accumulate tiles from this plugin. The best way to keep things organized is to create a dedicated HomeKit room for all plugin accessories:
+
+1. Open the **Home** app and tap **+** → **Add Room**
+2. Name it something like "Theater Controls" or "StormAudio"
+3. Move all plugin accessories into it:
+   - Main zone Television tile
+   - Volume fan/lightbulb tile
+   - Zone 2 Television tile (if configured)
+   - Zone 2 volume proxy (if configured)
+   - Presets Television tile (if enabled)
+   - Each trigger Switch or Contact Sensor
+
+With a dedicated room, your main room views stay uncluttered while all theater controls remain easy to find in one place. Room assignment also helps Siri — if you say "turn off the Theater", Siri uses the room context to find the right accessory.
 
 ### Naming for Siri
 
@@ -259,14 +415,9 @@ If the network connection drops and you make changes on the processor while it i
 
 ## What's Not Supported (Yet)
 
-The following features are recognized as potential future enhancements. The processor already communicates this information to the plugin over the network, but it has not been connected to HomeKit controls yet:
-
 | Feature | Status |
 |---------|--------|
 | **Surround mode switching** | Processor reports available modes; not yet exposed as HomeKit controls |
-| **Preset activation** | Processor reports preset list; not yet exposed as HomeKit switches |
-| **Trigger outputs** (screen, curtains, lighting relays) | Processor reports trigger states; not yet exposed as HomeKit switches |
-| **Zone 2 control** | Processor reports zone data; not yet exposed as a separate accessory |
 | **Dynamic range compression (night mode)** | Processor reports DRC state; not yet exposed as a HomeKit switch |
 | **Dialog enhancement** | Processor reports availability and level; not yet exposed |
 | **Relative volume via Siri** | HomeKit platform limitation -- use absolute percentages instead |
@@ -286,5 +437,10 @@ The following features are recognized as potential future enhancements. The proc
 | "Hey Siri" opens the StormAudio app instead of controlling HomeKit | Accessory name conflicts with an installed iOS app | Rename your accessory to something unique like "Theater" or "Processor" to avoid the conflict. |
 | Home app shows wrong volume/input after a network outage | State was not re-synced yet | Wait a few seconds after the connection is restored. The plugin automatically re-syncs all state from the processor on reconnection. |
 | Plugin appears to stop working after initial startup failure | Processor was not reachable when Homebridge started | The plugin retries automatically every 20 seconds indefinitely. Once the processor becomes reachable, the plugin will connect and begin working. No restart needed. |
+| Zone 2 accessory not appearing in HomeKit | `zone2.zoneId` not set or doesn't match a zone on the processor | Use the Config UI dropdown to select the correct zone ID, or check the Homebridge log for available zone IDs on connection. |
+| Zone 2 source cannot be changed | Zone 2 is in "Follow Main" mode | Zone 2 must have independent audio inputs assigned in the StormAudio configuration to allow independent source selection from HomeKit. |
+| Presets accessory not appearing | `presets.enabled` is false or not set | Set `presets.enabled: true` in the plugin configuration and restart Homebridge. |
+| Preset list is empty | Processor has no saved presets | Create and save presets in the StormAudio configuration, then restart Homebridge to re-import them. |
+| Trigger accessories not appearing | No triggers configured with `"switch"` or `"contact"` type | Add a `triggers` section to your config with at least one trigger set to `"type": "switch"` or `"type": "contact"`. Triggers with `"type": "none"` are not exposed. |
 
 For full installation instructions, configuration options, and developer information, see the [README](README.md).

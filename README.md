@@ -7,7 +7,7 @@
 [![npm version](https://badgen.net/npm/v/homebridge-stormaudio-isp)](https://www.npmjs.com/package/homebridge-stormaudio-isp)
 [![npm downloads](https://badgen.net/npm/dt/homebridge-stormaudio-isp)](https://www.npmjs.com/package/homebridge-stormaudio-isp)
 
-A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP immersive sound processors via Apple HomeKit. Control power, volume, mute, and input selection using the Home app and Siri.
+A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP immersive sound processors via Apple HomeKit. Control power, volume, mute, input selection, Zone 2 multi-room audio, theater presets, and hardware triggers using the Home app and Siri.
 
 **New to this plugin?** After installation, see the [Usage Guide](USAGE.md) for hands-on instructions covering Siri commands, scenes, automations, and practical tips.
 
@@ -33,6 +33,9 @@ A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP imme
 - **Mute/unmute** -- toggle mute via the volume proxy's on/off switch
 - **Volume buttons** -- use the iOS Control Center remote widget for relative volume up/down
 - **Input switching** -- switch between inputs in the Home app, with input names read directly from the processor
+- **Zone 2 multi-room audio** -- control a second zone (e.g., patio speaker) as a separate HomeKit accessory with independent power, volume, mute, and source selection
+- **Theater presets** -- switch the entire theater configuration via HomeKit scenes and automations using a dedicated preset accessory
+- **Hardware triggers** -- expose trigger outputs (amp power, projector, screen) as HomeKit switches or contact sensors for scene control and automations
 - **Bidirectional sync** -- changes made on the processor (remote, front panel, StormAudio app) are reflected in HomeKit in real time
 - **Connection resilience** -- automatic reconnection with exponential backoff, keepalive monitoring, and indefinite long-poll recovery
 - **Child Bridge compatible** -- recommended configuration for isolation and stability
@@ -42,7 +45,12 @@ A [Homebridge](https://homebridge.io) plugin for controlling StormAudio ISP imme
 - A server to run Homebridge. See the [Homebridge Wiki](https://github.com/homebridge/homebridge/wiki) for details.
 - **Homebridge** 1.8.0 or later (including 2.0 beta)
 - **Node.js** 20.0.0 or later
-- **StormAudio ISP processor** (ISP, ISP Elite, ISP Core, or other models with the TCP/IP control API)
+- **A supported processor** -- any processor with the StormAudio TCP/IP control API (port 23):
+  - StormAudio ISP (all generations: MK1, MK2, MK3)
+  - StormAudio ISP Elite
+  - StormAudio ISP Core (16-channel)
+  - Bryston SP4 (OEM StormAudio platform)
+  - Focal Astral 16 (OEM StormAudio platform)
 - **Network** -- the processor must be reachable from the Homebridge host via TCP on port 23 (default). A static IP address or DHCP reservation for the processor is strongly recommended.
 
 ## Installation
@@ -64,7 +72,14 @@ npm install -g homebridge-stormaudio-isp
 
 Running this plugin as a Child Bridge is recommended. A Child Bridge runs the plugin in its own isolated process, so a plugin crash or restart does not affect the rest of Homebridge or your other accessories.
 
-To enable Child Bridge in the Homebridge UI:
+All plugin accessories are **external accessories** published by the plugin, which means each one can be paired to its own Child Bridge for maximum isolation:
+
+- Main zone Television accessory
+- Zone 2 Television accessory (if configured)
+- Presets Television accessory (if enabled)
+- Trigger Switch or Contact Sensor accessories (one per configured trigger)
+
+To enable a Child Bridge for the plugin in the Homebridge UI:
 
 1. Go to the **Plugins** tab.
 2. Click the wrench icon on **StormAudio ISP**.
@@ -105,6 +120,7 @@ Add the platform to the `platforms` array in your Homebridge `config.json`:
 | `volumeFloor` | No | `-100` | Minimum volume in dB. Maps to 0% in HomeKit. Range: -100 to 0. Must be less than `volumeCeiling`. |
 | `volumeControl` | No | `"fan"` | Volume proxy service type: `"fan"`, `"lightbulb"`, or `"none"` |
 | `wakeTimeout` | No | `90` | Seconds to wait for the processor to boot after power-on (range: 30-300). Increase for older/slower models. |
+| `commandInterval` | No | `100` | Minimum milliseconds between commands sent to the processor. Values below 85 may cause dropped commands. |
 | `inputs` | No | `{}` | Input name aliases (see below) |
 
 #### Volume Ceiling and Floor (safety feature)
@@ -144,6 +160,112 @@ If you cannot change input names on the processor (e.g., shared configuration wi
 ```
 
 Aliases take precedence over the processor's names for those inputs only. To find input IDs, check the Homebridge log — the plugin logs each input with its ID and name on first connection.
+
+#### Zone 2 Configuration
+
+Zone 2 exposes a second audio zone as a separate Television accessory in HomeKit. This is useful for patio speakers, outdoor zones, or any secondary listening area connected to your processor.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `zone2.zoneId` | -- | Zone ID from your processor. Use the Homebridge Config UI dropdown to select it, or enter manually. |
+| `zone2.name` | `"Zone 2"` | Display name for the Zone 2 accessory (e.g., `"Patio"`). |
+| `zone2.volumeControl` | `"none"` | Volume proxy for Zone 2: `"none"` (default — volume via TV remote buttons), `"fan"`, or `"lightbulb"`. |
+| `zone2.volumeFloor` | `-80` | Minimum dB for Zone 2 volume mapping (maps to 0%). |
+| `zone2.volumeCeiling` | `0` | Maximum dB for Zone 2 volume mapping (maps to 100%). |
+
+**Zone 2 "Follow Main" vs independent source:** When Zone 2 is configured to follow the main zone, it plays whatever input the main zone is using. If Zone 2 has its own audio inputs assigned, you can switch them independently. See [Zone 2 Usage](USAGE.md#zone-2-multi-room-audio) for details.
+
+**Zone 2 power:** The Zone 2 accessory uses mute/unmute to simulate power on/off (the processor has no per-zone power concept — only the main zone powers the processor on or off).
+
+#### Presets Configuration
+
+Presets expose theater configurations saved on the processor as a dedicated Television accessory in HomeKit. Use presets to switch between "Movie", "Music", and "TV" sound configurations via scenes and automations.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `presets.enabled` | `false` | Create a preset accessory in HomeKit. Presets are imported from the processor at connection time. |
+| `presets.name` | `"Presets"` | Display name for the preset accessory (e.g., `"Theater Presets"`). |
+| `presets.aliases` | `{}` | Override preset names from the processor. Keys are preset IDs (as strings), values are display names. |
+
+Preset aliases work the same as input aliases. To find preset IDs, check the Homebridge log after enabling presets — the plugin logs each preset with its ID and name on connection.
+
+```json
+"presets": {
+  "enabled": true,
+  "name": "Theater Presets",
+  "aliases": {
+    "9": "Movie Night",
+    "12": "Music"
+  }
+}
+```
+
+#### Triggers Configuration
+
+Triggers expose the processor's hardware relay outputs (4 total) as HomeKit accessories. Each trigger can be configured independently as a Switch (bidirectional control) or Contact Sensor (read-only automation trigger). Triggers not listed in the config, or listed with `"type": "none"`, are not exposed to HomeKit.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `triggers.N.name` | `"Trigger N"` | Display name for trigger N (1–4) in HomeKit. |
+| `triggers.N.type` | `"none"` | How this trigger appears in HomeKit: `"none"` (not exposed), `"switch"` (on/off control), or `"contact"` (read-only sensor). |
+
+```json
+"triggers": {
+  "1": { "name": "Amp Power", "type": "switch" },
+  "2": { "name": "Screen Down", "type": "contact" },
+  "3": { "name": "Projector", "type": "switch" }
+}
+```
+
+- **Switch** -- bidirectional. You can turn it on/off from HomeKit, and trigger state changes from any source (auto-switching on wake/preset, manual override) are reflected in HomeKit in real time.
+- **Contact Sensor** -- read-only. The sensor reflects the trigger's current state and can be used as an automation trigger (e.g., "when Screen Down activates, dim the lights").
+
+#### Complete Configuration Example
+
+Here is a comprehensive `config.json` showing all available sections:
+
+```json
+{
+  "platforms": [
+    {
+      "platform": "StormAudioISP",
+      "name": "Theater",
+      "host": "192.168.1.100",
+      "port": 23,
+      "volumeCeiling": -20,
+      "volumeFloor": -80,
+      "volumeControl": "fan",
+      "wakeTimeout": 90,
+      "commandInterval": 100,
+      "inputs": {
+        "3": "Apple TV",
+        "5": "PS5",
+        "7": "Roon"
+      },
+      "zone2": {
+        "zoneId": 2,
+        "name": "Patio",
+        "volumeControl": "none",
+        "volumeFloor": -80,
+        "volumeCeiling": 0
+      },
+      "presets": {
+        "enabled": true,
+        "name": "Theater Presets",
+        "aliases": {
+          "9": "Movie Night",
+          "12": "Music"
+        }
+      },
+      "triggers": {
+        "1": { "name": "Amp Power", "type": "switch" },
+        "2": { "name": "Screen Down", "type": "contact" },
+        "3": { "name": "Projector", "type": "switch" }
+      }
+    }
+  ]
+}
+```
 
 ## How It Works
 
@@ -264,6 +386,23 @@ Inputs are imported from the processor on every startup and update in real time 
 2. In the Home app, long-press the accessory, tap **Settings**, and check if inputs appear under the input list
 3. If inputs still do not appear, remove the accessory from the Home app and re-pair it
 
+### Zone 2 Not Appearing
+
+- Verify `zone2.zoneId` matches a zone ID reported by your processor. The easiest way is to use the Homebridge Config UI dropdown, which lists available zones after the plugin connects.
+- If the dropdown is empty, the processor may not yet be connected when you open the settings. Start Homebridge first, then return to the settings page.
+- If Zone 2 still does not appear in HomeKit, remove the Zone 2 accessory from the Home app and re-pair it.
+
+### Presets Not Showing
+
+- Verify `presets.enabled` is set to `true` in your configuration.
+- Presets are imported from the processor at connection time. If the processor has no saved presets, the accessory will appear but have no inputs to select.
+- If you added presets to the processor after the plugin started, restart Homebridge to re-import the preset list.
+
+### Triggers Not Appearing
+
+- Verify the `triggers` section is present in your configuration and at least one trigger has `"type": "switch"` or `"type": "contact"`. Triggers with `"type": "none"` (the default) are not exposed to HomeKit.
+- Each trigger appears as a separate accessory. If only some triggers appear, check that the missing ones have their type set correctly.
+
 ### Understanding Log Messages
 
 The plugin uses structured log prefixes:
@@ -308,6 +447,9 @@ If the troubleshooting steps above do not resolve your issue, [open a GitHub iss
 - **Single processor** -- the plugin supports one StormAudio processor per platform instance. If you have multiple processors, add a separate `StormAudioISP` platform entry for each one.
 - **Volume step granularity** -- HomeKit volume characteristics use integer percentages, so each step maps to a whole-number dB value within your configured range. The processor supports 0.1 dB resolution, but HomeKit cannot represent fractional steps. With a wide volume range (e.g., 80 dB span), some adjacent percentage values may map to the same dB level and produce no audible change.
 - **Mute icon in Control Center** -- the mute button icon in the iOS Control Center remote widget may not always visually reflect the current mute state, due to a known iOS limitation with Television accessories.
+- **Zone 2 "Follow Main" source** -- when Zone 2 is set to follow the main zone's input, the Zone 2 source cannot be changed independently from HomeKit. To use independent Zone 2 sources, the zone must have its own audio inputs assigned in the StormAudio configuration.
+- **Trigger auto-switching is informational** -- triggers that change automatically when the processor changes inputs or presets (auto-switching) are reflected in HomeKit in real time, but the plugin does not control which triggers fire on which input. That logic is configured on the processor itself.
+- **Surround mode switching** -- not yet exposed to HomeKit.
 
 ## Acknowledgments
 
