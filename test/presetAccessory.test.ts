@@ -65,11 +65,13 @@ function createMockService() {
   };
 }
 
-function createMockClient(overrides?: Partial<{
-  processorState: ProcessorState;
-  preset: number;
-  presetList: Array<{ id: number; name: string }>;
-}>) {
+function createMockClient(
+  overrides?: Partial<{
+    processorState: ProcessorState;
+    preset: number;
+    presetList: Array<{ id: number; name: string }>;
+  }>,
+) {
   const emitter = new EventEmitter();
   const state = {
     processorState: overrides?.processorState ?? ProcessorState.Active,
@@ -89,9 +91,15 @@ function createMockClient(overrides?: Partial<{
     setPreset: vi.fn(),
     ensureActive: vi.fn().mockResolvedValue(true),
     _emit: emitter.emit.bind(emitter),
-    _setProcessorState: (s: ProcessorState) => { state.processorState = s; },
-    _setPreset: (id: number) => { state.audioConfig.preset = id; },
-    _setPresetList: (list: Array<{ id: number; name: string }>) => { state.audioConfig.presetList = list; },
+    _setProcessorState: (s: ProcessorState) => {
+      state.processorState = s;
+    },
+    _setPreset: (id: number) => {
+      state.audioConfig.preset = id;
+    },
+    _setPresetList: (list: Array<{ id: number; name: string }>) => {
+      state.audioConfig.presetList = list;
+    },
   };
 }
 
@@ -275,9 +283,7 @@ describe('StormAudioPresetAccessory — Active characteristic (informational)', 
     const { accessory, platform } = buildPresetAccessory();
     const activeChar = accessory._tvService._getChar('Active')!;
     activeChar._triggerSet(ActiveEnum.ACTIVE);
-    expect(platform.log.debug).toHaveBeenCalledWith(
-      expect.stringContaining('use main accessory'),
-    );
+    expect(platform.log.debug).toHaveBeenCalledWith(expect.stringContaining('use main accessory'));
   });
 });
 
@@ -304,7 +310,7 @@ describe('StormAudioPresetAccessory — ActiveIdentifier', () => {
     const { accessory, client } = buildPresetAccessory();
     const activeIdChar = accessory._tvService._getChar('ActiveIdentifier')!;
     await activeIdChar._triggerSet(9);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(client.setPreset).toHaveBeenCalledWith(9);
   });
 
@@ -313,7 +319,7 @@ describe('StormAudioPresetAccessory — ActiveIdentifier', () => {
     client._emit('disconnected');
     const activeIdChar = accessory._tvService._getChar('ActiveIdentifier')!;
     expect(() => activeIdChar._triggerSet(9)).toThrow(MockHapStatusError);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(client.setPreset).not.toHaveBeenCalled();
   });
 
@@ -325,7 +331,7 @@ describe('StormAudioPresetAccessory — ActiveIdentifier', () => {
     (client.ensureActive as ReturnType<typeof vi.fn>).mockResolvedValue(true);
     const activeIdChar = accessory._tvService._getChar('ActiveIdentifier')!;
     await activeIdChar._triggerSet(9);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(client.ensureActive).toHaveBeenCalled();
     expect(client.setPreset).toHaveBeenCalledWith(9);
   });
@@ -338,7 +344,7 @@ describe('StormAudioPresetAccessory — ActiveIdentifier', () => {
     (client.ensureActive as ReturnType<typeof vi.fn>).mockResolvedValue(false);
     const activeIdChar = accessory._tvService._getChar('ActiveIdentifier')!;
     await activeIdChar._triggerSet(9);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(client.setPreset).not.toHaveBeenCalled();
   });
 });
@@ -437,8 +443,10 @@ describe('StormAudioPresetAccessory — replayCachedPresets / registerPresetInpu
     expect(inputSvc9!.setCharacteristic).toHaveBeenCalledWith('ConfiguredName', 'Theater 1');
     // IsConfigured and CurrentVisibilityState use String object keys — check via call scan
     const calls = (inputSvc9!.setCharacteristic as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.some(c => String(c[0]) === 'IsConfigured' && c[1] === IsConfiguredEnum.CONFIGURED)).toBe(true);
-    expect(calls.some(c => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.SHOWN)).toBe(true);
+    expect(calls.some((c) => String(c[0]) === 'IsConfigured' && c[1] === IsConfiguredEnum.CONFIGURED)).toBe(true);
+    expect(
+      calls.some((c) => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.SHOWN),
+    ).toBe(true);
   });
 
   it('alias overrides processor name for matching ID', () => {
@@ -491,11 +499,16 @@ describe('StormAudioPresetAccessory — replayCachedPresets / registerPresetInpu
     });
     preset.replayCachedPresets(); // initial: 9, 12
     // Reconnect with different list: 9, 15
-    client._emit('presetList', [{ id: 9, name: 'Theater 1' }, { id: 15, name: 'Sport' }]);
+    client._emit('presetList', [
+      { id: 9, name: 'Theater 1' },
+      { id: 15, name: 'Sport' },
+    ]);
     const inputSvc12 = accessory._inputSourceServices.get('preset-input-12');
     // CurrentVisibilityState uses String object keys — check via call scan
     const calls = (inputSvc12!.setCharacteristic as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.some(c => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.HIDDEN)).toBe(true);
+    expect(
+      calls.some((c) => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.HIDDEN),
+    ).toBe(true);
   });
 
   it('preset list update on reconnect shows new presets', () => {
@@ -503,12 +516,17 @@ describe('StormAudioPresetAccessory — replayCachedPresets / registerPresetInpu
       clientOverrides: { presetList: SAMPLE_PRESETS },
     });
     preset.replayCachedPresets();
-    client._emit('presetList', [{ id: 9, name: 'Theater 1' }, { id: 15, name: 'Sport' }]);
+    client._emit('presetList', [
+      { id: 9, name: 'Theater 1' },
+      { id: 15, name: 'Sport' },
+    ]);
     const inputSvc15 = accessory._inputSourceServices.get('preset-input-15');
     expect(inputSvc15).toBeDefined();
     // CurrentVisibilityState uses String object keys — check via call scan
     const calls15 = (inputSvc15!.setCharacteristic as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls15.some(c => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.SHOWN)).toBe(true);
+    expect(
+      calls15.some((c) => String(c[0]) === 'CurrentVisibilityState' && c[1] === CurrentVisibilityStateEnum.SHOWN),
+    ).toBe(true);
   });
 });
 
@@ -566,7 +584,7 @@ describe('StormAudioPresetAccessory — integration smoke tests', () => {
 
     // HomeKit preset selection
     await activeIdChar._triggerSet(9);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(client.setPreset).toHaveBeenCalledWith(9);
 
     // Disconnect
@@ -585,7 +603,7 @@ describe('StormAudioPresetAccessory — integration smoke tests', () => {
 
     const activeIdChar = accessory._tvService._getChar('ActiveIdentifier')!;
     await activeIdChar._triggerSet(9);
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
 
     expect(client.ensureActive).toHaveBeenCalled();
     expect(client.setPreset).toHaveBeenCalledWith(9);

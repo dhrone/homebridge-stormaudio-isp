@@ -30,12 +30,13 @@ After starting Homebridge, the plugin connects to your processor, imports its in
 3. Scan the QR code, or tap **More Options** and enter the setup code manually.
 4. HomeKit asks you to configure the accessory (room assignment, name, etc.).
 
-You are set. Try saying *"Hey Siri, turn on the Theater"* to confirm the connection -- you should see the processor wake up within a few seconds.
+You are set. Try saying _"Hey Siri, turn on the Theater"_ to confirm the connection -- you should see the processor wake up within a few seconds.
 
 **What appears in the Home app:**
 
 <!-- TODO: Add screenshot of Home app main zone tiles -->
-*[Screenshot: Home app showing Television tile and volume fan tile -- coming soon]*
+
+_[Screenshot: Home app showing Television tile and volume fan tile -- coming soon]_
 
 - A **Television tile** for power and input selection (named after your configured `name`)
 - A **Fan tile** (default) or **Lightbulb tile** for volume control and mute
@@ -53,9 +54,11 @@ All controls are bidirectional -- changes made on the processor (remote, front p
 ### Power
 
 **Turn on:**
+
 > "Hey Siri, turn on the Theater"
 
 **Turn off:**
+
 > "Hey Siri, turn off the Theater"
 
 You can also tap the Television tile in the Home app.
@@ -71,6 +74,7 @@ You can also tap the Television tile in the Home app.
 Control volume through a **fan** (default) or **lightbulb** proxy service that appears as a separate tile in the Home app.
 
 **Set volume to a specific level:**
+
 > "Hey Siri, set Theater to 50%"
 
 Replace "Theater" with your accessory name.
@@ -86,12 +90,12 @@ flowchart LR
 
 **Example with floor = -80 dB and ceiling = -20 dB:**
 
-| You say | Volume set to |
-|---------|---------------|
-| "Set Theater to 0%" | -80 dB (floor -- silence) |
-| "Set Theater to 25%" | -65 dB |
-| "Set Theater to 50%" | -50 dB |
-| "Set Theater to 75%" | -35 dB |
+| You say               | Volume set to                    |
+| --------------------- | -------------------------------- |
+| "Set Theater to 0%"   | -80 dB (floor -- silence)        |
+| "Set Theater to 25%"  | -65 dB                           |
+| "Set Theater to 50%"  | -50 dB                           |
+| "Set Theater to 75%"  | -35 dB                           |
 | "Set Theater to 100%" | -20 dB (ceiling -- never higher) |
 
 Narrowing the range gives you finer control per percentage step. Pick a few levels you use regularly (30% for background, 50% for normal, 70% for movies) — they become second nature.
@@ -118,6 +122,7 @@ The iOS Control Center remote's volume buttons send relative up/down commands (1
 ### Mute
 
 **Mute by turning off the volume proxy:**
+
 > "Hey Siri, turn off the Theater"
 
 When the fan (or lightbulb) is turned off, the processor mutes. Turning it on unmutes and restores the previous volume.
@@ -136,7 +141,8 @@ When the processor is muted, the tile shows as off. When unmuted, it shows as on
 **From the Home app:**
 
 <!-- TODO: Add screenshot of Home app input picker -->
-*[Screenshot: Television tile detail view with input picker -- coming soon]*
+
+_[Screenshot: Television tile detail view with input picker -- coming soon]_
 
 1. Tap the Television tile to open its detail view
 2. Tap the input selector
@@ -145,6 +151,7 @@ When the processor is muted, the tile shows as off. When unmuted, it shows as on
 The processor switches immediately and the Home app confirms the selection.
 
 **With Siri:**
+
 > "Hey Siri, switch to TV on Theater"
 
 Replace "TV" with the input name and "Theater" with your accessory name.
@@ -208,9 +215,9 @@ Zone 2 has its own volume floor and ceiling configured independently. As with th
 
 ### Mute
 
-> "Hey Siri, turn off the Patio" *(mute)*
+> "Hey Siri, turn off the Patio" _(mute)_
 
-> "Hey Siri, turn on the Patio" *(unmute)*
+> "Hey Siri, turn on the Patio" _(unmute)_
 
 ### Source Selection
 
@@ -230,7 +237,8 @@ Theater presets are saved configurations on the processor (audio processing, roo
 ### Selecting a Preset
 
 <!-- TODO: Add screenshot of preset accessory tile -->
-*[Screenshot: Presets Television tile with preset list -- coming soon]*
+
+_[Screenshot: Presets Television tile with preset list -- coming soon]_
 
 The preset accessory appears as a Television tile. Its "inputs" are your available presets:
 
@@ -245,11 +253,13 @@ The processor switches immediately. The preset list is imported automatically at
 Presets work especially well in HomeKit Scenes:
 
 > **Scene: "Movie Night"**
+>
 > - Presets accessory set to "Movie Night" preset
 > - Theater fan set to 40% volume
 > - Amp Power switch on
 
 Then say:
+
 > "Hey Siri, Movie Night"
 
 ### Preset Aliases
@@ -270,6 +280,7 @@ Hardware triggers are relay outputs on the processor that control external equip
 Configure a trigger as a Switch to control it from HomeKit. It appears as a **toggle tile** in the Home app -- tap to turn on or off, just like a smart plug or light switch. State changes from any source (auto-switching on wake/preset, manual override, front panel) sync to HomeKit in real time, so the tile always reflects the actual relay state.
 
 Switches are fully controllable:
+
 - **Tap the tile** in the Home app to toggle on/off
 - **Voice control:** "Hey Siri, turn on Amp Power"
 - **Scenes:** include in a scene alongside other accessories (e.g., "Movie Night" turns on amp, projector, and processor together)
@@ -288,13 +299,13 @@ Contact sensors retain their last known state during brief network disconnection
 
 #### Which Mode Should I Choose?
 
-| | Switch | Contact Sensor |
-|---|---|---|
-| Visible tile in Home app | Yes -- toggle on/off | No -- hidden by default |
-| Controllable from HomeKit | Yes -- tap, Siri, scenes | No -- read-only |
-| Usable as automation trigger | Yes | Yes |
-| Reflects processor state changes | Yes | Yes |
-| Best for | Equipment you want to control (amps, projectors) | Equipment managed by the processor that you want to react to (screen relays, status signals) |
+|                                  | Switch                                           | Contact Sensor                                                                               |
+| -------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Visible tile in Home app         | Yes -- toggle on/off                             | No -- hidden by default                                                                      |
+| Controllable from HomeKit        | Yes -- tap, Siri, scenes                         | No -- read-only                                                                              |
+| Usable as automation trigger     | Yes                                              | Yes                                                                                          |
+| Reflects processor state changes | Yes                                              | Yes                                                                                          |
+| Best for                         | Equipment you want to control (amps, projectors) | Equipment managed by the processor that you want to react to (screen relays, status signals) |
 
 ---
 
@@ -305,6 +316,7 @@ This is where individual controls become orchestrated experiences. A single voic
 ### Example: "Movie Night" Scene
 
 Create a Scene that:
+
 - Turns on the Television accessory (powers on the processor)
 - Sets the fan proxy to 40% (volume)
 - Sets the input to Apple TV
@@ -313,6 +325,7 @@ Create a Scene that:
 - Turns on the Projector switch
 
 Then say:
+
 > "Hey Siri, Movie Night"
 
 Everything happens at once. If the processor is sleeping, it wakes automatically. No remotes to juggle, no apps to open, no walking to the rack.
@@ -320,11 +333,13 @@ Everything happens at once. If the processor is sleeping, it wakes automatically
 ### Example: "Goodnight" Automation
 
 Create a time-based Automation that runs at 11:00 PM:
+
 - Turns off the Television accessory (processor off)
 - Turns off the Amp Power switch
 - Turns off Zone 2 (mutes patio)
 
 Or use presence-based:
+
 - When the last person leaves, turn off the Television accessory
 
 No more lying in bed wondering if you left the theater on.
@@ -337,18 +352,18 @@ If your screen trigger is a Contact Sensor:
 
 ### What Can Be Included
 
-| Action | How to set it |
-|--------|---------------|
-| Power on/off | Television accessory on/off |
-| Volume level | Fan or lightbulb proxy percentage |
-| Mute/unmute | Fan or lightbulb proxy on/off |
-| Input selection | Television accessory active input |
-| Zone 2 on/off | Zone 2 Television on/off (mute/unmute) |
-| Zone 2 volume | Zone 2 fan or lightbulb proxy |
-| Zone 2 source | Zone 2 Television active input (independent mode) |
-| Preset selection | Presets Television active input |
-| Trigger on/off | Trigger Switch on/off |
-| Automation from trigger | Trigger Contact Sensor state |
+| Action                  | How to set it                                     |
+| ----------------------- | ------------------------------------------------- |
+| Power on/off            | Television accessory on/off                       |
+| Volume level            | Fan or lightbulb proxy percentage                 |
+| Mute/unmute             | Fan or lightbulb proxy on/off                     |
+| Input selection         | Television accessory active input                 |
+| Zone 2 on/off           | Zone 2 Television on/off (mute/unmute)            |
+| Zone 2 volume           | Zone 2 fan or lightbulb proxy                     |
+| Zone 2 source           | Zone 2 Television active input (independent mode) |
+| Preset selection        | Presets Television active input                   |
+| Trigger on/off          | Trigger Switch on/off                             |
+| Automation from trigger | Trigger Contact Sensor state                      |
 
 ### What Cannot Be Automated
 
@@ -361,23 +376,23 @@ If your screen trigger is a Contact Sensor:
 
 ### Commands That Work
 
-| Command | Action |
-|---------|--------|
-| "Set **Theater** to 50%" | Sets volume to 50% of your configured range |
-| "Turn off **Theater**" | Powers off the processor (or mutes the volume proxy) |
-| "Turn on **Theater**" | Powers on the processor (or unmutes the volume proxy) |
-| "Hey Siri, switch to **TV** on **Theater**" | Switches to the named input |
-| "Hey Siri, **Movie Night**" | Activates a scene by name |
+| Command                                     | Action                                                |
+| ------------------------------------------- | ----------------------------------------------------- |
+| "Set **Theater** to 50%"                    | Sets volume to 50% of your configured range           |
+| "Turn off **Theater**"                      | Powers off the processor (or mutes the volume proxy)  |
+| "Turn on **Theater**"                       | Powers on the processor (or unmutes the volume proxy) |
+| "Hey Siri, switch to **TV** on **Theater**" | Switches to the named input                           |
+| "Hey Siri, **Movie Night**"                 | Activates a scene by name                             |
 
 Replace **Theater** with your configured `name`.
 
 ### Commands That Do Not Work (Apple Limitations)
 
-| Command | Why |
-|---------|-----|
+| Command                         | Why                                      |
+| ------------------------------- | ---------------------------------------- |
 | "Set **Theater** volume to 50%" | Siri does not support TV volume commands |
-| "Mute **Theater**" | No HomeKit mute voice command exists |
-| "Turn up/down **Theater**" | Relative volume routing is unreliable |
+| "Mute **Theater**"              | No HomeKit mute voice command exists     |
+| "Turn up/down **Theater**"      | Relative volume routing is unreliable    |
 
 > [!TIP]
 > **Workaround for input switching:** Create a HomeKit Scene that sets the desired input, then activate it by name: "Hey Siri, Movie Night."
@@ -389,7 +404,8 @@ Replace **Theater** with your configured `name`.
 Your processor appears in the iOS Control Center remote widget automatically.
 
 <!-- TODO: Add screenshot of iOS Control Center remote -->
-*[Screenshot: iOS Control Center remote connected to StormAudio -- coming soon]*
+
+_[Screenshot: iOS Control Center remote connected to StormAudio -- coming soon]_
 
 ### Setup
 
@@ -468,7 +484,7 @@ Your StormAudio processor also has a web-based remote interface accessible from 
 
 ![StormAudio Remote UI](docs/StormAudio%20Remote%20UI%20Screenshot.png)
 
-*The StormAudio web remote provides direct access to all processor controls. HomeKit reflects changes made here in real time.*
+_The StormAudio web remote provides direct access to all processor controls. HomeKit reflects changes made here in real time._
 
 ---
 
@@ -476,34 +492,34 @@ Your StormAudio processor also has a web-based remote interface accessible from 
 
 Something not working as expected? Most issues have straightforward fixes.
 
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| Accessory shows "Not Responding" | Network connection lost | Check that the processor is powered on and reachable. The plugin retries automatically. |
-| Inputs not showing | Accessory needs re-pairing | Remove the accessory from Home app and re-pair. Check log for `[HomeKit] Input sources registered`. |
-| Siri says "I can't do that" for volume | Using relative command | Use "set Theater to 50%" instead of "turn it up". |
-| Volume changes not audible | Volume range too low or narrow | Raise `volumeFloor` (e.g., -80) for a more usable range. |
-| "Mute the Theater" does not work | Siri limitation | Use "turn off Theater" to mute, "turn on Theater" to unmute. |
-| Processor slow to respond after power-on | Normal boot time | Expected behavior while loading room calibration. Increase `wakeTimeout` if needed. |
-| Siri opens the StormAudio app | Name conflicts with iOS app | Rename accessory to "Theater" or "Processor". |
-| Wrong state after network outage | State not re-synced yet | Wait a few seconds -- the plugin re-syncs automatically on reconnection. |
-| Plugin stops after startup failure | Processor unreachable at launch | The plugin retries every 20s indefinitely. No restart needed. |
-| Zone 2 not appearing | `zone2.zoneId` missing or wrong | Use Config UI dropdown to select the correct zone ID. |
-| Zone 2 source cannot be changed | Zone 2 in "Follow Main" mode | Assign independent audio inputs in the StormAudio configuration. |
-| Presets not appearing | `presets.enabled` is false | Set `presets.enabled: true` and restart Homebridge. |
-| Preset list is empty | No saved presets on processor | Create presets in StormAudio configuration, then restart Homebridge. |
-| Triggers not appearing | No triggers configured | Add triggers with `"type": "switch"` or `"type": "contact"`. |
+| Symptom                                  | Likely Cause                    | Fix                                                                                                 |
+| ---------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Accessory shows "Not Responding"         | Network connection lost         | Check that the processor is powered on and reachable. The plugin retries automatically.             |
+| Inputs not showing                       | Accessory needs re-pairing      | Remove the accessory from Home app and re-pair. Check log for `[HomeKit] Input sources registered`. |
+| Siri says "I can't do that" for volume   | Using relative command          | Use "set Theater to 50%" instead of "turn it up".                                                   |
+| Volume changes not audible               | Volume range too low or narrow  | Raise `volumeFloor` (e.g., -80) for a more usable range.                                            |
+| "Mute the Theater" does not work         | Siri limitation                 | Use "turn off Theater" to mute, "turn on Theater" to unmute.                                        |
+| Processor slow to respond after power-on | Normal boot time                | Expected behavior while loading room calibration. Increase `wakeTimeout` if needed.                 |
+| Siri opens the StormAudio app            | Name conflicts with iOS app     | Rename accessory to "Theater" or "Processor".                                                       |
+| Wrong state after network outage         | State not re-synced yet         | Wait a few seconds -- the plugin re-syncs automatically on reconnection.                            |
+| Plugin stops after startup failure       | Processor unreachable at launch | The plugin retries every 20s indefinitely. No restart needed.                                       |
+| Zone 2 not appearing                     | `zone2.zoneId` missing or wrong | Use Config UI dropdown to select the correct zone ID.                                               |
+| Zone 2 source cannot be changed          | Zone 2 in "Follow Main" mode    | Assign independent audio inputs in the StormAudio configuration.                                    |
+| Presets not appearing                    | `presets.enabled` is false      | Set `presets.enabled: true` and restart Homebridge.                                                 |
+| Preset list is empty                     | No saved presets on processor   | Create presets in StormAudio configuration, then restart Homebridge.                                |
+| Triggers not appearing                   | No triggers configured          | Add triggers with `"type": "switch"` or `"type": "contact"`.                                        |
 
 ### Understanding Log Messages
 
 The plugin uses structured log prefixes to help you identify issues:
 
-| Prefix | Category | What to look for |
-|--------|----------|-----------------|
-| `[Config]` | Configuration | Validation errors on startup |
-| `[TCP]` | Connection | Connect/disconnect events, reconnection attempts |
-| `[Command]` | Protocol | Commands sent and received (debug level) |
-| `[State]` | Processor state | Power transitions, wake timeouts, input imports |
-| `[HomeKit]` | Accessory | Service registration, characteristic updates |
+| Prefix      | Category        | What to look for                                 |
+| ----------- | --------------- | ------------------------------------------------ |
+| `[Config]`  | Configuration   | Validation errors on startup                     |
+| `[TCP]`     | Connection      | Connect/disconnect events, reconnection attempts |
+| `[Command]` | Protocol        | Commands sent and received (debug level)         |
+| `[State]`   | Processor state | Power transitions, wake timeouts, input imports  |
+| `[HomeKit]` | Accessory       | Service registration, characteristic updates     |
 
 To see debug-level messages, start Homebridge with the `-D` flag or enable debug mode in the Homebridge UI.
 

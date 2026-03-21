@@ -583,7 +583,7 @@ describe('validateConfig — triggers', () => {
 
   it('triggers present with non-numeric ID "abc" → warning and skip', () => {
     const log = makeLog();
-    const result = validateConfig({ ...baseConfig, triggers: { 'abc': { name: 'Invalid', type: 'switch' } } }, log);
+    const result = validateConfig({ ...baseConfig, triggers: { abc: { name: 'Invalid', type: 'switch' } } }, log);
     expect(result).not.toBeNull();
     expect(result!.triggers).toBeUndefined();
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"abc"'));
@@ -633,14 +633,17 @@ describe('validateConfig — triggers', () => {
 
   it('mixed triggers — only switch/contact entries in returned config', () => {
     const log = makeLog();
-    const result = validateConfig({
-      ...baseConfig,
-      triggers: {
-        '1': { name: 'Amp', type: 'switch' },
-        '2': 'none',
-        '3': { name: 'Screen', type: 'contact' },
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: {
+          '1': { name: 'Amp', type: 'switch' },
+          '2': 'none',
+          '3': { name: 'Screen', type: 'contact' },
+        },
       },
-    }, log);
+      log,
+    );
     expect(result).not.toBeNull();
     expect(Object.keys(result!.triggers ?? {})).toEqual(expect.arrayContaining(['1', '3']));
     expect(result!.triggers?.['2']).toBeUndefined();
@@ -648,15 +651,18 @@ describe('validateConfig — triggers', () => {
 
   it('all 4 triggers as switch → config has all 4 entries', () => {
     const log = makeLog();
-    const result = validateConfig({
-      ...baseConfig,
-      triggers: {
-        '1': { name: 'T1', type: 'switch' },
-        '2': { name: 'T2', type: 'switch' },
-        '3': { name: 'T3', type: 'switch' },
-        '4': { name: 'T4', type: 'switch' },
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: {
+          '1': { name: 'T1', type: 'switch' },
+          '2': { name: 'T2', type: 'switch' },
+          '3': { name: 'T3', type: 'switch' },
+          '4': { name: 'T4', type: 'switch' },
+        },
       },
-    }, log);
+      log,
+    );
     expect(result).not.toBeNull();
     expect(Object.keys(result!.triggers ?? {})).toHaveLength(4);
   });

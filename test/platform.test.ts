@@ -324,8 +324,40 @@ describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
   };
 
   // Sample zone state entries (matches ZoneState interface shape used by platform event)
-  const zone1 = { id: 1, name: 'Downmix', layout: 0, type: 0, useZone2Source: false, volume: -40, delay: 0, eq: 0, lipsync: 0, mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0 };
-  const zone13 = { id: 13, name: 'Patio', layout: 0, type: 0, useZone2Source: false, volume: -50, delay: 0, eq: 0, lipsync: 0, mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0 };
+  const zone1 = {
+    id: 1,
+    name: 'Downmix',
+    layout: 0,
+    type: 0,
+    useZone2Source: false,
+    volume: -40,
+    delay: 0,
+    eq: 0,
+    lipsync: 0,
+    mode: 0,
+    mute: false,
+    loudness: 0,
+    avzones: 0,
+    bass: 0,
+    treble: 0,
+  };
+  const zone13 = {
+    id: 13,
+    name: 'Patio',
+    layout: 0,
+    type: 0,
+    useZone2Source: false,
+    volume: -50,
+    delay: 0,
+    eq: 0,
+    lipsync: 0,
+    mode: 0,
+    mute: false,
+    loudness: 0,
+    avzones: 0,
+    bass: 0,
+    treble: 0,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -364,16 +396,14 @@ describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
     expect(log.info).toHaveBeenCalledWith('[State] Zone 13: "Patio" (user zone)');
     // No Zone 2 accessory created
     const calls = (api.publishExternalAccessories as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls.every(c => (c[1] as { displayName: string }[])[0]?.displayName === validConfig.name)).toBe(true);
+    expect(calls.every((c) => (c[1] as { displayName: string }[])[0]?.displayName === validConfig.name)).toBe(true);
   });
 
   // Zone 2 accessory created when zone found (AC 3)
   it('creates Zone 2 accessory when zoneId found in zone list', async () => {
     const { StormAudioClient } = await import('../src/stormAudioClient');
     const { StormAudioZone2Accessory } = await import('../src/zone2Accessory');
-    api.hap.uuid.generate = vi.fn()
-      .mockReturnValueOnce('mock-main-uuid')
-      .mockReturnValueOnce('mock-zone2-uuid');
+    api.hap.uuid.generate = vi.fn().mockReturnValueOnce('mock-main-uuid').mockReturnValueOnce('mock-zone2-uuid');
 
     new StormAudioPlatform(log as never, zone2Config as never, api as never);
     api._trigger('didFinishLaunching');
@@ -432,8 +462,8 @@ describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
     clientInstance.emit('zoneList', [zone1]);
     clientInstance.emit('zoneList', [zone1]); // reconnect
 
-    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map(c => c[0] as string);
-    const zoneLogCount = infoCalls.filter(m => m.includes('[State] Zone 1:')).length;
+    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+    const zoneLogCount = infoCalls.filter((m) => m.includes('[State] Zone 1:')).length;
     expect(zoneLogCount).toBe(2);
   });
 
@@ -455,19 +485,55 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
 
   // Zone definitions: Downmix (built-in via name + layout), and user zones
   const z1Downmix = {
-    id: 1, name: 'Downmix', layout: 2000, type: 0,
-    useZone2Source: false, volume: -40, delay: 0, eq: 0, lipsync: 0,
-    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+    id: 1,
+    name: 'Downmix',
+    layout: 2000,
+    type: 0,
+    useZone2Source: false,
+    volume: -40,
+    delay: 0,
+    eq: 0,
+    lipsync: 0,
+    mode: 0,
+    mute: false,
+    loudness: 0,
+    avzones: 0,
+    bass: 0,
+    treble: 0,
   };
   const z13User = {
-    id: 13, name: 'Zone 2', layout: 0, type: 0,
-    useZone2Source: false, volume: -50, delay: 0, eq: 0, lipsync: 0,
-    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+    id: 13,
+    name: 'Zone 2',
+    layout: 0,
+    type: 0,
+    useZone2Source: false,
+    volume: -50,
+    delay: 0,
+    eq: 0,
+    lipsync: 0,
+    mode: 0,
+    mute: false,
+    loudness: 0,
+    avzones: 0,
+    bass: 0,
+    treble: 0,
   };
   const z14User = {
-    id: 14, name: 'Zone 3', layout: 0, type: 0,
-    useZone2Source: false, volume: -60, delay: 0, eq: 0, lipsync: 0,
-    mode: 0, mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+    id: 14,
+    name: 'Zone 3',
+    layout: 0,
+    type: 0,
+    useZone2Source: false,
+    volume: -60,
+    delay: 0,
+    eq: 0,
+    lipsync: 0,
+    mode: 0,
+    mute: false,
+    loudness: 0,
+    avzones: 0,
+    bass: 0,
+    treble: 0,
   };
 
   beforeEach(() => {
@@ -488,10 +554,7 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
   // P1-1: mkdirSync called with correct path
   it('creates storage directory with correct path', async () => {
     await setupPlatform();
-    expect(mockMkdirSync).toHaveBeenCalledWith(
-      '/tmp/test-storage/homebridge-stormaudio-isp',
-      { recursive: true },
-    );
+    expect(mockMkdirSync).toHaveBeenCalledWith('/tmp/test-storage/homebridge-stormaudio-isp', { recursive: true });
   });
 
   // P1-2: mkdirSync called once during construction
@@ -506,7 +569,10 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
     client.emit('zoneList', [z1Downmix, z13User]);
     expect(mockWriteFile).toHaveBeenCalledWith(
       '/tmp/test-storage/homebridge-stormaudio-isp/zones',
-      JSON.stringify([{ id: 1, name: 'Downmix' }, { id: 13, name: 'Zone 2' }]),
+      JSON.stringify([
+        { id: 1, name: 'Downmix' },
+        { id: 13, name: 'Zone 2' },
+      ]),
       'utf-8',
     );
   });
@@ -515,7 +581,7 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
   it('logs success message after zones are persisted', async () => {
     const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix, z13User]);
-    await new Promise(resolve => setTimeout(resolve, 0)); // flush microtasks
+    await new Promise((resolve) => setTimeout(resolve, 0)); // flush microtasks
     expect(log.debug).toHaveBeenCalledWith('[Config] Persisted 2 zones to plugin storage');
   });
 
@@ -525,7 +591,7 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
     const { client } = await setupPlatform();
 
     expect(() => client.emit('zoneList', [z1Downmix])).not.toThrow();
-    await new Promise(resolve => setTimeout(resolve, 0)); // flush microtasks
+    await new Promise((resolve) => setTimeout(resolve, 0)); // flush microtasks
     expect(log.debug).toHaveBeenCalledWith(
       expect.stringContaining('Failed to persist zone list to storage: disk full'),
     );
@@ -605,7 +671,10 @@ describe('StormAudioPlatform — presets presetList handling (Story 6.1)', () =>
     new StormAudioPlatform(log as never, validConfig as never, api as never);
     api._trigger('didFinishLaunching');
     const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
-    clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }, { id: 12, name: 'Music' }]);
+    clientInstance.emit('presetList', [
+      { id: 9, name: 'Theater 1' },
+      { id: 12, name: 'Music' },
+    ]);
     expect(log.info).toHaveBeenCalledWith('[State] Preset 9: "Theater 1"');
     expect(log.info).toHaveBeenCalledWith('[State] Preset 12: "Music"');
   });
@@ -665,8 +734,8 @@ describe('StormAudioPlatform — presets presetList handling (Story 6.1)', () =>
     const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
     clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]);
     clientInstance.emit('presetList', [{ id: 9, name: 'Theater 1' }]); // reconnect
-    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map(c => c[0] as string);
-    const presetLogCount = infoCalls.filter(m => m.includes('[State] Preset 9:')).length;
+    const infoCalls = (log.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+    const presetLogCount = infoCalls.filter((m) => m.includes('[State] Preset 9:')).length;
     expect(presetLogCount).toBe(2);
   });
 
@@ -749,8 +818,9 @@ describe('StormAudioPlatform — trigger accessory creation (Story 6.2)', () => 
     api._trigger('didFinishLaunching');
 
     // Find the publish call that has multiple trigger accessories
-    const triggerPublishCall = (api.publishExternalAccessories as ReturnType<typeof vi.fn>).mock.calls
-      .find((c: unknown[]) => Array.isArray(c[1]) && (c[1] as unknown[]).length === 2);
+    const triggerPublishCall = (api.publishExternalAccessories as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => Array.isArray(c[1]) && (c[1] as unknown[]).length === 2,
+    );
     expect(triggerPublishCall).toBeDefined();
   });
 

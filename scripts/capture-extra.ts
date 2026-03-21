@@ -11,11 +11,7 @@ function ts(): string {
   return new Date().toISOString();
 }
 
-const EXTRA_COMMANDS = [
-  'ssp.keepalive',
-  'ssp.osd.info',
-  'ssp.display.toggle',
-];
+const EXTRA_COMMANDS = ['ssp.keepalive', 'ssp.osd.info', 'ssp.display.toggle'];
 
 let buffer = '';
 

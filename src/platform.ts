@@ -129,7 +129,9 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     let resolvedZoneId: number;
     if (raw2.zoneId === undefined) {
       resolvedZoneId = 1;
-      log.debug('[Config] zone2.zoneId not specified — defaulting to Zone 1 (Downmix). If no audio is heard, create a dedicated zone in the StormAudio web interface and set zone2.zoneId.');
+      log.debug(
+        '[Config] zone2.zoneId not specified — defaulting to Zone 1 (Downmix). If no audio is heard, create a dedicated zone in the StormAudio web interface and set zone2.zoneId.',
+      );
     } else {
       resolvedZoneId = raw2.zoneId as number;
     }
@@ -163,8 +165,14 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
 
     const zone2VolumeControl = raw2.volumeControl as string | undefined;
     const resolvedZone2VolumeControl = zone2VolumeControl ?? 'none';
-    if (resolvedZone2VolumeControl !== 'fan' && resolvedZone2VolumeControl !== 'lightbulb' && resolvedZone2VolumeControl !== 'none') {
-      log.error(`[Config] Error: "zone2.volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedZone2VolumeControl}`);
+    if (
+      resolvedZone2VolumeControl !== 'fan' &&
+      resolvedZone2VolumeControl !== 'lightbulb' &&
+      resolvedZone2VolumeControl !== 'none'
+    ) {
+      log.error(
+        `[Config] Error: "zone2.volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedZone2VolumeControl}`,
+      );
       return null;
     }
     if (!zone2VolumeControl) {
@@ -234,7 +242,9 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
         const trigType = rawTrig.type as string | undefined;
         if (trigType === 'none' || trigType === undefined) continue;
         if (trigType !== 'switch' && trigType !== 'contact') {
-          log.error(`[Config] Error: trigger "${key}" type must be "switch", "contact", or "none". Got: "${String(trigType)}"`);
+          log.error(
+            `[Config] Error: trigger "${key}" type must be "switch", "contact", or "none". Got: "${String(trigType)}"`,
+          );
           return null;
         }
         const trigName = typeof rawTrig.name === 'string' ? rawTrig.name : `Trigger ${key}`;
@@ -310,7 +320,9 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           // Reconnection is handled automatically by StormAudioClient.
           // Fatal errors (max retries exhausted) require user intervention.
           if (stormError.category === ErrorCategory.Fatal) {
-            this.log.error(`[Platform] Reconnection has failed. Will reattempt connection every ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`);
+            this.log.error(
+              `[Platform] Reconnection has failed. Will reattempt connection every ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`,
+            );
           }
         });
         this.client.connect();
@@ -337,28 +349,29 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           }
 
           // Persist zone list to plugin storage on every connection (AC 1, Story 5.3)
-          const zonesArray = zones.map(z => ({ id: z.id, name: z.name }));
+          const zonesArray = zones.map((z) => ({ id: z.id, name: z.name }));
           if (this.storagePath) {
-            void fs.promises.writeFile(
-              path.join(this.storagePath, 'zones'),
-              JSON.stringify(zonesArray),
-              'utf-8',
-            ).then(() => {
-              this.log.debug(`[Config] Persisted ${zonesArray.length} zones to plugin storage`);
-            }).catch((err: unknown) => {
-              const message = err instanceof Error ? err.message : String(err);
-              this.log.debug(`[Config] Failed to persist zone list to storage: ${message}`);
-            });
+            void fs.promises
+              .writeFile(path.join(this.storagePath, 'zones'), JSON.stringify(zonesArray), 'utf-8')
+              .then(() => {
+                this.log.debug(`[Config] Persisted ${zonesArray.length} zones to plugin storage`);
+              })
+              .catch((err: unknown) => {
+                const message = err instanceof Error ? err.message : String(err);
+                this.log.debug(`[Config] Failed to persist zone list to storage: ${message}`);
+              });
           }
 
           // Zone 2 creation — only once
           if (zone2Published || !this.validatedConfig?.zone2) return;
 
           const zone2Config = this.validatedConfig!.zone2!;
-          const targetZone = zones.find(z => z.id === zone2Config.zoneId);
+          const targetZone = zones.find((z) => z.id === zone2Config.zoneId);
           if (!targetZone) {
             // AC 4: zoneId not found
-            this.log.error(`[Config] zone2.zoneId ${zone2Config.zoneId} not found in zone list — Zone 2 accessory will not be created`);
+            this.log.error(
+              `[Config] zone2.zoneId ${zone2Config.zoneId} not found in zone list — Zone 2 accessory will not be created`,
+            );
             return;
           }
 
@@ -410,7 +423,9 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           }
           if (triggerAccessories.length > 0) {
             this.api.publishExternalAccessories(PLUGIN_NAME, triggerAccessories);
-            this.log.info(`[HomeKit] Published ${triggerAccessories.length} trigger accessor${triggerAccessories.length === 1 ? 'y' : 'ies'}`);
+            this.log.info(
+              `[HomeKit] Published ${triggerAccessories.length} trigger accessor${triggerAccessories.length === 1 ? 'y' : 'ies'}`,
+            );
           }
         }
       }

@@ -147,10 +147,7 @@ async function waitForFullStateDump(
   client: StormAudioClient,
   timeoutMs = 15000,
 ): Promise<{ inputs: InputInfo[] | null; zones: ZoneState[] | null }> {
-  const [inputs, zones] = await Promise.all([
-    waitForStateDump(client, timeoutMs),
-    waitForZoneList(client, timeoutMs),
-  ]);
+  const [inputs, zones] = await Promise.all([waitForStateDump(client, timeoutMs), waitForZoneList(client, timeoutMs)]);
   return { inputs, zones };
 }
 
@@ -601,7 +598,9 @@ export async function scenarioFollowMain(
     // Verify no inputZone2 command was sent (Follow Main is a single command)
     const logAfter = log.messages.slice(logBefore);
     const hasInputZone2 = logAfter.some((m) => m.includes('ssp.inputZone2'));
-    result.observations.push(`No inputZone2 command sent: ${!hasInputZone2 ? 'CORRECT' : 'UNEXPECTED inputZone2 found'}`);
+    result.observations.push(
+      `No inputZone2 command sent: ${!hasInputZone2 ? 'CORRECT' : 'UNEXPECTED inputZone2 found'}`,
+    );
 
     await sleep(300);
 
@@ -613,7 +612,8 @@ export async function scenarioFollowMain(
 
     result.status = followVal === false && !hasInputZone2 ? 'PASS' : 'FAIL';
     if (result.status === 'FAIL' && !result.reason) {
-      result.reason = followVal !== false ? 'useZone2Source not confirmed as false' : 'Unexpected inputZone2 command sent';
+      result.reason =
+        followVal !== false ? 'useZone2Source not confirmed as false' : 'Unexpected inputZone2 command sent';
     }
 
     client.disconnect();
@@ -814,9 +814,7 @@ export async function scenarioBidirectionalMute(
     actor.setZoneMute(zoneId, targetMute);
     const observedVal = await observerWait;
 
-    result.observations.push(
-      `Actor set mute=${targetMute}, observer received: ${observedVal}`,
-    );
+    result.observations.push(`Actor set mute=${targetMute}, observer received: ${observedVal}`);
 
     await sleep(300);
 
@@ -1095,8 +1093,12 @@ export async function scenarioZoneListPersistence(
     // Validate structure: every zone must have { id: number, name: string }
     let allPersistable = true;
     for (const z of zones) {
-      const ok = typeof z.id === 'number' && Number.isInteger(z.id) && z.id > 0 &&
-                 typeof z.name === 'string' && z.name.length > 0;
+      const ok =
+        typeof z.id === 'number' &&
+        Number.isInteger(z.id) &&
+        z.id > 0 &&
+        typeof z.name === 'string' &&
+        z.name.length > 0;
       if (!ok) {
         allPersistable = false;
         result.observations.push(`  Zone ${z.id}: NOT persistable (invalid id/name)`);
@@ -1176,7 +1178,10 @@ export async function scenarioSleepZone2Inactive(
     const sleepWait = new Promise<boolean>((resolve) => {
       let settled = false;
       const timer = setTimeout(() => {
-        if (!settled) { settled = true; resolve(false); }
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
       }, 30000);
       const handler = (state: ProcessorState): void => {
         if (!settled && state === ProcessorState.Sleep) {
@@ -1217,21 +1222,24 @@ export async function scenarioSleepZone2Inactive(
     // "Sent:" prefix distinguishes harness commands from processor broadcasts ("Received:").
     const zoneCommandsAfterSleep = log.messages
       .slice(logBeforePowerOff)
-      .filter((m) =>
-        m.includes('Sent:') &&
-        (m.includes('ssp.zones.mute') || m.includes('ssp.zones.volume') || m.includes('ssp.zones.useZone2') || m.includes('ssp.inputZone2')),
+      .filter(
+        (m) =>
+          m.includes('Sent:') &&
+          (m.includes('ssp.zones.mute') ||
+            m.includes('ssp.zones.volume') ||
+            m.includes('ssp.zones.useZone2') ||
+            m.includes('ssp.inputZone2')),
       );
 
-    result.observations.push(
-      `Zone commands sent after power-off: ${zoneCommandsAfterSleep.length} (expected 0)`,
-    );
+    result.observations.push(`Zone commands sent after power-off: ${zoneCommandsAfterSleep.length} (expected 0)`);
 
     const passed = postSleepState === ProcessorState.Sleep && zoneCommandsAfterSleep.length === 0;
     result.status = passed ? 'PASS' : 'FAIL';
     if (!passed) {
-      result.reason = zoneCommandsAfterSleep.length > 0
-        ? 'Unexpected zone commands sent during sleep transition'
-        : 'Processor did not reach Sleep state';
+      result.reason =
+        zoneCommandsAfterSleep.length > 0
+          ? 'Unexpected zone commands sent during sleep transition'
+          : 'Processor did not reach Sleep state';
     }
 
     // Wake the processor back up for subsequent tests
@@ -1303,10 +1311,16 @@ export async function scenarioWakeZone2Restored(
     // Sleep the processor
     const sleepWait = new Promise<boolean>((resolve) => {
       let settled = false;
-      const timer = setTimeout(() => { if (!settled) { settled = true; resolve(false); } }, 30000);
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
+      }, 30000);
       const handler = (state: ProcessorState): void => {
         if (!settled && state === ProcessorState.Sleep) {
-          settled = true; clearTimeout(timer);
+          settled = true;
+          clearTimeout(timer);
           client.removeListener('processorState', handler);
           resolve(true);
         }
@@ -1373,9 +1387,7 @@ export async function scenarioWakeZone2Restored(
     const volMatch = preSleepState.volume === postWakeState.volume;
     const sourceMatch = preSleepState.useZone2Source === postWakeState.useZone2Source;
 
-    result.observations.push(
-      `State match: mute=${muteMatch}, volume=${volMatch}, source=${sourceMatch}`,
-    );
+    result.observations.push(`State match: mute=${muteMatch}, volume=${volMatch}, source=${sourceMatch}`);
 
     // Verify no zone commands were sent during wake (state dump is authoritative)
     const logDuringWake = log.messages.slice(logBeforeWake);
@@ -1387,9 +1399,7 @@ export async function scenarioWakeZone2Restored(
         m.includes('Sent: ssp.inputZone2'),
     );
 
-    result.observations.push(
-      `Zone commands sent during wake: ${zoneCommandsDuringWake.length} (expected 0)`,
-    );
+    result.observations.push(`Zone commands sent during wake: ${zoneCommandsDuringWake.length} (expected 0)`);
 
     const allMatch = muteMatch && volMatch && sourceMatch;
     const noCommands = zoneCommandsDuringWake.length === 0;

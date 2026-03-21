@@ -210,7 +210,9 @@ export async function scenarioPresetListRetrieval(
     // Verify cached preset list matches
     const cached = client.getAudioConfig().presetList;
     if (cached.length !== presets.length) {
-      result.observations.push(`WARNING: Cached preset count (${cached.length}) does not match event (${presets.length})`);
+      result.observations.push(
+        `WARNING: Cached preset count (${cached.length}) does not match event (${presets.length})`,
+      );
       allValid = false;
     } else {
       result.observations.push(`Cached preset list matches: ${cached.length} presets`);
@@ -596,7 +598,9 @@ export async function scenarioTriggerCommandRoundTrip(
       responseStats.push({ command: `setTrigger(${triggerId}, ${targetState})`, roundTripMs: elapsed });
 
       if (trigResult !== null) {
-        result.observations.push(`Trigger ${triggerId} set to ${targetState}, confirmed: ${trigResult} in ${elapsed}ms`);
+        result.observations.push(
+          `Trigger ${triggerId} set to ${targetState}, confirmed: ${trigResult} in ${elapsed}ms`,
+        );
       } else {
         result.observations.push(`Trigger ${triggerId} set to ${targetState}, no confirmation within 5s`);
       }
@@ -614,7 +618,9 @@ export async function scenarioTriggerCommandRoundTrip(
       responseStats.push({ command: `setTrigger(${triggerId}, ${origState})`, roundTripMs: elapsed });
 
       if (trigResult !== null) {
-        result.observations.push(`Trigger ${triggerId} restored to ${origState}, confirmed: ${trigResult} in ${elapsed}ms`);
+        result.observations.push(
+          `Trigger ${triggerId} restored to ${origState}, confirmed: ${trigResult} in ${elapsed}ms`,
+        );
       } else {
         result.observations.push(`Trigger ${triggerId} restored to ${origState}, no confirmation within 5s`);
       }
@@ -623,7 +629,9 @@ export async function scenarioTriggerCommandRoundTrip(
     // Verify final state matches original
     await sleep(500);
     const finalState = client.getTriggerStates().get(triggerId);
-    result.observations.push(`Final trigger ${triggerId} state: ${finalState !== undefined ? (finalState ? 'ON' : 'OFF') : 'unknown'}`);
+    result.observations.push(
+      `Final trigger ${triggerId} state: ${finalState !== undefined ? (finalState ? 'ON' : 'OFF') : 'unknown'}`,
+    );
 
     const restored = finalState === origState;
     if (restored) {
@@ -631,7 +639,9 @@ export async function scenarioTriggerCommandRoundTrip(
       result.observations.push('Trigger state fully restored');
     } else {
       result.status = 'PASS';
-      result.observations.push('WARNING: Trigger state may not have restored (auto-switching rules may override manual toggle)');
+      result.observations.push(
+        'WARNING: Trigger state may not have restored (auto-switching rules may override manual toggle)',
+      );
     }
 
     client.disconnect();
@@ -738,7 +748,9 @@ export async function scenarioTriggerBidirectionalSync(
         result.observations.push(`  Trigger ${change.id}: ${change.on ? 'ON' : 'OFF'} at +${change.atMs}ms`);
       }
     } else {
-      result.observations.push('No trigger state changes observed (preset may not have auto-switching rules for triggers)');
+      result.observations.push(
+        'No trigger state changes observed (preset may not have auto-switching rules for triggers)',
+      );
     }
 
     // Restore original preset
@@ -763,4 +775,3 @@ export async function scenarioTriggerBidirectionalSync(
   result.durationMs = Date.now() - start;
   return result;
 }
-

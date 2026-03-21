@@ -250,32 +250,27 @@
       "key": "zone2",
       "title": "Zone 2",
       "type": "fieldset",
-      "items": [
-        "zone2.name",
-        "zone2.volumeControl",
-        "zone2.volumeFloor",
-        "zone2.volumeCeiling"
-      ]
+      "items": ["zone2.name", "zone2.volumeControl", "zone2.volumeFloor", "zone2.volumeCeiling"]
     },
     {
       "key": "presets",
       "title": "Presets",
       "type": "fieldset",
-      "items": [
-        "presets.enabled",
-        "presets.name",
-        "presets.aliases"
-      ]
+      "items": ["presets.enabled", "presets.name", "presets.aliases"]
     },
     {
       "key": "triggers",
       "title": "Triggers",
       "type": "fieldset",
       "items": [
-        "triggers.1.type", "triggers.1.name",
-        "triggers.2.type", "triggers.2.name",
-        "triggers.3.type", "triggers.3.name",
-        "triggers.4.type", "triggers.4.name"
+        "triggers.1.type",
+        "triggers.1.name",
+        "triggers.2.type",
+        "triggers.2.name",
+        "triggers.3.type",
+        "triggers.3.name",
+        "triggers.4.type",
+        "triggers.4.name"
       ]
     }
   ]

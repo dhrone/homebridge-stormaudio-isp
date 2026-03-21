@@ -109,8 +109,7 @@ function loadConfig(): HardwareTestConfig {
       process.env.STORM_ZONE2_INPUT_ID !== undefined
         ? parseInt(process.env.STORM_ZONE2_INPUT_ID, 10)
         : (fileConfig.testZone2InputId ?? null),
-    zone2VolumeFloor:
-      parseFloat(process.env.STORM_ZONE2_VOLUME_FLOOR ?? '') || (fileConfig.zone2VolumeFloor ?? -80),
+    zone2VolumeFloor: parseFloat(process.env.STORM_ZONE2_VOLUME_FLOOR ?? '') || (fileConfig.zone2VolumeFloor ?? -80),
     zone2VolumeCeiling:
       parseFloat(process.env.STORM_ZONE2_VOLUME_CEILING ?? '') || (fileConfig.zone2VolumeCeiling ?? -20),
     testPresetId:

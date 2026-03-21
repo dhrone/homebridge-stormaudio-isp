@@ -8,7 +8,7 @@ const EXTERNAL_CONTEXT = { source: 'stormaudio' };
 
 export class StormAudioTriggerAccessory {
   private readonly service: Service;
-  private state = false;  // trigger on/off
+  private state = false; // trigger on/off
   private connected = true;
 
   constructor(
@@ -39,10 +39,10 @@ export class StormAudioTriggerAccessory {
       if (id !== this.triggerId) return;
       this.state = on;
       if (this.triggerConfig.type === 'switch') {
-        this.service.getCharacteristic(Characteristic.On)
-          .updateValue(on, EXTERNAL_CONTEXT);
+        this.service.getCharacteristic(Characteristic.On).updateValue(on, EXTERNAL_CONTEXT);
       } else {
-        this.service.getCharacteristic(Characteristic.ContactSensorState)
+        this.service
+          .getCharacteristic(Characteristic.ContactSensorState)
           .updateValue(
             on
               ? Characteristic.ContactSensorState.CONTACT_DETECTED

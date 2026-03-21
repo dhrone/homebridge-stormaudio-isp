@@ -74,7 +74,9 @@ function createMockClient(triggerStates?: Map<number, boolean>) {
     setTrigger: vi.fn(),
     getTriggerStates: vi.fn(() => new Map(states)),
     _emit: emitter.emit.bind(emitter),
-    _setTriggerState: (id: number, on: boolean) => { states.set(id, on); },
+    _setTriggerState: (id: number, on: boolean) => {
+      states.set(id, on);
+    },
   };
 }
 
@@ -167,8 +169,9 @@ describe('StormAudioTriggerAccessory — Switch service setup (AC 1)', () => {
 
   it('type=switch — does NOT add ContactSensor service', () => {
     const { accessory } = buildTriggerAccessory({ triggerConfig: { type: 'switch' } });
-    const contactCall = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls
-      .find((c: unknown[]) => String(c[0]) === 'ContactSensor');
+    const contactCall = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]) === 'ContactSensor',
+    );
     expect(contactCall).toBeUndefined();
   });
 
@@ -223,8 +226,9 @@ describe('StormAudioTriggerAccessory — ContactSensor service setup (AC 3)', ()
 
   it('type=contact — does NOT add Switch service', () => {
     const { accessory } = buildTriggerAccessory({ triggerConfig: { type: 'contact' } });
-    const switchCall = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls
-      .find((c: unknown[]) => String(c[0]) === 'Switch');
+    const switchCall = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]) === 'Switch',
+    );
     expect(switchCall).toBeUndefined();
   });
 
@@ -252,10 +256,9 @@ describe('StormAudioTriggerAccessory — ContactSensorState mapping', () => {
     });
     client._emit('triggerState', 2, true);
     const csChar = accessory._contactService._getChar('ContactSensorState')!;
-    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(
-      ContactSensorStateEnum.CONTACT_DETECTED,
-      { source: 'stormaudio' },
-    );
+    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(ContactSensorStateEnum.CONTACT_DETECTED, {
+      source: 'stormaudio',
+    });
   });
 
   it('trigger OFF → CONTACT_NOT_DETECTED (1)', () => {
@@ -266,10 +269,9 @@ describe('StormAudioTriggerAccessory — ContactSensorState mapping', () => {
     client._emit('triggerState', 2, true);
     client._emit('triggerState', 2, false);
     const csChar = accessory._contactService._getChar('ContactSensorState')!;
-    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(
-      ContactSensorStateEnum.CONTACT_NOT_DETECTED,
-      { source: 'stormaudio' },
-    );
+    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(ContactSensorStateEnum.CONTACT_NOT_DETECTED, {
+      source: 'stormaudio',
+    });
   });
 
   it('contact onGet when trigger is ON → CONTACT_DETECTED', () => {
@@ -466,17 +468,15 @@ describe('StormAudioTriggerAccessory — integration smoke tests', () => {
 
     // Trigger ON → CONTACT_DETECTED
     client._emit('triggerState', 2, true);
-    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(
-      ContactSensorStateEnum.CONTACT_DETECTED,
-      { source: 'stormaudio' },
-    );
+    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(ContactSensorStateEnum.CONTACT_DETECTED, {
+      source: 'stormaudio',
+    });
 
     // Trigger OFF → CONTACT_NOT_DETECTED
     client._emit('triggerState', 2, false);
-    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(
-      ContactSensorStateEnum.CONTACT_NOT_DETECTED,
-      { source: 'stormaudio' },
-    );
+    expect(csChar._getUpdateValueMock()).toHaveBeenCalledWith(ContactSensorStateEnum.CONTACT_NOT_DETECTED, {
+      source: 'stormaudio',
+    });
 
     // Disconnect — contact onGet still works
     client._emit('disconnected');

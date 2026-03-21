@@ -49,7 +49,9 @@ export class StormAudioAccessory {
         .getCharacteristic(Characteristic.Active)
         .updateValue(Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
     });
-    this.client.on('connected', () => { this.connected = true; });
+    this.client.on('connected', () => {
+      this.connected = true;
+    });
 
     // Task 2: Register Television service
     this.tvService =
@@ -65,21 +67,21 @@ export class StormAudioAccessory {
     this.tvService.setCharacteristic(Characteristic.ActiveIdentifier, 0);
 
     // Story 3.1: ActiveIdentifier onGet — returns local state
-    this.tvService.getCharacteristic(Characteristic.ActiveIdentifier)
-      .onGet(() => { this.ensureConnected(); return this.state.input; });
+    this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).onGet(() => {
+      this.ensureConnected();
+      return this.state.input;
+    });
 
     // Story 3.2: ActiveIdentifier onSet — send setInput command (fire-and-forget)
-    this.tvService
-      .getCharacteristic(Characteristic.ActiveIdentifier)
-      .onSet((value: CharacteristicValue) => {
-        this.ensureConnected();
-        void this.requiresActive().then((active) => {
-          if (!active) return;
-          const inputId = value as number;
-          this.platform.log.debug(`[HomeKit] Input switch to ID ${inputId}`);
-          this.client.setInput(inputId);
-        });
+    this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).onSet((value: CharacteristicValue) => {
+      this.ensureConnected();
+      void this.requiresActive().then((active) => {
+        if (!active) return;
+        const inputId = value as number;
+        this.platform.log.debug(`[HomeKit] Input switch to ID ${inputId}`);
+        this.client.setInput(inputId);
       });
+    });
 
     // Task 3/5: Handle power on/off commands
     this.tvService.getCharacteristic(Characteristic.Active).onSet((value: CharacteristicValue) => {
@@ -159,7 +161,10 @@ export class StormAudioAccessory {
         this.client.setMute(muted);
       });
     });
-    speakerService.getCharacteristic(Characteristic.Mute).onGet(() => { this.ensureConnected(); return this.state.mute; });
+    speakerService.getCharacteristic(Characteristic.Mute).onGet(() => {
+      this.ensureConnected();
+      return this.state.mute;
+    });
 
     // Task 4 (Story 2.2): TelevisionSpeaker Volume onGet
     speakerService.getCharacteristic(Characteristic.Volume).onGet(() => {
@@ -209,7 +214,10 @@ export class StormAudioAccessory {
           this.client.setMute(!on);
         });
       });
-      proxyService.getCharacteristic(Characteristic.On).onGet(() => { this.ensureConnected(); return !this.state.mute; });
+      proxyService.getCharacteristic(Characteristic.On).onGet(() => {
+        this.ensureConnected();
+        return !this.state.mute;
+      });
     } else {
       this.platform.log.info('[HomeKit] Volume control: proxy disabled');
     }
@@ -245,27 +253,15 @@ export class StormAudioAccessory {
         const alias = config.inputs[String(input.id)];
         const displayName = alias ?? input.name;
         if (alias) {
-          this.platform.log.debug(
-            `[HomeKit] Input ID ${input.id} alias: "${alias}" (overrides "${input.name}")`,
-          );
+          this.platform.log.debug(`[HomeKit] Input ID ${input.id} alias: "${alias}" (overrides "${input.name}")`);
         }
         const inputSource =
           this.accessory.getService(`input-${input.id}`) ||
-          this.accessory.addService(
-            this.platform.Service.InputSource,
-            displayName,
-            `input-${input.id}`,
-          );
+          this.accessory.addService(this.platform.Service.InputSource, displayName, `input-${input.id}`);
         inputSource.setCharacteristic(Characteristic.Identifier, input.id);
         inputSource.setCharacteristic(Characteristic.ConfiguredName, displayName);
-        inputSource.setCharacteristic(
-          Characteristic.IsConfigured,
-          Characteristic.IsConfigured.CONFIGURED,
-        );
-        inputSource.setCharacteristic(
-          Characteristic.InputSourceType,
-          Characteristic.InputSourceType.HDMI,
-        );
+        inputSource.setCharacteristic(Characteristic.IsConfigured, Characteristic.IsConfigured.CONFIGURED);
+        inputSource.setCharacteristic(Characteristic.InputSourceType, Characteristic.InputSourceType.HDMI);
         inputSource.setCharacteristic(
           Characteristic.CurrentVisibilityState,
           Characteristic.CurrentVisibilityState.SHOWN,
@@ -280,9 +276,7 @@ export class StormAudioAccessory {
     // Story 3.1: Input change broadcast → ActiveIdentifier sync
     this.client.on('input', (inputId: number) => {
       this.state.input = inputId;
-      this.tvService
-        .getCharacteristic(Characteristic.ActiveIdentifier)
-        .updateValue(inputId, EXTERNAL_CONTEXT);
+      this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(inputId, EXTERNAL_CONTEXT);
       this.platform.log.debug(`[HomeKit] Active input updated: ID ${inputId}`);
     });
   }
@@ -292,7 +286,9 @@ export class StormAudioAccessory {
       // Schedule value reversion — HomeKit does not reliably auto-revert slider/numeric
       // characteristics on onSet error, so we push the last known state after the throw.
       // Also re-pushes INACTIVE so the TV tile stays visually unavailable.
-      setImmediate(() => { this.revertToLastKnownState(); });
+      setImmediate(() => {
+        this.revertToLastKnownState();
+      });
       const { HapStatusError, HAPStatus } = this.platform.api.hap;
       throw new HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
@@ -307,9 +303,7 @@ export class StormAudioAccessory {
       .getCharacteristic(Characteristic.Active)
       .updateValue(Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
     // Revert mute and volume to last known state
-    this.speakerService
-      .getCharacteristic(Characteristic.Mute)
-      .updateValue(this.state.mute, EXTERNAL_CONTEXT);
+    this.speakerService.getCharacteristic(Characteristic.Mute).updateValue(this.state.mute, EXTERNAL_CONTEXT);
     this.speakerService
       .getCharacteristic(Characteristic.Volume)
       .updateValue(dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling), EXTERNAL_CONTEXT);
@@ -317,9 +311,7 @@ export class StormAudioAccessory {
       this.volumeProxyService
         .getCharacteristic(this.volumeProxyChar)!
         .updateValue(dBToPercentage(this.state.volume, config.volumeFloor, config.volumeCeiling), EXTERNAL_CONTEXT);
-      this.volumeProxyService
-        .getCharacteristic(Characteristic.On)
-        .updateValue(!this.state.mute, EXTERNAL_CONTEXT);
+      this.volumeProxyService.getCharacteristic(Characteristic.On).updateValue(!this.state.mute, EXTERNAL_CONTEXT);
     }
   }
 

@@ -214,9 +214,7 @@ async function testZoneMute(client: StormAudioClient, zoneId: number, originalMu
   console.log(`  Restored: mute=${restored?.mute}`);
 }
 
-async function testZoneUseZone2Source(
-  client: StormAudioClient, zoneId: number, originalValue: boolean,
-): Promise<void> {
+async function testZoneUseZone2Source(client: StormAudioClient, zoneId: number, originalValue: boolean): Promise<void> {
   console.log('\n=== TEST 4: Zone useZone2Source Toggle ===\n');
 
   const toggleTo = originalValue ? 'off' : 'on';

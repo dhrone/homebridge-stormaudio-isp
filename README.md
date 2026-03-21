@@ -22,7 +22,7 @@ homebridge-stormaudio-isp
 
 Your StormAudio ISP is one of the most capable processors on the market. This [Homebridge](https://homebridge.io) plugin makes it a first-class citizen in Apple HomeKit -- power, volume, inputs, presets, triggers, and multi-room audio, all controlled through the Home app and Siri.
 
-*"Hey Siri, Movie Night."* The processor wakes. Amplifiers power on. The screen descends. The volume drops to your preferred level, the input switches, and your movie preset loads -- room-corrected Atmos, exactly as you calibrated it. One phrase, no remote.
+_"Hey Siri, Movie Night."_ The processor wakes. Amplifiers power on. The screen descends. The volume drops to your preferred level, the input switches, and your movie preset loads -- room-corrected Atmos, exactly as you calibrated it. One phrase, no remote.
 
 > [!TIP]
 > **New to this plugin?** After installation, see the **[Usage Guide](USAGE.md)** for hands-on instructions covering Siri commands, scenes, automations, and practical tips.
@@ -79,12 +79,12 @@ flowchart LR
 
 The plugin publishes these HomeKit accessories:
 
-| Accessory | Service Type | Controls |
-|-----------|-------------|----------|
-| Main Zone | Television + Fan/Lightbulb | Power, volume, mute, input selection |
-| Zone 2 | Television (+ optional volume proxy) | Volume, mute, source selection |
-| Presets | Television | Theater configuration switching |
-| Triggers (1--4) | Switch or Contact Sensor | Amp power, projector, screen, etc. |
+| Accessory       | Service Type                         | Controls                             |
+| --------------- | ------------------------------------ | ------------------------------------ |
+| Main Zone       | Television + Fan/Lightbulb           | Power, volume, mute, input selection |
+| Zone 2          | Television (+ optional volume proxy) | Volume, mute, source selection       |
+| Presets         | Television                           | Theater configuration switching      |
+| Triggers (1--4) | Switch or Contact Sensor             | Amp power, projector, screen, etc.   |
 
 ### Connection Resilience
 
@@ -159,18 +159,18 @@ Add the platform to the `platforms` array in your Homebridge `config.json`:
 
 ### Configuration Reference
 
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `platform` | Yes | -- | Must be `"StormAudioISP"` |
-| `name` | No | `"StormAudio"` | Display name for the accessory in HomeKit |
-| `host` | **Yes** | -- | IP address or hostname of your processor |
-| `port` | No | `23` | TCP port for the control API (1--65535) |
-| `volumeCeiling` | No | `-20` | Maximum volume in dB (maps to 100% in HomeKit). Range: -100 to 0. |
-| `volumeFloor` | No | `-100` | Minimum volume in dB (maps to 0% in HomeKit). Range: -100 to 0. Must be less than `volumeCeiling`. |
-| `volumeControl` | No | `"fan"` | Volume proxy type: `"fan"`, `"lightbulb"`, or `"none"` |
-| `wakeTimeout` | No | `90` | Seconds to wait for processor boot after power-on (30--300) |
-| `commandInterval` | No | `100` | Minimum ms between commands. Values below 85 may cause dropped commands. |
-| `inputs` | No | `{}` | Input name aliases (see [Input Aliases](#input-aliases)) |
+| Option            | Required | Default        | Description                                                                                        |
+| ----------------- | -------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| `platform`        | Yes      | --             | Must be `"StormAudioISP"`                                                                          |
+| `name`            | No       | `"StormAudio"` | Display name for the accessory in HomeKit                                                          |
+| `host`            | **Yes**  | --             | IP address or hostname of your processor                                                           |
+| `port`            | No       | `23`           | TCP port for the control API (1--65535)                                                            |
+| `volumeCeiling`   | No       | `-20`          | Maximum volume in dB (maps to 100% in HomeKit). Range: -100 to 0.                                  |
+| `volumeFloor`     | No       | `-100`         | Minimum volume in dB (maps to 0% in HomeKit). Range: -100 to 0. Must be less than `volumeCeiling`. |
+| `volumeControl`   | No       | `"fan"`        | Volume proxy type: `"fan"`, `"lightbulb"`, or `"none"`                                             |
+| `wakeTimeout`     | No       | `90`           | Seconds to wait for processor boot after power-on (30--300)                                        |
+| `commandInterval` | No       | `100`          | Minimum ms between commands. Values below 85 may cause dropped commands.                           |
+| `inputs`          | No       | `{}`           | Input name aliases (see [Input Aliases](#input-aliases))                                           |
 
 #### Volume Ceiling and Floor
 
@@ -181,11 +181,11 @@ The `volumeCeiling` and `volumeFloor` define the usable volume range in dB. Home
 
 #### Volume Control Options
 
-| Option | Service Type | Siri Volume | "Turn off all lights" safe? |
-|--------|-------------|-------------|----------------------------|
-| `"fan"` | Fan (speed slider) | Yes | Yes |
-| `"lightbulb"` | Lightbulb (brightness) | Yes | **No** -- will mute your processor |
-| `"none"` | Disabled | No | N/A |
+| Option        | Service Type           | Siri Volume | "Turn off all lights" safe?        |
+| ------------- | ---------------------- | ----------- | ---------------------------------- |
+| `"fan"`       | Fan (speed slider)     | Yes         | Yes                                |
+| `"lightbulb"` | Lightbulb (brightness) | Yes         | **No** -- will mute your processor |
+| `"none"`      | Disabled               | No          | N/A                                |
 
 > [!WARNING]
 > The lightbulb option works but has a hazard: saying "turn off all the lights" — or running any scene that turns off lights — mutes your processor. **Fan is the default and recommended option.**
@@ -209,13 +209,13 @@ Keys are input ID numbers (visible in the Homebridge log on startup). Aliases ov
 
 Zone 2 exposes a second audio zone as a separate Television accessory. See the [Usage Guide](USAGE.md#zone-2-multi-room-audio) for operational details.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `zone2.zoneId` | -- | Zone ID from your processor (use the Config UI dropdown or enter manually) |
-| `zone2.name` | `"Zone 2"` | Display name (e.g., `"Patio"`) |
-| `zone2.volumeControl` | `"none"` | Volume proxy: `"none"`, `"fan"`, or `"lightbulb"` |
-| `zone2.volumeFloor` | `-80` | Minimum dB for volume mapping (0%) |
-| `zone2.volumeCeiling` | `-20` | Maximum dB for volume mapping (100%) |
+| Option                | Default    | Description                                                                |
+| --------------------- | ---------- | -------------------------------------------------------------------------- |
+| `zone2.zoneId`        | --         | Zone ID from your processor (use the Config UI dropdown or enter manually) |
+| `zone2.name`          | `"Zone 2"` | Display name (e.g., `"Patio"`)                                             |
+| `zone2.volumeControl` | `"none"`   | Volume proxy: `"none"`, `"fan"`, or `"lightbulb"`                          |
+| `zone2.volumeFloor`   | `-80`      | Minimum dB for volume mapping (0%)                                         |
+| `zone2.volumeCeiling` | `-20`      | Maximum dB for volume mapping (100%)                                       |
 
 Zone 2 uses mute/unmute to simulate power (the processor has no per-zone power). When in "Follow Main" mode, Zone 2 mirrors the main zone's input.
 
@@ -223,11 +223,11 @@ Zone 2 uses mute/unmute to simulate power (the processor has no per-zone power).
 
 Presets expose theater configurations saved on the processor as a Television accessory.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `presets.enabled` | `false` | Create a preset accessory in HomeKit |
-| `presets.name` | `"Presets"` | Display name (e.g., `"Theater Presets"`) |
-| `presets.aliases` | `{}` | Override preset names (keys are preset IDs as strings) |
+| Option            | Default     | Description                                            |
+| ----------------- | ----------- | ------------------------------------------------------ |
+| `presets.enabled` | `false`     | Create a preset accessory in HomeKit                   |
+| `presets.name`    | `"Presets"` | Display name (e.g., `"Theater Presets"`)               |
+| `presets.aliases` | `{}`        | Override preset names (keys are preset IDs as strings) |
 
 ```json
 "presets": {
@@ -244,10 +244,10 @@ Presets expose theater configurations saved on the processor as a Television acc
 
 Triggers expose the processor's 4 hardware relay outputs as HomeKit accessories. Each trigger is independently configurable.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `triggers.N.name` | `"Trigger N"` | Display name for trigger N (1--4) |
-| `triggers.N.type` | `"none"` | `"none"` (not exposed), `"switch"` (bidirectional), or `"contact"` (read-only sensor) |
+| Option            | Default       | Description                                                                           |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------- |
+| `triggers.N.name` | `"Trigger N"` | Display name for trigger N (1--4)                                                     |
+| `triggers.N.type` | `"none"`      | `"none"` (not exposed), `"switch"` (bidirectional), or `"contact"` (read-only sensor) |
 
 ```json
 "triggers": {

@@ -74,35 +74,35 @@ export interface IdentityInfo {
 }
 
 export interface StreamInfoState {
-  stream: string;     // e.g., "None", "PCM", "Dolby Atmos"
+  stream: string; // e.g., "None", "PCM", "Dolby Atmos"
   sampleRate: string; // e.g., "", "44.1 kHz"
-  format: string;     // e.g., "", "Stereo"
+  format: string; // e.g., "", "Stereo"
 }
 
 export interface AudioState {
   dim: boolean;
-  loudness: number;          // 0-3
-  bass: number;              // -6 to 6
-  treble: number;            // -6 to 6
-  centerEnhance: number;     // -6 to 6
-  surroundEnhance: number;   // -6 to 6
-  lfeEnhance: number;        // -6 to 6
-  lipsync: number;           // ms (float on wire)
+  loudness: number; // 0-3
+  bass: number; // -6 to 6
+  treble: number; // -6 to 6
+  centerEnhance: number; // -6 to 6
+  surroundEnhance: number; // -6 to 6
+  lfeEnhance: number; // -6 to 6
+  lipsync: number; // ms (float on wire)
   drc: 'on' | 'off' | 'auto';
   centerSpread: boolean;
   dialogControl: { available: boolean; level: number }; // available: 0/1, level: 0-6
   dialogNorm: boolean;
   imaxMode: 'on' | 'off' | 'auto';
-  stormxt: boolean | null;   // null if license-gated error
-  dolbyMode: number;         // 0-3
+  stormxt: boolean | null; // null if license-gated error
+  dolbyMode: number; // 0-3
   dolbyVirtualizer: boolean;
   sphereAudioEffect: number | null; // null if license-gated error
   lfeDim: boolean;
-  auroStrength: number;      // 0-15
+  auroStrength: number; // 0-15
 }
 
 export interface DeviceState {
-  brightness: number;  // -6 to 6
+  brightness: number; // -6 to 6
   generator: boolean;
   frontPanel: {
     color: string;
@@ -123,11 +123,11 @@ export interface SurroundModeInfo {
 }
 
 export interface AudioConfigState {
-  preset: number;                        // active preset ID
-  presetCustom: boolean;                 // whether settings deviate from preset
-  surroundMode: number;                  // preferred surround mode ID
-  allowedMode: number;                   // active (actual) surround mode ID
-  speaker: number;                       // speaker config ID
+  preset: number; // active preset ID
+  presetCustom: boolean; // whether settings deviate from preset
+  surroundMode: number; // preferred surround mode ID
+  allowedMode: number; // active (actual) surround mode ID
+  speaker: number; // speaker config ID
   presetList: PresetInfo[];
   surroundModeList: SurroundModeInfo[];
   auroPreset: number;
@@ -178,9 +178,9 @@ export interface TriggerInfo {
 export interface StormAudioState {
   // Existing (unchanged — backward compatible)
   power: boolean;
-  volume: number;  // raw dB value (float on wire, stored as number)
+  volume: number; // raw dB value (float on wire, stored as number)
   mute: boolean;
-  input: number;   // input ID
+  input: number; // input ID
   inputZone2: number; // Zone 2 active input ID
   processorState: ProcessorState;
   // New grouped state

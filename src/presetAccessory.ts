@@ -44,10 +44,7 @@ export class StormAudioPresetAccessory {
       Characteristic.SleepDiscoveryMode,
       Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE,
     );
-    this.tvService.setCharacteristic(
-      Characteristic.ActiveIdentifier,
-      this.client.getAudioConfig().preset,
-    );
+    this.tvService.setCharacteristic(Characteristic.ActiveIdentifier, this.client.getAudioConfig().preset);
 
     // Active characteristic — informational only, reflects processor power state
     this.tvService.getCharacteristic(Characteristic.Active).onGet(() => {
@@ -57,7 +54,9 @@ export class StormAudioPresetAccessory {
         : Characteristic.Active.INACTIVE;
     });
     this.tvService.getCharacteristic(Characteristic.Active).onSet((_value: CharacteristicValue) => {
-      this.platform.log.debug('[HomeKit] Preset accessory Active toggle ignored — use main accessory for power control');
+      this.platform.log.debug(
+        '[HomeKit] Preset accessory Active toggle ignored — use main accessory for power control',
+      );
       // No-op: preset accessory does not control processor power
     });
 
@@ -81,9 +80,7 @@ export class StormAudioPresetAccessory {
     // Preset broadcast sync — external preset change
     this.client.on('preset', (presetId: number) => {
       this.platform.log.debug(`[HomeKit] Preset changed externally: ID ${presetId}`);
-      this.tvService
-        .getCharacteristic(Characteristic.ActiveIdentifier)
-        .updateValue(presetId, EXTERNAL_CONTEXT);
+      this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(presetId, EXTERNAL_CONTEXT);
     });
 
     // Processor sleep/wake handling
@@ -145,10 +142,7 @@ export class StormAudioPresetAccessory {
     // Hide removed presets on reconnect
     for (const [oldId, svc] of this.presetInputs) {
       if (!newPresetIds.has(oldId)) {
-        svc.setCharacteristic(
-          Characteristic.CurrentVisibilityState,
-          Characteristic.CurrentVisibilityState.HIDDEN,
-        );
+        svc.setCharacteristic(Characteristic.CurrentVisibilityState, Characteristic.CurrentVisibilityState.HIDDEN);
       }
     }
   }

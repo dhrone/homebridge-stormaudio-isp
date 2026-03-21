@@ -371,7 +371,11 @@ export async function scenarioInputListRetrieval(
 // Scenario 4: Wake from Sleep
 // ---------------------------------------------------------------------------
 
-export async function scenarioWakeFromSleep(config: HardwareTestConfig, log: HarnessLogger, spinner: Spinner): Promise<ScenarioResult> {
+export async function scenarioWakeFromSleep(
+  config: HardwareTestConfig,
+  log: HarnessLogger,
+  spinner: Spinner,
+): Promise<ScenarioResult> {
   const result = makeResult('4. Wake from Sleep');
   const start = Date.now();
 
@@ -730,7 +734,11 @@ export async function scenarioStateConsistency(
 // Scenario 8: Rapid Commands
 // ---------------------------------------------------------------------------
 
-export async function scenarioRapidCommands(config: HardwareTestConfig, log: HarnessLogger, spinner: Spinner): Promise<ScenarioResult> {
+export async function scenarioRapidCommands(
+  config: HardwareTestConfig,
+  log: HarnessLogger,
+  spinner: Spinner,
+): Promise<ScenarioResult> {
   const result = makeResult('8. Rapid Commands');
   const start = Date.now();
 
