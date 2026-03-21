@@ -31,7 +31,13 @@ jobs:
       - run: npm run build
 
       - name: Run tests with coverage
-        run: npx vitest run --coverage 2>&1 | tee vitest-output.txt
+        run: npx vitest run --coverage 2>&1 | tee vitest-raw.txt
+        env:
+          NO_COLOR: 1
+
+      - name: Strip ANSI codes from test output
+        if: always()
+        run: sed 's/\x1b\[[0-9;]*m//g' vitest-raw.txt > vitest-output.txt
 
       - name: Upload coverage to Codecov
         if: matrix.node-version == 22
