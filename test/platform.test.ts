@@ -4,12 +4,18 @@ import { EventEmitter } from 'events';
 
 import { StormAudioPlatform } from '../src/platform';
 
-// --- Mock StorageService (homebridge internal) ---
-vi.mock('homebridge/lib/storageService', () => ({
-  StorageService: vi.fn().mockImplementation(() => ({
-    initSync: vi.fn(),
-    setItem: vi.fn().mockResolvedValue(undefined),
-  })),
+// --- Mock fs (replaces StorageService) ---
+const { mockMkdirSync, mockWriteFile } = vi.hoisted(() => ({
+  mockMkdirSync: vi.fn(),
+  mockWriteFile: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('fs', () => ({
+  default: {
+    mkdirSync: mockMkdirSync,
+    promises: {
+      writeFile: mockWriteFile,
+    },
+  },
 }));
 
 // --- Mock StormAudioClient ---
@@ -131,6 +137,7 @@ describe('StormAudioPlatform — didFinishLaunching (Task 6)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
@@ -227,6 +234,7 @@ describe('StormAudioPlatform — shutdown handler (Task 8)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
@@ -281,6 +289,7 @@ describe('StormAudioPlatform — configureAccessory', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
@@ -320,6 +329,7 @@ describe('StormAudioPlatform — Zone 2 zoneList handling (Story 5.1)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
@@ -462,59 +472,59 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
 
   async function setupPlatform(config: typeof validConfig = validConfig) {
     const { StormAudioClient } = await import('../src/stormAudioClient');
-    const { StorageService } = await import('homebridge/lib/storageService');
     new StormAudioPlatform(log as never, config as never, api as never);
     api._trigger('didFinishLaunching');
     const client = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
-    const storage = (StorageService as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
-    return { client, storage };
+    return { client };
   }
 
-  // P1-1: StorageService constructed with correct path
-  it('initializes StorageService with correct storage path', async () => {
-    const { StorageService } = await import('homebridge/lib/storageService');
+  // P1-1: mkdirSync called with correct path
+  it('creates storage directory with correct path', async () => {
     await setupPlatform();
-    expect(StorageService).toHaveBeenCalledWith(
+    expect(mockMkdirSync).toHaveBeenCalledWith(
       '/tmp/test-storage/homebridge-stormaudio-isp',
+      { recursive: true },
     );
   });
 
-  // P1-2: initSync() called during construction
-  it('calls initSync() on StorageService during platform construction', async () => {
-    const { storage } = await setupPlatform();
-    expect(storage.initSync).toHaveBeenCalledOnce();
+  // P1-2: mkdirSync called once during construction
+  it('creates storage directory during platform construction', async () => {
+    await setupPlatform();
+    expect(mockMkdirSync).toHaveBeenCalledOnce();
   });
 
-  // QA-1: setItem called with zone array on zoneList event
-  it('QA-1: calls storageService.setItem with { id, name } zone array when zoneList fires', async () => {
-    const { client, storage } = await setupPlatform();
+  // QA-1: writeFile called with correct path and JSON when zoneList fires
+  it('QA-1: writes zones JSON file when zoneList fires', async () => {
+    const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix, z13User]);
-    expect(storage.setItem).toHaveBeenCalledWith('zones', [
-      { id: 1, name: 'Downmix' },
-      { id: 13, name: 'Zone 2' },
-    ]);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      '/tmp/test-storage/homebridge-stormaudio-isp/zones',
+      JSON.stringify([{ id: 1, name: 'Downmix' }, { id: 13, name: 'Zone 2' }]),
+      'utf-8',
+    );
+  });
+
+  // Success path: writeFile resolves → debug log fires
+  it('logs success message after zones are persisted', async () => {
+    const { client } = await setupPlatform();
+    client.emit('zoneList', [z1Downmix, z13User]);
+    await new Promise(resolve => setTimeout(resolve, 0)); // flush microtasks
+    expect(log.debug).toHaveBeenCalledWith('[Config] Persisted 2 zones to plugin storage');
   });
 
   // QA-1b: storage write failure — plugin does not throw, logs DEBUG
   it('QA-1b: storage write failure — plugin does not throw and logs DEBUG error message', async () => {
-    const { StormAudioClient } = await import('../src/stormAudioClient');
-    const { StorageService } = await import('homebridge/lib/storageService');
-    const failingSetItem = vi.fn().mockRejectedValue(new Error('disk full'));
-    (StorageService as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
-      initSync: vi.fn(),
-      setItem: failingSetItem,
-    }));
-    new StormAudioPlatform(log as never, validConfig as never, api as never);
-    api._trigger('didFinishLaunching');
-    const clientInstance = (StormAudioClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    mockWriteFile.mockRejectedValueOnce(new Error('disk full'));
+    const { client } = await setupPlatform();
 
-    expect(() => clientInstance.emit('zoneList', [z1Downmix])).not.toThrow();
+    expect(() => client.emit('zoneList', [z1Downmix])).not.toThrow();
     await new Promise(resolve => setTimeout(resolve, 0)); // flush microtasks
     expect(log.debug).toHaveBeenCalledWith(
       expect.stringContaining('Failed to persist zone list to storage: disk full'),
@@ -523,9 +533,10 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
 
   // QA-4: Each zone entry has id (number) and name (string) — no type field
   it('QA-4: each stored zone entry has id (number) and name (string), no type field', async () => {
-    const { client, storage } = await setupPlatform();
+    const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix, z13User]);
-    const zones = storage.setItem.mock.calls[0][1] as { id: number; name: string }[];
+    expect(mockWriteFile).toHaveBeenCalledOnce();
+    const zones = JSON.parse(mockWriteFile.mock.calls[0][1] as string) as { id: number; name: string }[];
     for (const z of zones) {
       expect(typeof z.id).toBe('number');
       expect(typeof z.name).toBe('string');
@@ -533,30 +544,38 @@ describe('StormAudioPlatform — zone storage persistence (Story 5.3)', () => {
     }
   });
 
-  // QA-16: Single zone — stored as { id, name }
+  // QA-16: Single zone — stored as JSON string
   it('QA-16: single zone → stored as { id, name } only', async () => {
-    const { client, storage } = await setupPlatform();
+    const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix]);
-    expect(storage.setItem).toHaveBeenCalledWith('zones', [{ id: 1, name: 'Downmix' }]);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      '/tmp/test-storage/homebridge-stormaudio-isp/zones',
+      JSON.stringify([{ id: 1, name: 'Downmix' }]),
+      'utf-8',
+    );
   });
 
-  // QA-17: Multiple zones — all stored as { id, name }
+  // QA-17: Multiple zones — all stored as JSON string
   it('QA-17: multiple zones all stored as { id, name }', async () => {
-    const { client, storage } = await setupPlatform();
+    const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix, z13User, z14User]);
-    expect(storage.setItem).toHaveBeenCalledWith('zones', [
-      { id: 1, name: 'Downmix' },
-      { id: 13, name: 'Zone 2' },
-      { id: 14, name: 'Zone 3' },
-    ]);
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      '/tmp/test-storage/homebridge-stormaudio-isp/zones',
+      JSON.stringify([
+        { id: 1, name: 'Downmix' },
+        { id: 13, name: 'Zone 2' },
+        { id: 14, name: 'Zone 3' },
+      ]),
+      'utf-8',
+    );
   });
 
-  // QA-18: Storage updated on reconnect — setItem called twice
-  it('QA-18: storage updated on every connection — setItem called again on reconnect', async () => {
-    const { client, storage } = await setupPlatform();
+  // QA-18: Storage updated on reconnect — writeFile called twice
+  it('QA-18: storage updated on every connection — writeFile called again on reconnect', async () => {
+    const { client } = await setupPlatform();
     client.emit('zoneList', [z1Downmix]);
     client.emit('zoneList', [z1Downmix]); // simulate reconnect
-    expect(storage.setItem).toHaveBeenCalledTimes(2);
+    expect(mockWriteFile).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -575,6 +594,7 @@ describe('StormAudioPlatform — presets presetList handling (Story 6.1)', () =>
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
@@ -682,6 +702,7 @@ describe('StormAudioPlatform — trigger accessory creation (Story 6.2)', () => 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWriteFile.mockResolvedValue(undefined);
     api = createMockApi();
     log = createMockLog();
   });
