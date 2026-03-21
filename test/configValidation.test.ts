@@ -350,10 +350,10 @@ describe('validateConfig — zone2 (Story 5.1)', () => {
     expect(result!.zone2!.volumeFloor).toBe(-80);
   });
 
-  it('zone2 default volumeCeiling is 0 when omitted', () => {
+  it('zone2 default volumeCeiling is -20 when omitted', () => {
     const log = makeLog();
     const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
-    expect(result!.zone2!.volumeCeiling).toBe(0);
+    expect(result!.zone2!.volumeCeiling).toBe(-20);
   });
 
   it('zone2 default volumeControl is "none" when omitted', () => {

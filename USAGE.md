@@ -100,6 +100,9 @@ Narrowing the range gives you finer control per percentage step. Pick a few leve
 
 Even if someone asks Siri to "set Theater to 100%", the volume only reaches your configured ceiling (default: -20 dB). Your speakers and ears are protected, no matter who picks up the phone.
 
+> [!TIP]
+> **Align with your processor's Max Volume.** Your StormAudio installer may have configured a Max Volume limit in the processor's web UI (Settings page). Set `volumeCeiling` to match or stay below that value. If your ceiling exceeds the processor's Max Volume, the top portion of the HomeKit slider will have no audible effect because the processor clamps at its own limit. Note that other control surfaces (front panel, iOS remote, StormAudio web remote) are not constrained by this plugin's ceiling — they follow the processor's own Max Volume setting.
+
 > [!WARNING]
 > The lightbulb proxy mutes when "turn off all the lights" is triggered. Fan is recommended. See [Volume Control Options](README.md#volume-control-options).
 
@@ -135,7 +138,7 @@ When the processor is muted, the tile shows as off. When unmuted, it shows as on
 <!-- TODO: Add screenshot of Home app input picker -->
 *[Screenshot: Television tile detail view with input picker -- coming soon]*
 
-1. Long-press the Television tile to open its detail view
+1. Tap the Television tile to open its detail view
 2. Tap the input selector
 3. Choose the input you want
 
@@ -201,7 +204,7 @@ Zone 2 volume works like the main zone -- through a volume proxy (if configured)
 
 > "Hey Siri, set Patio to 40%"
 
-Zone 2 has its own volume floor and ceiling configured independently. The default range — -80 dB (0%) to 0 dB (100%) — is appropriate for most zone amplifiers.
+Zone 2 has its own volume floor and ceiling configured independently. As with the main zone, set these to match your amplifier's usable range.
 
 ### Mute
 
@@ -216,7 +219,7 @@ Zone 2 source selection depends on your processor configuration:
 - **Follow Main** -- Zone 2 plays whatever the main zone is playing. Source cannot be changed independently.
 - **Independent** -- if Zone 2 has its own audio inputs assigned in the StormAudio configuration, you can switch them using the Zone 2 input picker (same as the main zone).
 
-To switch Zone 2 sources in independent mode, long-press the Zone 2 Television tile and tap the input selector.
+To switch Zone 2 sources in independent mode, tap the Zone 2 Television tile and tap the input selector.
 
 ---
 
@@ -231,7 +234,7 @@ Theater presets are saved configurations on the processor (audio processing, roo
 
 The preset accessory appears as a Television tile. Its "inputs" are your available presets:
 
-1. Long-press the Presets tile to open its detail view
+1. Tap the Presets tile to open its detail view
 2. Tap the input selector
 3. Choose the preset you want
 
@@ -264,26 +267,34 @@ Hardware triggers are relay outputs on the processor that control external equip
 
 ### Switch Mode (Bidirectional Control)
 
-Configure a trigger as a Switch to control it from HomeKit. State changes from any source (auto-switching on wake/preset, manual override) sync to HomeKit in real time.
+Configure a trigger as a Switch to control it from HomeKit. It appears as a **toggle tile** in the Home app -- tap to turn on or off, just like a smart plug or light switch. State changes from any source (auto-switching on wake/preset, manual override, front panel) sync to HomeKit in real time, so the tile always reflects the actual relay state.
 
-> "Hey Siri, turn on Amp Power"
-
-**Include in a scene:**
-
-> **Scene: "Movie Night"**
-> - Amp Power switch on
-> - Projector switch on
+Switches are fully controllable:
+- **Tap the tile** in the Home app to toggle on/off
+- **Voice control:** "Hey Siri, turn on Amp Power"
+- **Scenes:** include in a scene alongside other accessories (e.g., "Movie Night" turns on amp, projector, and processor together)
+- **Automations:** use as both a trigger ("when Amp Power turns on...") and an action ("...then turn on Projector")
 
 ### Contact Sensor Mode (Read-Only)
 
-A trigger configured as a Contact Sensor is read-only -- it cannot be controlled from HomeKit. Instead, it acts as an automation input.
-
-> **Automation:** When "Screen Down" sensor detects contact, dim the lights to 20%
+A trigger configured as a Contact Sensor is **read-only** -- it cannot be controlled from HomeKit. The sensor reflects the relay state: when the trigger activates, the sensor reports "contact detected"; when it deactivates, "no contact". This makes it useful as an automation input when you want HomeKit to react to processor-driven trigger changes without giving HomeKit the ability to control the relay directly.
 
 > [!NOTE]
-> Contact sensors do not appear as visible tiles in the Home app. They are only accessible as conditions when creating automations.
+> Contact sensors **do not appear as visible tiles** in the Home app by default. You won't see them on your room's main screen. They are accessible when creating automations (as a condition or trigger) and in the accessory detail list under the room settings. If you want a visible, tappable tile, use Switch mode instead.
+
+**Example automation:** When "Screen Down" sensor detects contact, dim the lights to 20%.
 
 Contact sensors retain their last known state during brief network disconnections.
+
+#### Which Mode Should I Choose?
+
+| | Switch | Contact Sensor |
+|---|---|---|
+| Visible tile in Home app | Yes -- toggle on/off | No -- hidden by default |
+| Controllable from HomeKit | Yes -- tap, Siri, scenes | No -- read-only |
+| Usable as automation trigger | Yes | Yes |
+| Reflects processor state changes | Yes | Yes |
+| Best for | Equipment you want to control (amps, projectors) | Equipment managed by the processor that you want to react to (screen relays, status signals) |
 
 ---
 

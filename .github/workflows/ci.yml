@@ -30,4 +30,53 @@ jobs:
 
       - run: npm run build
 
-      - run: npm test
+      - name: Run tests with coverage
+        run: npx vitest run --coverage 2>&1 | tee vitest-output.txt
+
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == 22
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: dhrone/homebridge-stormaudio-isp
+          files: coverage/lcov.info
+
+      - name: Update dynamic badges
+        if: matrix.node-version == 22 && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Extract test count from vitest output
+          TEST_COUNT=$(awk '/Tests.*passed/ {for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/ && $(i+1) == "passed") {print $i; exit}}' vitest-output.txt)
+          TEST_COUNT=${TEST_COUNT:-0}
+
+          # Extract coverage percentage from vitest output (All files row, Stmts column)
+          COVERAGE=$(awk '/^\s*All files/ {gsub(/%/,"",$4); print $4}' vitest-output.txt)
+          COVERAGE=${COVERAGE:-0}
+
+          # Determine coverage badge color
+          COV_INT=${COVERAGE%.*}
+          if [ "$COV_INT" -ge 90 ]; then COV_COLOR="brightgreen";
+          elif [ "$COV_INT" -ge 75 ]; then COV_COLOR="green";
+          elif [ "$COV_INT" -ge 60 ]; then COV_COLOR="yellow";
+          else COV_COLOR="red"; fi
+
+          # Create shields.io endpoint JSON files
+          TESTS_JSON=$(jq -n \
+            --arg message "${TEST_COUNT} passed" \
+            '{"schemaVersion":1,"label":"tests","message":$message,"color":"brightgreen"}')
+
+          COVERAGE_JSON=$(jq -n \
+            --arg message "${COVERAGE}%" \
+            --arg color "$COV_COLOR" \
+            '{"schemaVersion":1,"label":"coverage","message":$message,"color":$color}')
+
+          # Push both files to a single Gist
+          PAYLOAD=$(jq -n \
+            --arg tests "$TESTS_JSON" \
+            --arg coverage "$COVERAGE_JSON" \
+            '{"files":{"tests.json":{"content":$tests},"coverage.json":{"content":$coverage}}}')
+
+          curl -s -X PATCH \
+            -H "Authorization: token ${{ secrets.GIST_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/gists/${{ secrets.GIST_ID }}" \
+            -d "$PAYLOAD"

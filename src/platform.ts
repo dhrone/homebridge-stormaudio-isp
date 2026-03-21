@@ -148,9 +148,9 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
       return null;
     }
 
-    const zone2VolumeCeiling = raw2.volumeCeiling !== undefined ? (raw2.volumeCeiling as number) : 0;
+    const zone2VolumeCeiling = raw2.volumeCeiling !== undefined ? (raw2.volumeCeiling as number) : -20;
     if (raw2.volumeCeiling === undefined) {
-      log.debug('[Config] Using default zone2.volumeCeiling: 0');
+      log.debug('[Config] Using default zone2.volumeCeiling: -20');
     }
     if (zone2VolumeCeiling < -100 || zone2VolumeCeiling > 0) {
       log.error('[Config] Error: "zone2.volumeCeiling" must be -100 to 0');

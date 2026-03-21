@@ -8,6 +8,9 @@ homebridge-stormaudio-isp
 </p>
 
 <p align="center">
+<a href="https://github.com/dhrone/homebridge-stormaudio-isp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/dhrone/homebridge-stormaudio-isp/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
+<a href="https://codecov.io/gh/dhrone/homebridge-stormaudio-isp"><img src="https://img.shields.io/codecov/c/github/dhrone/homebridge-stormaudio-isp?style=flat-square" alt="coverage"></a>
+<img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/dhrone/b93b97041017296fe0dd8efac759ea69/raw/tests.json&style=flat-square" alt="tests">
 <a href="https://www.npmjs.com/package/homebridge-stormaudio-isp"><img src="https://img.shields.io/npm/v/homebridge-stormaudio-isp?style=flat-square" alt="npm version"></a>
 <a href="https://www.npmjs.com/package/homebridge-stormaudio-isp"><img src="https://img.shields.io/npm/dt/homebridge-stormaudio-isp?style=flat-square" alt="npm downloads"></a>
 <a href="https://github.com/dhrone/homebridge-stormaudio-isp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/dhrone/homebridge-stormaudio-isp?style=flat-square" alt="license"></a>
@@ -171,7 +174,10 @@ Add the platform to the `platforms` array in your Homebridge `config.json`:
 
 #### Volume Ceiling and Floor
 
-The `volumeCeiling` and `volumeFloor` define the usable volume range. HomeKit's 0--100% scale maps linearly to this range. Even at 100%, the processor never exceeds your ceiling. See the [Usage Guide](USAGE.md#volume) for a detailed mapping table.
+The `volumeCeiling` and `volumeFloor` define the usable volume range in dB. HomeKit's 0--100% scale maps linearly to this range. Even at 100%, the processor never exceeds your ceiling. See the [Usage Guide](USAGE.md#volume) for a detailed mapping table.
+
+> [!TIP]
+> Your StormAudio processor has its own **Max Volume** setting configured by the installer in the web UI (Settings page). Set `volumeCeiling` to match or stay below that value — otherwise the top of your HomeKit slider will have no effect. Check your processor's Max Volume in the StormAudio web interface under Settings.
 
 #### Volume Control Options
 
@@ -209,7 +215,7 @@ Zone 2 exposes a second audio zone as a separate Television accessory. See the [
 | `zone2.name` | `"Zone 2"` | Display name (e.g., `"Patio"`) |
 | `zone2.volumeControl` | `"none"` | Volume proxy: `"none"`, `"fan"`, or `"lightbulb"` |
 | `zone2.volumeFloor` | `-80` | Minimum dB for volume mapping (0%) |
-| `zone2.volumeCeiling` | `0` | Maximum dB for volume mapping (100%) |
+| `zone2.volumeCeiling` | `-20` | Maximum dB for volume mapping (100%) |
 
 Zone 2 uses mute/unmute to simulate power (the processor has no per-zone power). When in "Follow Main" mode, Zone 2 mirrors the main zone's input.
 
@@ -251,8 +257,10 @@ Triggers expose the processor's 4 hardware relay outputs as HomeKit accessories.
 }
 ```
 
-- **Switch** -- bidirectional control from HomeKit; state changes from any source sync in real time
-- **Contact Sensor** -- read-only; use as an automation trigger (e.g., "when Screen Down activates, dim the lights")
+- **Switch** -- appears as a toggle tile in the Home app; tap, use Siri, or include in scenes to control the relay. State changes from any source sync in real time.
+- **Contact Sensor** -- read-only; reflects relay state but has no visible tile by default. Use as an automation trigger (e.g., "when Screen Down activates, dim the lights"). Choose this when the processor manages the relay and you only want HomeKit to react to changes.
+
+See the [Usage Guide](USAGE.md#triggers) for a detailed comparison of switch vs. contact sensor behavior in HomeKit.
 
 #### Complete Configuration Example
 
@@ -279,7 +287,7 @@ Triggers expose the processor's 4 hardware relay outputs as HomeKit accessories.
         "name": "Patio",
         "volumeControl": "none",
         "volumeFloor": -80,
-        "volumeCeiling": 0
+        "volumeCeiling": -20
       },
       "presets": {
         "enabled": true,
