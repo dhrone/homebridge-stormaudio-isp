@@ -1,8 +1,7 @@
-<p align="center">
-<img src="images/hero.png" width="600" alt="iPhone Home app → Homebridge → StormAudio processor">
-</p>
-
-<h1 align="center">homebridge-stormaudio-isp</h1>
+<h1 align="center">
+<img src="images/hero.png" width="600" alt="iPhone Home app → Homebridge → StormAudio processor"><br>
+homebridge-stormaudio-isp
+</h1>
 
 <p align="center">
 <em>Bring your StormAudio theater into your smart home</em>
