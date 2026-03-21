@@ -15,10 +15,22 @@ import {
 } from './settings';
 import { ErrorCategory, ProcessorState } from './types';
 import type {
-  AudioConfigState, AudioState, DeviceState, HdmiOutputState,
-  IdentityInfo, InputInfo, PresetInfo, StormAudioConfig, StormAudioError,
-  StormAudioEvents, StormAudioState, StreamInfoState, SurroundModeInfo,
-  TriggerInfo, ZoneProfileInfo, ZoneState,
+  AudioConfigState,
+  AudioState,
+  DeviceState,
+  HdmiOutputState,
+  IdentityInfo,
+  InputInfo,
+  PresetInfo,
+  StormAudioConfig,
+  StormAudioError,
+  StormAudioEvents,
+  StormAudioState,
+  StreamInfoState,
+  SurroundModeInfo,
+  TriggerInfo,
+  ZoneProfileInfo,
+  ZoneState,
 } from './types';
 
 interface Logger {
@@ -30,8 +42,7 @@ interface Logger {
 
 type SocketFactory = (host: string, port: number) => net.Socket;
 
-const defaultSocketFactory: SocketFactory = (host, port) =>
-  net.createConnection({ host, port });
+const defaultSocketFactory: SocketFactory = (host, port) => net.createConnection({ host, port });
 
 // Log prefix convention and level policy:
 //   [TCP]     Connection lifecycle     → info (connect/reconnect success, graceful close)
@@ -80,22 +91,42 @@ export class StormAudioClient extends EventEmitter {
     identity: { version: '', brand: '', model: '' },
     streamInfo: { stream: '', sampleRate: '', format: '' },
     audio: {
-      dim: false, loudness: 0, bass: 0, treble: 0,
-      centerEnhance: 0, surroundEnhance: 0, lfeEnhance: 0,
-      lipsync: 0, drc: 'off', centerSpread: false,
+      dim: false,
+      loudness: 0,
+      bass: 0,
+      treble: 0,
+      centerEnhance: 0,
+      surroundEnhance: 0,
+      lfeEnhance: 0,
+      lipsync: 0,
+      drc: 'off',
+      centerSpread: false,
       dialogControl: { available: false, level: 0 },
-      dialogNorm: false, imaxMode: 'off', stormxt: null,
-      dolbyMode: 0, dolbyVirtualizer: false,
-      sphereAudioEffect: null, lfeDim: false, auroStrength: 0,
+      dialogNorm: false,
+      imaxMode: 'off',
+      stormxt: null,
+      dolbyMode: 0,
+      dolbyVirtualizer: false,
+      sphereAudioEffect: null,
+      lfeDim: false,
+      auroStrength: 0,
     },
     device: {
-      brightness: 0, generator: false,
+      brightness: 0,
+      generator: false,
       frontPanel: { color: '', standbyBrightness: 0, activeBrightness: 0, standbyTimeout: 0 },
     },
     audioConfig: {
-      preset: 0, presetCustom: false, surroundMode: 0, allowedMode: 0,
-      speaker: 0, presetList: [], surroundModeList: [],
-      auroPreset: 0, auroPresetList: [], inputHdmiPassThru: 0,
+      preset: 0,
+      presetCustom: false,
+      surroundMode: 0,
+      allowedMode: 0,
+      speaker: 0,
+      presetList: [],
+      surroundModeList: [],
+      auroPreset: 0,
+      auroPresetList: [],
+      inputHdmiPassThru: 0,
     },
     zones: new Map(),
     hdmi: new Map(),
@@ -224,7 +255,9 @@ export class StormAudioClient extends EventEmitter {
     // Cap the connect-phase wait so each attempt fails fast instead of waiting
     // for the OS TCP SYN timeout (~2 min). Cleared immediately on success.
     this.socket.setTimeout(RECONNECT_CONNECT_TIMEOUT_MS);
-    this.socket.once('timeout', () => { this.socket?.destroy(new Error('Connection timed out')); });
+    this.socket.once('timeout', () => {
+      this.socket?.destroy(new Error('Connection timed out'));
+    });
 
     this.socket.on('connect', () => {
       this.socket?.setTimeout(0); // Disable connect-phase timeout — keepalive owns timing now
@@ -255,7 +288,9 @@ export class StormAudioClient extends EventEmitter {
         if (this.inLongPoll) {
           this.log.warn(`[TCP] Processor still unreachable. Will retry in ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`);
         } else if (this.retryCount >= RECONNECT_MAX_RETRIES) {
-          this.log.warn(`[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Reconnection effort has failed.`);
+          this.log.warn(
+            `[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Reconnection effort has failed.`,
+          );
         } else {
           this.log.warn(
             `[TCP] Reconnection attempt ${this.retryCount}/${RECONNECT_MAX_RETRIES} failed. Retrying in ${(this.backoffDelay + RECONNECT_CONNECT_TIMEOUT_MS) / 1000}s.`,
@@ -372,6 +407,18 @@ export class StormAudioClient extends EventEmitter {
     this.sendCommand(`ssp.inputZone2.[${inputId}]\n`);
   }
 
+  setPreset(id: number): void {
+    this.sendCommand(`ssp.preset.[${id}]\n`);
+  }
+
+  setTrigger(triggerId: number, on: boolean): void {
+    this.sendCommand(`ssp.trig${triggerId}.${on ? 'on' : 'off'}\n`);
+  }
+
+  getTriggerStates(): Map<number, boolean> {
+    return new Map(this.state.triggerStates);
+  }
+
   getVolume(): number {
     return this.state.volume;
   }
@@ -401,7 +448,7 @@ export class StormAudioClient extends EventEmitter {
   }
 
   getZone2Inputs(): InputInfo[] {
-    return this.lastInputList.filter(i => i.zone2AudioInId !== 0);
+    return this.lastInputList.filter((i) => i.zone2AudioInId !== 0);
   }
 
   getIdentity(): IdentityInfo {
@@ -620,12 +667,18 @@ export class StormAudioClient extends EventEmitter {
   };
 
   private static readonly ZONE_BOOL_FIELDS: Record<string, keyof ZoneState> = {
-    mute: 'mute', useZone2: 'useZone2Source',
+    mute: 'mute',
+    useZone2: 'useZone2Source',
   };
 
   private static readonly ZONE_NUM_FIELDS: Record<string, keyof ZoneState> = {
-    volume: 'volume', bass: 'bass', treble: 'treble', eq: 'eq',
-    mode: 'mode', lipsync: 'lipsync', loudness: 'loudness',
+    volume: 'volume',
+    bass: 'bass',
+    treble: 'treble',
+    eq: 'eq',
+    mode: 'mode',
+    lipsync: 'lipsync',
+    loudness: 'loudness',
   };
 
   private parseMessage(message: string): void {
@@ -649,7 +702,10 @@ export class StormAudioClient extends EventEmitter {
     }
 
     const category = parts[1];
-    const value = parts.slice(2).join('.').replace(/^\[|\]$/g, '');
+    const value = parts
+      .slice(2)
+      .join('.')
+      .replace(/^\[|\]$/g, '');
 
     // --- Check audio toggle map ---
     if (category in StormAudioClient.AUDIO_TOGGLES) {
@@ -1157,9 +1213,21 @@ export class StormAudioClient extends EventEmitter {
     let zone = this.state.zones.get(zoneId);
     if (!zone) {
       zone = {
-        id: zoneId, name: '', layout: 0, type: 0, useZone2Source: false,
-        volume: 0, delay: 0, eq: 0, lipsync: 0, mode: 0,
-        mute: false, loudness: 0, avzones: 0, bass: 0, treble: 0,
+        id: zoneId,
+        name: '',
+        layout: 0,
+        type: 0,
+        useZone2Source: false,
+        volume: 0,
+        delay: 0,
+        eq: 0,
+        lipsync: 0,
+        mode: 0,
+        mute: false,
+        loudness: 0,
+        avzones: 0,
+        bass: 0,
+        treble: 0,
       };
       this.state.zones.set(zoneId, zone);
     }
@@ -1252,14 +1320,23 @@ export class StormAudioClient extends EventEmitter {
       return;
     }
     // Value is bracket+quote-wrapped: ["HDMI_3"] → after bracket strip: "HDMI_3"
-    const rawValue = parts.slice(3).join('.').replace(/^\[|\]$/g, '');
+    const rawValue = parts
+      .slice(3)
+      .join('.')
+      .replace(/^\[|\]$/g, '');
     const strValue = rawValue.replace(/^"|"$/g, '');
 
     let hdmiState = this.state.hdmi.get(outputNum);
     if (!hdmiState) {
       hdmiState = {
-        input: '', sync: '', timing: '', hdr: '',
-        copyProtection: '', colorspace: '', colorDepth: '', mode: '',
+        input: '',
+        sync: '',
+        timing: '',
+        hdr: '',
+        copyProtection: '',
+        colorspace: '',
+        colorDepth: '',
+        mode: '',
       };
       this.state.hdmi.set(outputNum, hdmiState);
     }
@@ -1274,7 +1351,10 @@ export class StormAudioClient extends EventEmitter {
       return;
     }
     const sub = parts[2];
-    const rawValue = parts.slice(3).join('.').replace(/^\[|\]$/g, '');
+    const rawValue = parts
+      .slice(3)
+      .join('.')
+      .replace(/^\[|\]$/g, '');
 
     switch (sub) {
       case 'color':
@@ -1395,8 +1475,13 @@ export class StormAudioClient extends EventEmitter {
     // raw: '[1, 1, "Downmix", 1, 0, 0, 0, 0]'
     try {
       const arr = JSON.parse(raw) as unknown[];
-      if (Array.isArray(arr) && arr.length >= 4 && typeof arr[0] === 'number' &&
-          typeof arr[1] === 'number' && typeof arr[2] === 'string') {
+      if (
+        Array.isArray(arr) &&
+        arr.length >= 4 &&
+        typeof arr[0] === 'number' &&
+        typeof arr[1] === 'number' &&
+        typeof arr[2] === 'string'
+      ) {
         return {
           zoneId: arr[0] as number,
           profileId: arr[1] as number,

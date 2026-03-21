@@ -7,19 +7,22 @@ import type {
   PlatformConfig,
   Service,
 } from 'homebridge';
-import { StorageService } from 'homebridge/lib/storageService';
+import fs from 'fs';
 import path from 'path';
 
 import { StormAudioAccessory } from './platformAccessory';
+import { StormAudioPresetAccessory } from './presetAccessory';
+import { StormAudioTriggerAccessory } from './triggerAccessory';
 import { PLUGIN_NAME } from './settings';
 import { RECONNECT_LONG_POLL_INTERVAL_MS } from './settings';
 import { StormAudioClient } from './stormAudioClient';
 import { StormAudioZone2Accessory } from './zone2Accessory';
 import { ErrorCategory } from './types';
-import type { StormAudioConfig, Zone2Config, ZoneState } from './types';
+import type { PresetInfo, PresetsConfig, StormAudioConfig, TriggerConfig, Zone2Config, ZoneState } from './types';
 
 interface ConfigLogger {
   error(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
   debug(message: string, ...args: unknown[]): void;
 }
 
@@ -34,6 +37,8 @@ interface RawConfig {
   commandInterval?: unknown;
   inputs?: unknown;
   zone2?: unknown;
+  presets?: unknown;
+  triggers?: unknown;
   [key: string]: unknown;
 }
 
@@ -124,7 +129,9 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     let resolvedZoneId: number;
     if (raw2.zoneId === undefined) {
       resolvedZoneId = 1;
-      log.debug('[Config] zone2.zoneId not specified — defaulting to Zone 1 (Downmix). If no audio is heard, create a dedicated zone in the StormAudio web interface and set zone2.zoneId.');
+      log.debug(
+        '[Config] zone2.zoneId not specified — defaulting to Zone 1 (Downmix). If no audio is heard, create a dedicated zone in the StormAudio web interface and set zone2.zoneId.',
+      );
     } else {
       resolvedZoneId = raw2.zoneId as number;
     }
@@ -143,9 +150,9 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
       return null;
     }
 
-    const zone2VolumeCeiling = raw2.volumeCeiling !== undefined ? (raw2.volumeCeiling as number) : 0;
+    const zone2VolumeCeiling = raw2.volumeCeiling !== undefined ? (raw2.volumeCeiling as number) : -20;
     if (raw2.volumeCeiling === undefined) {
-      log.debug('[Config] Using default zone2.volumeCeiling: 0');
+      log.debug('[Config] Using default zone2.volumeCeiling: -20');
     }
     if (zone2VolumeCeiling < -100 || zone2VolumeCeiling > 0) {
       log.error('[Config] Error: "zone2.volumeCeiling" must be -100 to 0');
@@ -158,8 +165,14 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
 
     const zone2VolumeControl = raw2.volumeControl as string | undefined;
     const resolvedZone2VolumeControl = zone2VolumeControl ?? 'none';
-    if (resolvedZone2VolumeControl !== 'fan' && resolvedZone2VolumeControl !== 'lightbulb' && resolvedZone2VolumeControl !== 'none') {
-      log.error(`[Config] Error: "zone2.volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedZone2VolumeControl}`);
+    if (
+      resolvedZone2VolumeControl !== 'fan' &&
+      resolvedZone2VolumeControl !== 'lightbulb' &&
+      resolvedZone2VolumeControl !== 'none'
+    ) {
+      log.error(
+        `[Config] Error: "zone2.volumeControl" must be "fan", "lightbulb", or "none". Got: ${resolvedZone2VolumeControl}`,
+      );
       return null;
     }
     if (!zone2VolumeControl) {
@@ -175,6 +188,78 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     };
   }
 
+  // Presets config validation
+  let resolvedPresets: PresetsConfig | undefined;
+  if (config.presets !== undefined) {
+    if (typeof config.presets !== 'object' || config.presets === null || Array.isArray(config.presets)) {
+      log.error('[Config] Error: "presets" must be an object if provided.');
+      return null;
+    }
+    const rawPresets = config.presets as Record<string, unknown>;
+    const presetsEnabled = typeof rawPresets.enabled === 'boolean' ? rawPresets.enabled : false;
+    if (rawPresets.enabled === undefined) {
+      log.debug('[Config] Using default presets.enabled: false');
+    }
+    const presetsName = typeof rawPresets.name === 'string' ? rawPresets.name : 'Presets';
+    if (rawPresets.name === undefined) {
+      log.debug('[Config] Using default presets.name: Presets');
+    }
+    if (rawPresets.aliases !== undefined) {
+      if (typeof rawPresets.aliases !== 'object' || rawPresets.aliases === null || Array.isArray(rawPresets.aliases)) {
+        log.error('[Config] Error: "presets.aliases" must be an object if provided.');
+        return null;
+      }
+    }
+    const presetsAliases = (rawPresets.aliases as Record<string, string> | undefined) ?? {};
+    if (rawPresets.aliases === undefined) {
+      log.debug('[Config] Using default presets.aliases: {}');
+    }
+    resolvedPresets = { enabled: presetsEnabled, name: presetsName, aliases: presetsAliases };
+  }
+
+  // Triggers config validation
+  let resolvedTriggers: Record<string, TriggerConfig> | undefined;
+  if (config.triggers !== undefined) {
+    if (typeof config.triggers !== 'object' || config.triggers === null || Array.isArray(config.triggers)) {
+      log.error('[Config] Error: "triggers" must be an object if provided.');
+      return null;
+    }
+    const rawTriggers = config.triggers as Record<string, unknown>;
+    const validTriggers: Record<string, TriggerConfig> = {};
+    const validIds = new Set(['1', '2', '3', '4']);
+    for (const [key, value] of Object.entries(rawTriggers)) {
+      if (!validIds.has(key)) {
+        log.warn(`[Config] Warning: trigger ID "${key}" is invalid (must be 1-4) — ignoring`);
+        continue;
+      }
+      if (typeof value === 'string') {
+        if (value === 'none') continue;
+        log.error(`[Config] Error: trigger "${key}" short form must be "none". Got: "${value}"`);
+        return null;
+      }
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const rawTrig = value as Record<string, unknown>;
+        const trigType = rawTrig.type as string | undefined;
+        if (trigType === 'none' || trigType === undefined) continue;
+        if (trigType !== 'switch' && trigType !== 'contact') {
+          log.error(
+            `[Config] Error: trigger "${key}" type must be "switch", "contact", or "none". Got: "${String(trigType)}"`,
+          );
+          return null;
+        }
+        const trigName = typeof rawTrig.name === 'string' ? rawTrig.name : `Trigger ${key}`;
+        if (rawTrig.name === undefined) {
+          log.debug(`[Config] Using default trigger ${key} name: Trigger ${key}`);
+        }
+        validTriggers[key] = { name: trigName, type: trigType };
+      } else {
+        log.error(`[Config] Error: trigger "${key}" must be an object or the string "none".`);
+        return null;
+      }
+    }
+    resolvedTriggers = Object.keys(validTriggers).length > 0 ? validTriggers : undefined;
+  }
+
   return {
     host: config.host,
     port: resolvedPort,
@@ -186,6 +271,8 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
     commandInterval: resolvedCommandInterval,
     inputs: (config.inputs as Record<string, string> | undefined) ?? {},
     zone2: resolvedZone2,
+    presets: resolvedPresets,
+    triggers: resolvedTriggers,
   };
 }
 
@@ -196,7 +283,7 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
 
   private client: StormAudioClient | null = null;
-  private storageService: StorageService | null = null;
+  private storagePath: string | null = null;
   public readonly validatedConfig: StormAudioConfig | null = null;
 
   constructor(
@@ -213,10 +300,8 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
       return;
     }
 
-    this.storageService = new StorageService(
-      path.join(this.api.user.storagePath(), 'homebridge-stormaudio-isp'),
-    );
-    this.storageService.initSync();
+    this.storagePath = path.join(this.api.user.storagePath(), 'homebridge-stormaudio-isp');
+    fs.mkdirSync(this.storagePath, { recursive: true });
 
     this.log.debug('Finished initializing platform:', this.validatedConfig.name);
 
@@ -235,7 +320,9 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           // Reconnection is handled automatically by StormAudioClient.
           // Fatal errors (max retries exhausted) require user intervention.
           if (stormError.category === ErrorCategory.Fatal) {
-            this.log.error(`[Platform] Reconnection has failed. Will reattempt connection every ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`);
+            this.log.error(
+              `[Platform] Reconnection has failed. Will reattempt connection every ${RECONNECT_LONG_POLL_INTERVAL_MS / 1000}s.`,
+            );
           }
         });
         this.client.connect();
@@ -262,24 +349,29 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           }
 
           // Persist zone list to plugin storage on every connection (AC 1, Story 5.3)
-          const zonesArray = zones.map(z => ({ id: z.id, name: z.name }));
-          if (this.storageService) {
-            void this.storageService.setItem('zones', zonesArray).then(() => {
-              this.log.debug(`[Config] Persisted ${zonesArray.length} zones to plugin storage`);
-            }).catch((err: unknown) => {
-              const message = err instanceof Error ? err.message : String(err);
-              this.log.debug(`[Config] Failed to persist zone list to storage: ${message}`);
-            });
+          const zonesArray = zones.map((z) => ({ id: z.id, name: z.name }));
+          if (this.storagePath) {
+            void fs.promises
+              .writeFile(path.join(this.storagePath, 'zones'), JSON.stringify(zonesArray), 'utf-8')
+              .then(() => {
+                this.log.debug(`[Config] Persisted ${zonesArray.length} zones to plugin storage`);
+              })
+              .catch((err: unknown) => {
+                const message = err instanceof Error ? err.message : String(err);
+                this.log.debug(`[Config] Failed to persist zone list to storage: ${message}`);
+              });
           }
 
           // Zone 2 creation — only once
           if (zone2Published || !this.validatedConfig?.zone2) return;
 
           const zone2Config = this.validatedConfig!.zone2!;
-          const targetZone = zones.find(z => z.id === zone2Config.zoneId);
+          const targetZone = zones.find((z) => z.id === zone2Config.zoneId);
           if (!targetZone) {
             // AC 4: zoneId not found
-            this.log.error(`[Config] zone2.zoneId ${zone2Config.zoneId} not found in zone list — Zone 2 accessory will not be created`);
+            this.log.error(
+              `[Config] zone2.zoneId ${zone2Config.zoneId} not found in zone list — Zone 2 accessory will not be created`,
+            );
             return;
           }
 
@@ -293,6 +385,49 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
           zone2Published = true;
           this.log.info('[HomeKit] Published Zone 2 accessory: ' + zone2Config.name);
         });
+
+        // Presets: persistent presetList listener — logs presets on every connection
+        // and creates the preset external accessory once when list first arrives.
+        let presetPublished = false;
+        this.client.on('presetList', (presets: PresetInfo[]) => {
+          // Log preset list on every connection
+          for (const p of presets) {
+            this.log.info(`[State] Preset ${p.id}: "${p.name}"`);
+          }
+
+          // Preset accessory creation — only once
+          if (presetPublished || !this.validatedConfig?.presets?.enabled) return;
+
+          const presetConfig = this.validatedConfig!.presets!;
+          const presetUuid = this.api.hap.uuid.generate('stormaudio-isp-presets');
+          const presetAccessory = new this.api.platformAccessory(presetConfig.name, presetUuid);
+          presetAccessory.category = this.api.hap.Categories.TELEVISION;
+          const preset = new StormAudioPresetAccessory(this, presetAccessory, this.client!, presetConfig);
+          this.api.publishExternalAccessories(PLUGIN_NAME, [presetAccessory]);
+          preset.replayCachedPresets();
+          presetPublished = true;
+          this.log.info('[HomeKit] Published Preset accessory: ' + presetConfig.name);
+        });
+
+        // Triggers — create immediately from config (no dynamic list needed)
+        if (this.validatedConfig.triggers) {
+          const triggerAccessories: PlatformAccessory[] = [];
+          for (const [idStr, trigConfig] of Object.entries(this.validatedConfig.triggers)) {
+            const triggerId = parseInt(idStr, 10);
+            const trigUuid = this.api.hap.uuid.generate(`stormaudio-isp-trigger-${triggerId}`);
+            const trigAccessory = new this.api.platformAccessory(trigConfig.name, trigUuid);
+            trigAccessory.category = this.api.hap.Categories.SWITCH;
+            new StormAudioTriggerAccessory(this, trigAccessory, this.client!, triggerId, trigConfig);
+            triggerAccessories.push(trigAccessory);
+            this.log.info(`[HomeKit] Created trigger ${triggerId} accessory: ${trigConfig.name} (${trigConfig.type})`);
+          }
+          if (triggerAccessories.length > 0) {
+            this.api.publishExternalAccessories(PLUGIN_NAME, triggerAccessories);
+            this.log.info(
+              `[HomeKit] Published ${triggerAccessories.length} trigger accessor${triggerAccessories.length === 1 ? 'y' : 'ies'}`,
+            );
+          }
+        }
       }
     });
   }

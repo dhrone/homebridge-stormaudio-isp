@@ -54,8 +54,14 @@ function createClient(config: HardwareTestConfig, log: HarnessLogger): StormAudi
 
 function connectAndWait(client: StormAudioClient, timeoutMs = 15000): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { client.disconnect(); reject(new Error('Timeout')); }, timeoutMs);
-    client.on('inputList', () => { clearTimeout(timer); resolve(); });
+    const timer = setTimeout(() => {
+      client.disconnect();
+      reject(new Error('Timeout'));
+    }, timeoutMs);
+    client.on('inputList', () => {
+      clearTimeout(timer);
+      resolve();
+    });
     client.connect();
   });
 }
@@ -75,7 +81,9 @@ function sendAndObserve(
     const zoneHandler = (zoneId: number, field: string, value: unknown): void => {
       zoneEvents.push({ zoneId, field, value });
     };
-    const errorHandler = (): void => { errors++; };
+    const errorHandler = (): void => {
+      errors++;
+    };
 
     client.on('zoneUpdate', zoneHandler);
     client.on('error', errorHandler);
@@ -200,7 +208,9 @@ async function main(): Promise<void> {
   console.log('\n=== FINAL STATE ===\n');
   const finalZones = client.getZones();
   for (const [id, z] of finalZones) {
-    console.log(`Zone ${id}: "${z.name}" vol=${z.volume} mute=${z.mute} useZone2Source=${z.useZone2Source} bass=${z.bass} treble=${z.treble}`);
+    console.log(
+      `Zone ${id}: "${z.name}" vol=${z.volume} mute=${z.mute} useZone2Source=${z.useZone2Source} bass=${z.bass} treble=${z.treble}`,
+    );
   }
 
   console.log('\nDone.');

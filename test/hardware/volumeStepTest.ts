@@ -135,7 +135,10 @@ async function testStepSize(client: StormAudioClient): Promise<void> {
     client.setVolume(startVol);
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 3000);
-      client.once('volume', () => { clearTimeout(timer); resolve(); });
+      client.once('volume', () => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
   console.log(`Restored to: ${client.getVolume()} dB`);
@@ -184,11 +187,11 @@ async function testCommandSpacing(client: StormAudioClient): Promise<void> {
 
     console.log(
       `Interval: ${String(intervalMs).padStart(4)}ms | ` +
-      `Sent: ${commandCount} | ` +
-      `Events: ${events.length} | ` +
-      `Change: ${totalChange > 0 ? '+' : ''}${totalChange} dB | ` +
-      `Values: [${events.map(e => e.dB).join(', ')}] | ` +
-      `Time: ${elapsed}ms`,
+        `Sent: ${commandCount} | ` +
+        `Events: ${events.length} | ` +
+        `Change: ${totalChange > 0 ? '+' : ''}${totalChange} dB | ` +
+        `Values: [${events.map((e) => e.dB).join(', ')}] | ` +
+        `Time: ${elapsed}ms`,
     );
 
     // Restore volume
@@ -196,7 +199,10 @@ async function testCommandSpacing(client: StormAudioClient): Promise<void> {
       client.setVolume(startVol);
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, 3000);
-        client.once('volume', () => { clearTimeout(timer); resolve(); });
+        client.once('volume', () => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
       await sleep(500);
     }

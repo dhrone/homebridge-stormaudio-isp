@@ -85,7 +85,9 @@ describe('StormAudioClient — TCP connection', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     let connectedFired = false;
-    client.on('connected', () => { connectedFired = true; });
+    client.on('connected', () => {
+      connectedFired = true;
+    });
     client.connect();
     mockSocket.simulateConnect();
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining('[TCP] Connected to 192.168.1.100:23'));
@@ -96,7 +98,9 @@ describe('StormAudioClient — TCP connection', () => {
     const log = makeLog();
     const client = new StormAudioClient(validConfig, log, socketFactory);
     const errors: unknown[] = [];
-    client.on('error', (err) => { errors.push(err); });
+    client.on('error', (err) => {
+      errors.push(err);
+    });
     client.connect();
     mockSocket.simulateError(new Error('ECONNREFUSED'));
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining('[TCP]'));
@@ -108,7 +112,9 @@ describe('StormAudioClient — TCP connection', () => {
   it('emits disconnected on socket close', () => {
     const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
     let disconnectedFired = false;
-    client.on('disconnected', () => { disconnectedFired = true; });
+    client.on('disconnected', () => {
+      disconnectedFired = true;
+    });
     client.connect();
     mockSocket.simulateClose();
     expect(disconnectedFired).toBe(true);
@@ -140,7 +146,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.power.on and emits power(true)', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('power', (on) => { received = on; });
+    client.on('power', (on) => {
+      received = on;
+    });
     mockSocket.simulateData('ssp.power.on\n');
     expect(received).toBe(true);
   });
@@ -148,7 +156,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.power.off and emits power(false)', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('power', (on) => { received = on; });
+    client.on('power', (on) => {
+      received = on;
+    });
     mockSocket.simulateData('ssp.power.off\n');
     expect(received).toBe(false);
   });
@@ -156,7 +166,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.vol.-40 and emits volume(-40)', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('volume', (dB) => { received = dB; });
+    client.on('volume', (dB) => {
+      received = dB;
+    });
     mockSocket.simulateData('ssp.vol.-40\n');
     expect(received).toBe(-40);
   });
@@ -164,7 +176,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.mute.on and emits mute(true)', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('mute', (muted) => { received = muted; });
+    client.on('mute', (muted) => {
+      received = muted;
+    });
     mockSocket.simulateData('ssp.mute.on\n');
     expect(received).toBe(true);
   });
@@ -172,7 +186,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.mute.off and emits mute(false)', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('mute', (muted) => { received = muted; });
+    client.on('mute', (muted) => {
+      received = muted;
+    });
     mockSocket.simulateData('ssp.mute.off\n');
     expect(received).toBe(false);
   });
@@ -180,7 +196,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.input.3 and emits input(3)', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('input', (id) => { received = id; });
+    client.on('input', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.input.3\n');
     expect(received).toBe(3);
   });
@@ -188,7 +206,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.procstate.0 and emits processorState(Sleep)', () => {
     const client = connectClient();
     let received: ProcessorState | null = null;
-    client.on('processorState', (state) => { received = state; });
+    client.on('processorState', (state) => {
+      received = state;
+    });
     mockSocket.simulateData('ssp.procstate.0\n');
     expect(received).toBe(ProcessorState.Sleep);
   });
@@ -196,7 +216,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.procstate.2 and emits processorState(Active)', () => {
     const client = connectClient();
     let received: ProcessorState | null = null;
-    client.on('processorState', (state) => { received = state; });
+    client.on('processorState', (state) => {
+      received = state;
+    });
     mockSocket.simulateData('ssp.procstate.2\n');
     expect(received).toBe(ProcessorState.Active);
   });
@@ -211,7 +233,9 @@ describe('StormAudioClient — message parsing', () => {
   it('handles partial messages split across data chunks', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('power', (on) => { received = on; });
+    client.on('power', (on) => {
+      received = on;
+    });
     mockSocket.simulateData('ssp.pow');
     expect(received).toBeNull();
     mockSocket.simulateData('er.on\n');
@@ -221,7 +245,9 @@ describe('StormAudioClient — message parsing', () => {
   it('handles multiple messages in one data chunk', () => {
     const client = connectClient();
     const powers: boolean[] = [];
-    client.on('power', (on) => { powers.push(on); });
+    client.on('power', (on) => {
+      powers.push(on);
+    });
     mockSocket.simulateData('ssp.power.on\nssp.power.off\n');
     expect(powers).toEqual([true, false]);
   });
@@ -229,7 +255,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.procstate.1 and emits processorState(Initializing)', () => {
     const client = connectClient();
     let received: ProcessorState | null = null;
-    client.on('processorState', (state) => { received = state; });
+    client.on('processorState', (state) => {
+      received = state;
+    });
     mockSocket.simulateData('ssp.procstate.1\n');
     expect(received).toBe(ProcessorState.Initializing);
   });
@@ -237,7 +265,9 @@ describe('StormAudioClient — message parsing', () => {
   it('parses ssp.vol.0 and emits volume(0)', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('volume', (dB) => { received = dB; });
+    client.on('volume', (dB) => {
+      received = dB;
+    });
     mockSocket.simulateData('ssp.vol.0\n');
     expect(received).toBe(0);
   });
@@ -246,7 +276,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('volume', () => { emitted = true; });
+    client.on('volume', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.vol.garbage\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -256,7 +288,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('processorState', () => { emitted = true; });
+    client.on('processorState', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.procstate.3\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -266,7 +300,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('power', () => { emitted = true; });
+    client.on('power', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.power.unknown\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -276,7 +312,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('mute', () => { emitted = true; });
+    client.on('mute', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.mute.unknown\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -286,7 +324,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('input', () => { emitted = true; });
+    client.on('input', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.input.garbage\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -296,7 +336,9 @@ describe('StormAudioClient — message parsing', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('processorState', () => { emitted = true; });
+    client.on('processorState', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.procstate.-1\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Unrecognized message:'));
@@ -322,7 +364,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('parses ssp.vol.[-54.0] and emits volume(-54)', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('volume', (dB) => { received = dB; });
+    client.on('volume', (dB) => {
+      received = dB;
+    });
     mockSocket.simulateData('ssp.vol.[-54.0]\n');
     expect(received).toBe(-54);
   });
@@ -330,7 +374,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('parses ssp.input.[4] and emits input(4)', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('input', (id) => { received = id; });
+    client.on('input', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.input.[4]\n');
     expect(received).toBe(4);
   });
@@ -338,7 +384,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('parses ssp.procstate.[2] and emits processorState(Active)', () => {
     const client = connectClient();
     let received: ProcessorState | null = null;
-    client.on('processorState', (state) => { received = state; });
+    client.on('processorState', (state) => {
+      received = state;
+    });
     mockSocket.simulateData('ssp.procstate.[2]\n');
     expect(received).toBe(ProcessorState.Active);
   });
@@ -346,7 +394,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('parses ssp.procstate.[0] and emits processorState(Sleep)', () => {
     const client = connectClient();
     let received: ProcessorState | null = null;
-    client.on('processorState', (state) => { received = state; });
+    client.on('processorState', (state) => {
+      received = state;
+    });
     mockSocket.simulateData('ssp.procstate.[0]\n');
     expect(received).toBe(ProcessorState.Sleep);
   });
@@ -354,7 +404,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('parses ssp.mute.[on] and emits mute(true)', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('mute', (muted) => { received = muted; });
+    client.on('mute', (muted) => {
+      received = muted;
+    });
     mockSocket.simulateData('ssp.mute.[on]\n');
     expect(received).toBe(true);
   });
@@ -362,7 +414,9 @@ describe('StormAudioClient — bracketed value parsing (real hardware format)', 
   it('non-bracketed values still parse correctly', () => {
     const client = connectClient();
     let received: boolean | null = null;
-    client.on('power', (on) => { received = on; });
+    client.on('power', (on) => {
+      received = on;
+    });
     mockSocket.simulateData('ssp.power.on\n');
     expect(received).toBe(true);
   });
@@ -578,7 +632,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('MP1: parses well-formed input list and emits inputList with correct InputInfo[]', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     sendInputList([
       'ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]',
       'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
@@ -591,7 +647,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('MP2: inputList InputInfo has id:number and name:string shape', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     sendInputList(['ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(typeof received![0].id).toBe('number');
     expect(typeof received![0].name).toBe('string');
@@ -600,7 +658,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('EC4: single input list emits correctly', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 1, name: 'TV', zone2AudioInId: 0 });
@@ -609,7 +669,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('EC1: empty list (start/end with no entries) emits inputList with []', () => {
     const client = connectClient();
     let received: unknown[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     sendInputList([]);
     expect(received).toEqual([]);
   });
@@ -618,11 +680,10 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
-    sendInputList([
-      'ssp.input.list.[not-valid-json]',
-      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
-    ]);
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
+    sendInputList(['ssp.input.list.[not-valid-json]', 'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]']);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 2, name: 'PS5', zone2AudioInId: 0 });
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
@@ -632,11 +693,10 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
-    sendInputList([
-      'ssp.input.list.[1, "reversed-order", 1, 1, 0]',
-      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
-    ]);
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
+    sendInputList(['ssp.input.list.[1, "reversed-order", 1, 1, 0]', 'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]']);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 2, name: 'PS5', zone2AudioInId: 0 });
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[State] Skipped malformed input list entry:'));
@@ -645,7 +705,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('EC5: input list sequence does NOT emit input event', () => {
     const client = connectClient();
     let inputEmitted = false;
-    client.on('input', () => { inputEmitted = true; });
+    client.on('input', () => {
+      inputEmitted = true;
+    });
     sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(inputEmitted).toBe(false);
   });
@@ -653,7 +715,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('EC6: ssp.input.[3] still emits input(3) — no regression', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('input', (id) => { received = id; });
+    client.on('input', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.input.[3]\n');
     expect(received).toBe(3);
   });
@@ -661,7 +725,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('EC6b: ssp.input.[3] does NOT emit inputList event', () => {
     const client = connectClient();
     let inputListEmitted = false;
-    client.on('inputList', () => { inputListEmitted = true; });
+    client.on('inputList', () => {
+      inputListEmitted = true;
+    });
     mockSocket.simulateData('ssp.input.[3]\n');
     expect(inputListEmitted).toBe(false);
   });
@@ -670,17 +736,16 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
     const log = makeLog();
     const client = connectClient(log);
     client.on('inputList', () => {});
-    sendInputList([
-      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
-      'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
-    ]);
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]', 'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]']);
     expect(log.info).toHaveBeenCalledWith('[State] Received input list: 2 inputs');
   });
 
   it('inputList only emits on ssp.input.end — not on each list entry', () => {
     const client = connectClient();
     let emitCount = 0;
-    client.on('inputList', () => { emitCount++; });
+    client.on('inputList', () => {
+      emitCount++;
+    });
     mockSocket.simulateData('ssp.input.start\n');
     mockSocket.simulateData('ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]\n');
     mockSocket.simulateData('ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]\n');
@@ -692,7 +757,9 @@ describe('StormAudioClient — ssp.input.list parsing (Story 3.1)', () => {
   it('list entries without start marker are still accumulated (graceful)', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     // Skip ssp.input.start — entries arrive directly
     mockSocket.simulateData('ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]\n');
     mockSocket.simulateData('ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]\n');
@@ -749,7 +816,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('QA1: parses zone2AudioInId from index 4 — zone2AudioInId=0 and zone2AudioInId=18', () => {
     const client = connectClient();
     let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    client.on('inputList', (inputs) => {
+      received = inputs as typeof received;
+    });
     sendInputList([
       'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
       'ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]',
@@ -763,7 +832,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('input with zone2AudioInId=0 → InputInfo has zone2AudioInId=0', () => {
     const client = connectClient();
     let received: { zone2AudioInId: number }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    client.on('inputList', (inputs) => {
+      received = inputs as typeof received;
+    });
     sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]']);
     expect(received![0].zone2AudioInId).toBe(0);
   });
@@ -771,7 +842,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('input with zone2AudioInId=18 → InputInfo has zone2AudioInId=18', () => {
     const client = connectClient();
     let received: { zone2AudioInId: number }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    client.on('inputList', (inputs) => {
+      received = inputs as typeof received;
+    });
     sendInputList(['ssp.input.list.["Z2-RCA1", 6, 7, 18, 18, 0, 0.0, 0]']);
     expect(received![0].zone2AudioInId).toBe(18);
   });
@@ -780,7 +853,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('QA31: input with < 5 fields → zone2AudioInId defaults to 0', () => {
     const client = connectClient();
     let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    client.on('inputList', (inputs) => {
+      received = inputs as typeof received;
+    });
     sendInputList(['ssp.input.list.["TV", 1, 1, 1]']);
     expect(received).toHaveLength(1);
     expect(received![0]).toEqual({ id: 1, name: 'TV', zone2AudioInId: 0 });
@@ -790,7 +865,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('malformed JSON with regex fallback extracts zone2AudioInId from index 4', () => {
     const client = connectClient();
     let received: { id: number; name: string; zone2AudioInId: number }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs as typeof received; });
+    client.on('inputList', (inputs) => {
+      received = inputs as typeof received;
+    });
     // Malformed JSON (nested quotes in later fields, but first 5 fields parseable)
     sendInputList(['ssp.input.list.["Z2-RCA", 6, 7, 18, 19, 0, "["bad"]", 0]']);
     expect(received).toHaveLength(1);
@@ -816,10 +893,7 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
 
   it('getZone2Inputs() returns empty when all inputs have zone2AudioInId=0', () => {
     const client = connectClient();
-    sendInputList([
-      'ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]',
-      'ssp.input.list.["Roon", 2, 0, 17, 0, 0, 0.0, 0]',
-    ]);
+    sendInputList(['ssp.input.list.["TV", 1, 1, 1, 0, 0, 0.0, 0]', 'ssp.input.list.["Roon", 2, 0, 17, 0, 0, 0.0, 0]']);
     expect(client.getZone2Inputs()).toHaveLength(0);
   });
 
@@ -841,7 +915,9 @@ describe('StormAudioClient — zone2AudioInId parsing (Story 5.2)', () => {
   it('existing input list tests still produce correct id and name', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('inputList', (inputs) => { received = inputs; });
+    client.on('inputList', (inputs) => {
+      received = inputs;
+    });
     sendInputList([
       'ssp.input.list.["Apple TV", 1, 1, 1, 0, 0, 0.0, 0]',
       'ssp.input.list.["PS5", 2, 2, 2, 0, 0, 0.0, 0]',
@@ -913,7 +989,9 @@ describe('StormAudioClient — identity & control parsing (Task 6)', () => {
   it('emits identity event after version update', () => {
     const client = connectClient();
     let received: { version: string } | null = null;
-    client.on('identity', (info) => { received = info; });
+    client.on('identity', (info) => {
+      received = info;
+    });
     mockSocket.simulateData('ssp.version.[4.7r0]\n');
     expect(received).not.toBeNull();
     expect(received!.version).toBe('4.7r0');
@@ -934,7 +1012,9 @@ describe('StormAudioClient — identity & control parsing (Task 6)', () => {
   it('emits identity after each individual field update', () => {
     const client = connectClient();
     let count = 0;
-    client.on('identity', () => { count++; });
+    client.on('identity', () => {
+      count++;
+    });
     mockSocket.simulateData('ssp.version.[4.7r0]\n');
     mockSocket.simulateData('ssp.brand.["StormAudio"]\n');
     mockSocket.simulateData('ssp.model.["IISP"]\n');
@@ -945,7 +1025,9 @@ describe('StormAudioClient — identity & control parsing (Task 6)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('identity', () => { emitted = true; });
+    client.on('identity', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.keepalive\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('keepalive'));
@@ -954,7 +1036,9 @@ describe('StormAudioClient — identity & control parsing (Task 6)', () => {
   it('parses ssp.msgstatus.[3] — updates state and emits', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('msgStatus', (id) => { received = id; });
+    client.on('msgStatus', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.msgstatus.[3]\n');
     expect(received).toBe(3);
   });
@@ -963,7 +1047,9 @@ describe('StormAudioClient — identity & control parsing (Task 6)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('msgStatus', () => { emitted = true; });
+    client.on('msgStatus', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.msgstatus.[garbage]\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalled();
@@ -1014,7 +1100,9 @@ describe('StormAudioClient — stream info parsing (Task 7)', () => {
   it('emits streamInfo event on each field update', () => {
     const client = connectClient();
     let count = 0;
-    client.on('streamInfo', () => { count++; });
+    client.on('streamInfo', () => {
+      count++;
+    });
     mockSocket.simulateData('ssp.stream.[None]\n');
     mockSocket.simulateData('ssp.fs.[]\n');
     mockSocket.simulateData('ssp.format.[]\n');
@@ -1060,7 +1148,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses ssp.preset.[9] and emits preset event', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('preset', (id) => { received = id; });
+    client.on('preset', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.preset.[9]\n');
     expect(received).toBe(9);
     expect(client.getAudioConfig().preset).toBe(9);
@@ -1069,7 +1159,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses preset list streaming sequence', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('presetList', (presets) => { received = presets; });
+    client.on('presetList', (presets) => {
+      received = presets;
+    });
     mockSocket.simulateData('ssp.preset.start\n');
     mockSocket.simulateData('ssp.preset.list.["Theater 1", 9, "["1"]", 0, 0, 0, 0, 0]\n');
     mockSocket.simulateData('ssp.preset.list.["Theater 2", 10, "["1"]", 0, 0, 0, 0, 0]\n');
@@ -1098,7 +1190,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses ssp.surroundmode.[0] and emits surroundMode', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('surroundMode', (id) => { received = id; });
+    client.on('surroundMode', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.surroundmode.[0]\n');
     expect(received).toBe(0);
   });
@@ -1106,7 +1200,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses surround mode list streaming sequence', () => {
     const client = connectClient();
     let received: { id: number; name: string }[] | null = null;
-    client.on('surroundModeList', (modes) => { received = modes; });
+    client.on('surroundModeList', (modes) => {
+      received = modes;
+    });
     mockSocket.simulateData('ssp.surroundmode.start\n');
     mockSocket.simulateData('ssp.surroundmode.list.["Native", 0]\n');
     mockSocket.simulateData('ssp.surroundmode.list.["Stereo Downmix", 1]\n');
@@ -1119,7 +1215,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses ssp.allowedmode.[2] and emits allowedMode', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('allowedMode', (id) => { received = id; });
+    client.on('allowedMode', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.allowedmode.[2]\n');
     expect(received).toBe(2);
     expect(client.getAudioConfig().allowedMode).toBe(2);
@@ -1128,7 +1226,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses ssp.speaker.[12] and emits speaker', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('speaker', (id) => { received = id; });
+    client.on('speaker', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.speaker.[12]\n');
     expect(received).toBe(12);
   });
@@ -1136,7 +1236,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('parses ssp.auropreset.[2] and emits auroPreset', () => {
     const client = connectClient();
     let received: number | null = null;
-    client.on('auroPreset', (id) => { received = id; });
+    client.on('auroPreset', (id) => {
+      received = id;
+    });
     mockSocket.simulateData('ssp.auropreset.[2]\n');
     expect(received).toBe(2);
   });
@@ -1145,7 +1247,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('preset', () => { emitted = true; });
+    client.on('preset', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.preset.[garbage]\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalled();
@@ -1154,7 +1258,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('empty preset list emits presetList with []', () => {
     const client = connectClient();
     let received: unknown[] | null = null;
-    client.on('presetList', (presets) => { received = presets; });
+    client.on('presetList', (presets) => {
+      received = presets;
+    });
     mockSocket.simulateData('ssp.preset.start\n');
     mockSocket.simulateData('ssp.preset.end\n');
     expect(received).toEqual([]);
@@ -1163,7 +1269,9 @@ describe('StormAudioClient — audio config parsing (Task 8)', () => {
   it('ssp.inputZone2.[0] — emits inputZone2 event and updates state', () => {
     const client = connectClient();
     const received: number[] = [];
-    client.on('inputZone2', (id: number) => { received.push(id); });
+    client.on('inputZone2', (id: number) => {
+      received.push(id);
+    });
     mockSocket.simulateData('ssp.inputZone2.[0]\n');
     expect(received).toEqual([0]);
     expect(client.getInputZone2()).toBe(0);
@@ -1195,7 +1303,9 @@ describe('StormAudioClient — audio control toggles (Task 9)', () => {
   it('ssp.dim.on → audio.dim = true, emits audio event', () => {
     const client = connectClient();
     let emitted = false;
-    client.on('audio', () => { emitted = true; });
+    client.on('audio', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.dim.on\n');
     expect(client.getAudio().dim).toBe(true);
     expect(emitted).toBe(true);
@@ -1278,7 +1388,9 @@ describe('StormAudioClient — audio control toggles (Task 9)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('audio', () => { emitted = true; });
+    client.on('audio', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.dim.unknown\n');
     expect(emitted).toBe(false);
     expect(client.getAudio().dim).toBe(false);
@@ -1441,7 +1553,9 @@ describe('StormAudioClient — audio control numerics (Task 10)', () => {
   it('emits audio event for each numeric update', () => {
     const client = connectClient();
     let count = 0;
-    client.on('audio', () => { count++; });
+    client.on('audio', () => {
+      count++;
+    });
     mockSocket.simulateData('ssp.bass.[1]\n');
     mockSocket.simulateData('ssp.treble.[2]\n');
     mockSocket.simulateData('ssp.lipsync.[5.0]\n');
@@ -1482,7 +1596,9 @@ describe('StormAudioClient — zones parsing (Task 11)', () => {
   it('parses zone list streaming sequence', () => {
     const client = connectClient();
     let received: unknown[] | null = null;
-    client.on('zoneList', (zones) => { received = zones; });
+    client.on('zoneList', (zones) => {
+      received = zones;
+    });
     mockSocket.simulateData('ssp.zones.start\n');
     mockSocket.simulateData('ssp.zones.list.[1, "Downmix", 2000, 1, 0, -78, 0.0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n');
     mockSocket.simulateData('ssp.zones.end\n');
@@ -1510,7 +1626,10 @@ describe('StormAudioClient — zones parsing (Task 11)', () => {
     mockSocket.simulateData('ssp.zones.end\n');
     let receivedId: number | null = null;
     let receivedField: string | null = null;
-    client.on('zoneUpdate', (zoneId, field) => { receivedId = zoneId; receivedField = field; });
+    client.on('zoneUpdate', (zoneId, field) => {
+      receivedId = zoneId;
+      receivedField = field;
+    });
     mockSocket.simulateData('ssp.zones.volume.[1, -30]\n');
     expect(client.getZones().get(1)!.volume).toBe(-30);
     expect(receivedId).toBe(1);
@@ -1533,7 +1652,9 @@ describe('StormAudioClient — zones parsing (Task 11)', () => {
   it('parses zone profiles streaming sequence', () => {
     const client = connectClient();
     let received: unknown[] | null = null;
-    client.on('zoneProfileList', (profiles) => { received = profiles; });
+    client.on('zoneProfileList', (profiles) => {
+      received = profiles;
+    });
     mockSocket.simulateData('ssp.zones.profiles.start\n');
     mockSocket.simulateData('ssp.zones.profiles.list.[1, 1, "Downmix", 1, 0, 0, 0, 0]\n');
     mockSocket.simulateData('ssp.zones.profiles.list.[12, 16, "7.1.4", 1, 0, 0, 0, 0]\n');
@@ -1557,7 +1678,9 @@ describe('StormAudioClient — zones parsing (Task 11)', () => {
     const log = makeLog();
     const client = connectClient(log);
     let received: unknown[] | null = null;
-    client.on('zoneList', (zones) => { received = zones; });
+    client.on('zoneList', (zones) => {
+      received = zones;
+    });
     mockSocket.simulateData('ssp.zones.start\n');
     mockSocket.simulateData('ssp.zones.list.[not-valid]\n');
     mockSocket.simulateData('ssp.zones.end\n');
@@ -1603,7 +1726,9 @@ describe('StormAudioClient — HDMI info parsing (Task 12)', () => {
   it('emits hdmiUpdate event with output number and state', () => {
     const client = connectClient();
     let receivedOutput: number | null = null;
-    client.on('hdmiUpdate', (output) => { receivedOutput = output; });
+    client.on('hdmiUpdate', (output) => {
+      receivedOutput = output;
+    });
     mockSocket.simulateData('ssp.hdmi1.hdr.["---"]\n');
     expect(receivedOutput).toBe(1);
   });
@@ -1658,7 +1783,10 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     const client = connectClient();
     let receivedId: number | null = null;
     let receivedVal: boolean | null = null;
-    client.on('triggerState', (id, on) => { receivedId = id; receivedVal = on; });
+    client.on('triggerState', (id, on) => {
+      receivedId = id;
+      receivedVal = on;
+    });
     mockSocket.simulateData('ssp.trig2.on\n');
     expect(receivedId).toBe(2);
     expect(receivedVal).toBe(true);
@@ -1669,7 +1797,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     mockSocket.simulateData('ssp.trig1.off\n');
     // Access trigger states via internal state check via event
     let receivedVal: boolean | null = null;
-    client.on('triggerState', (_, on) => { receivedVal = on; });
+    client.on('triggerState', (_, on) => {
+      receivedVal = on;
+    });
     mockSocket.simulateData('ssp.trig1.on\n');
     expect(receivedVal).toBe(true);
   });
@@ -1678,7 +1808,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('triggerState', () => { emitted = true; });
+    client.on('triggerState', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.trig0.on\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalled();
@@ -1689,7 +1821,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     mockSocket.simulateData('ssp.trig1.manual.on\n');
     // Manual state stored but no triggerState event
     let emitted = false;
-    client.on('triggerState', () => { emitted = true; });
+    client.on('triggerState', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.trig1.manual.off\n');
     expect(emitted).toBe(false);
   });
@@ -1697,7 +1831,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
   it('parses trigger list streaming sequence', () => {
     const client = connectClient();
     let received: { name: string }[] | null = null;
-    client.on('triggerList', (triggers) => { received = triggers; });
+    client.on('triggerList', (triggers) => {
+      received = triggers;
+    });
     mockSocket.simulateData('ssp.trigger.start\n');
     mockSocket.simulateData('ssp.trigger.list.["Trigger 1"]\n');
     mockSocket.simulateData('ssp.trigger.list.["Trigger 2"]\n');
@@ -1709,7 +1845,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
   it('ssp.brightness.[3] → device.brightness = 3, emits device', () => {
     const client = connectClient();
     let emitted = false;
-    client.on('device', () => { emitted = true; });
+    client.on('device', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.brightness.[3]\n');
     expect(client.getDevice().brightness).toBe(3);
     expect(emitted).toBe(true);
@@ -1755,7 +1893,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     const log = makeLog();
     const client = connectClient(log);
     let emitted = false;
-    client.on('device', () => { emitted = true; });
+    client.on('device', () => {
+      emitted = true;
+    });
     mockSocket.simulateData('ssp.display.toggle\n');
     expect(emitted).toBe(false);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('Informational'));
@@ -1779,7 +1919,9 @@ describe('StormAudioClient — device config, triggers, deprecated (Task 13)', (
     const log = makeLog();
     const client = connectClient(log);
     let received: { name: string }[] | null = null;
-    client.on('triggerList', (triggers) => { received = triggers; });
+    client.on('triggerList', (triggers) => {
+      received = triggers;
+    });
     mockSocket.simulateData('ssp.trigger.start\n');
     mockSocket.simulateData('ssp.trigger.list.["Trigger 1"]\n');
     mockSocket.simulateData('ssp.trigger.list.[123]\n');
@@ -1928,13 +2070,27 @@ describe('StormAudioClient — disconnect() state cleanup', () => {
     mockSocket2.simulateConnect();
 
     const listEvents: string[] = [];
-    client.on('inputList', () => { listEvents.push('inputList'); });
-    client.on('presetList', () => { listEvents.push('presetList'); });
-    client.on('surroundModeList', () => { listEvents.push('surroundModeList'); });
-    client.on('auroPresetList', () => { listEvents.push('auroPresetList'); });
-    client.on('zoneList', () => { listEvents.push('zoneList'); });
-    client.on('zoneProfileList', () => { listEvents.push('zoneProfileList'); });
-    client.on('triggerList', () => { listEvents.push('triggerList'); });
+    client.on('inputList', () => {
+      listEvents.push('inputList');
+    });
+    client.on('presetList', () => {
+      listEvents.push('presetList');
+    });
+    client.on('surroundModeList', () => {
+      listEvents.push('surroundModeList');
+    });
+    client.on('auroPresetList', () => {
+      listEvents.push('auroPresetList');
+    });
+    client.on('zoneList', () => {
+      listEvents.push('zoneList');
+    });
+    client.on('zoneProfileList', () => {
+      listEvents.push('zoneProfileList');
+    });
+    client.on('triggerList', () => {
+      listEvents.push('triggerList');
+    });
 
     mockSocket2.simulateData('ssp.input.end\n');
     mockSocket2.simulateData('ssp.preset.end\n');
@@ -1956,7 +2112,9 @@ describe('StormAudioClient — disconnect() state cleanup', () => {
     mockSocket2.simulateConnect();
 
     let powerReceived: boolean | null = null;
-    client.on('power', (on) => { powerReceived = on; });
+    client.on('power', (on) => {
+      powerReceived = on;
+    });
     mockSocket2.simulateData('.on\n');
 
     expect(powerReceived).toBeNull();
@@ -1981,13 +2139,17 @@ describe('StormAudioClient — disconnect() state cleanup', () => {
   it('disconnect when not connected → no throw', () => {
     const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
     client.on('error', () => {});
-    expect(() => { client.disconnect(); }).not.toThrow();
+    expect(() => {
+      client.disconnect();
+    }).not.toThrow();
   });
 
   it('disconnect() called twice on live connection → no throw, single disconnected event', () => {
     const client = connectClient();
     let disconnectedCount = 0;
-    client.on('disconnected', () => { disconnectedCount++; });
+    client.on('disconnected', () => {
+      disconnectedCount++;
+    });
     expect(() => {
       client.disconnect();
       client.disconnect();
@@ -2081,8 +2243,7 @@ describe('StormAudioClient — wakePromise cancel', () => {
     mockSocket2.simulateData('ssp.procstate.2\n');
     expect(await result2).toBe(true);
 
-    const totalPowerOn = [...mockSocket.written, ...mockSocket2.written]
-      .filter(w => w === 'ssp.power.on\n').length;
+    const totalPowerOn = [...mockSocket.written, ...mockSocket2.written].filter((w) => w === 'ssp.power.on\n').length;
     expect(totalPowerOn).toBe(2);
   });
 
@@ -2094,7 +2255,7 @@ describe('StormAudioClient — wakePromise cancel', () => {
     const r3 = client.ensureActive();
     client.disconnect();
     expect(await Promise.all([r1, r2, r3])).toEqual([false, false, false]);
-    const powerOnCount = mockSocket.written.filter(w => w === 'ssp.power.on\n').length;
+    const powerOnCount = mockSocket.written.filter((w) => w === 'ssp.power.on\n').length;
     expect(powerOnCount).toBe(1);
   });
 });
@@ -2135,7 +2296,9 @@ describe('StormAudioClient — typed EventEmitter', () => {
   it('once fires exactly one time for connected event', () => {
     const client = new StormAudioClient(validConfig, makeLog());
     let callCount = 0;
-    client.once('connected', () => { callCount++; });
+    client.once('connected', () => {
+      callCount++;
+    });
     client.emit('connected');
     client.emit('connected');
     expect(callCount).toBe(1);
@@ -2144,7 +2307,9 @@ describe('StormAudioClient — typed EventEmitter', () => {
   it('removeListener stops event delivery', () => {
     const client = new StormAudioClient(validConfig, makeLog());
     let callCount = 0;
-    const handler = (): void => { callCount++; };
+    const handler = (): void => {
+      callCount++;
+    };
     client.on('connected', handler);
     client.emit('connected');
     client.removeListener('connected', handler);
@@ -2198,7 +2363,9 @@ describe('StormAudioClient — reconnection', () => {
     const log = makeLog();
     const client = connectClient(log);
     let connectedCount = 0;
-    client.on('connected', () => { connectedCount++; });
+    client.on('connected', () => {
+      connectedCount++;
+    });
 
     // Unexpected disconnect
     simulateUnexpectedDisconnect();
@@ -2266,9 +2433,7 @@ describe('StormAudioClient — reconnection', () => {
 
     // Fatal error emitted and logged exactly once
     expect(fatalError).toBe(true);
-    expect(log.error).toHaveBeenCalledWith(
-      expect.stringContaining('Max reconnection retries exhausted'),
-    );
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Max reconnection retries exhausted'));
 
     // Long-poll: a 20s timer is now pending (not stopped) — 1 reconnect timer
     expect(vi.getTimerCount()).toBeGreaterThanOrEqual(1);
@@ -2425,7 +2590,9 @@ describe('StormAudioClient — reconnection', () => {
     // Send end of list on new connection — should NOT produce inputList event
     // because pending state was cleared during reconnection
     let inputListFired = false;
-    client.on('inputList', () => { inputListFired = true; });
+    client.on('inputList', () => {
+      inputListFired = true;
+    });
     newSocket.simulateData('ssp.input.end\n');
 
     expect(inputListFired).toBe(false);
@@ -2434,7 +2601,9 @@ describe('StormAudioClient — reconnection', () => {
   it('QA-13: error during reconnection does NOT emit error event', () => {
     const client = connectClient();
     let errorCount = 0;
-    client.on('error', () => { errorCount++; });
+    client.on('error', () => {
+      errorCount++;
+    });
 
     // Unexpected disconnect — triggers reconnection
     simulateUnexpectedDisconnect();
@@ -2526,7 +2695,9 @@ describe('StormAudioClient — reconnection', () => {
     const log = makeLog();
     const client = connectClient(log);
     let connectedCount = 0;
-    client.on('connected', () => { connectedCount++; });
+    client.on('connected', () => {
+      connectedCount++;
+    });
 
     // Unexpected disconnect
     simulateUnexpectedDisconnect();
@@ -2546,7 +2717,9 @@ describe('StormAudioClient — reconnection', () => {
       const log = makeLog();
       const client = new StormAudioClient(validConfig, log, socketFactory);
       let errorCategory: string | null = null;
-      client.on('error', (err) => { errorCategory = err.category; });
+      client.on('error', (err) => {
+        errorCategory = err.category;
+      });
 
       client.connect();
       mockSocket.simulateError(new Error('ECONNREFUSED'));
@@ -2587,12 +2760,8 @@ describe('StormAudioClient — reconnection', () => {
 
       // This reconnection attempt fails
       mockSocket.simulateError(new Error('ECONNREFUSED'));
-      expect(log.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Reconnection attempt'),
-      );
-      expect(log.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`/${RECONNECT_MAX_RETRIES} failed`),
-      );
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Reconnection attempt'));
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining(`/${RECONNECT_MAX_RETRIES} failed`));
     });
   });
 
@@ -2735,10 +2904,18 @@ describe('StormAudioClient — reconnection', () => {
     let volumeEvent = false;
     let muteEvent = false;
     let inputEvent = false;
-    client.on('power', () => { powerEvent = true; });
-    client.on('volume', () => { volumeEvent = true; });
-    client.on('mute', () => { muteEvent = true; });
-    client.on('input', () => { inputEvent = true; });
+    client.on('power', () => {
+      powerEvent = true;
+    });
+    client.on('volume', () => {
+      volumeEvent = true;
+    });
+    client.on('mute', () => {
+      muteEvent = true;
+    });
+    client.on('input', () => {
+      inputEvent = true;
+    });
 
     // ISP broadcasts full state dump
     mockSocket.simulateData('ssp.power.off\n');
@@ -2830,7 +3007,8 @@ describe('StormAudioClient — long-poll recovery', () => {
     const client = connectClient(log);
     exhaustRetries(client);
     const errorCallsAfterExhaustion = log.error.mock.calls.filter(
-      (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('Max reconnection retries exhausted'),
+      (args: unknown[]) =>
+        typeof args[0] === 'string' && (args[0] as string).includes('Max reconnection retries exhausted'),
     ).length;
     expect(errorCallsAfterExhaustion).toBe(1);
 
@@ -2841,7 +3019,8 @@ describe('StormAudioClient — long-poll recovery', () => {
     mockSocket.simulateClose();
 
     const errorCallsAfterLongPoll = log.error.mock.calls.filter(
-      (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('Max reconnection retries exhausted'),
+      (args: unknown[]) =>
+        typeof args[0] === 'string' && (args[0] as string).includes('Max reconnection retries exhausted'),
     ).length;
     expect(errorCallsAfterLongPoll).toBe(1); // still exactly one
   });
@@ -2858,9 +3037,7 @@ describe('StormAudioClient — long-poll recovery', () => {
     mockSocket.simulateError(new Error('ECONNREFUSED'));
 
     // Long-poll failures log at warn level with retry interval
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Processor still unreachable'),
-    );
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Processor still unreachable'));
   });
 
   it('LP-4: failed long-poll schedules another 30s timer (indefinitely)', () => {
@@ -2956,7 +3133,9 @@ describe('StormAudioClient — long-poll recovery', () => {
     // Ensures the error listener on client is invoked, not a raw throw
     const errors: unknown[] = [];
     const client = new StormAudioClient(validConfig, makeLog(), socketFactory);
-    client.on('error', (err) => { errors.push(err); });
+    client.on('error', (err) => {
+      errors.push(err);
+    });
     client.connect();
     mockSocket.simulateConnect(); // first connect succeeds
 
@@ -3015,8 +3194,8 @@ describe('StormAudioClient — keepalive', () => {
   it('QA-2: keepalive timeout is cleared when any data is received', () => {
     connectClient();
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fires interval, starts 10s timeout
-    mockSocket.simulateData('ssp.power.on\n');      // any data clears timeout
-    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);   // would destroy if timeout still pending
+    mockSocket.simulateData('ssp.power.on\n'); // any data clears timeout
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS); // would destroy if timeout still pending
     expect(mockSocket.destroyed).toBe(false);
   });
 
@@ -3026,7 +3205,7 @@ describe('StormAudioClient — keepalive', () => {
     // Save reference to connected socket (freshSocket() would reassign the variable)
     const connectedSocket = mockSocket;
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fires keepalive, starts 10s timeout
-    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);  // timeout fires → socket.destroy()
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS); // timeout fires → socket.destroy()
     expect(log.warn).toHaveBeenCalledWith('[TCP] Keepalive timeout — connection appears stale');
     expect(connectedSocket.destroyed).toBe(true);
   });
@@ -3047,7 +3226,7 @@ describe('StormAudioClient — keepalive', () => {
     });
 
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fires keepalive, starts 10s timeout
-    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);  // timeout fires → emit disconnected → destroy
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS); // timeout fires → emit disconnected → destroy
 
     // First 'disconnected' must have fired with socket NOT yet destroyed
     expect(socketDestroyedOnFirstDisconnected).toBe(false);
@@ -3060,7 +3239,7 @@ describe('StormAudioClient — keepalive', () => {
     client.disconnect();
     expect(vi.getTimerCount()).toBe(0); // no keepalive or reconnect timers pending
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS);
-    expect(mockSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(0);
+    expect(mockSocket.written.filter((w) => w === 'ssp.keepalive\n')).toHaveLength(0);
   });
 
   it('QA-5: keepalive restarts after reconnection', () => {
@@ -3079,7 +3258,7 @@ describe('StormAudioClient — keepalive', () => {
     mockSocket.simulateData('ssp.power.on\n'); // clears first timeout
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
     mockSocket.simulateData('ssp.power.on\n'); // clears second timeout
-    expect(mockSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(2);
+    expect(mockSocket.written.filter((w) => w === 'ssp.keepalive\n')).toHaveLength(2);
   });
 
   // ── Edge Cases ──────────────────────────────────────────────
@@ -3091,7 +3270,7 @@ describe('StormAudioClient — keepalive', () => {
     freshSocket(); // ready for reconnect after destroy
     const wakeResult = client.ensureActive();
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // keepalive fires, timeout starts
-    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);  // timeout fires → destroy → wakeCancel
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS); // timeout fires → destroy → wakeCancel
     expect(await wakeResult).toBe(false);
     expect(connectedSocket.destroyed).toBe(true);
   });
@@ -3108,7 +3287,7 @@ describe('StormAudioClient — keepalive', () => {
     reconnectSocket.simulateData('ssp.power.on\n'); // clear timeout
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS);
     reconnectSocket.simulateData('ssp.power.on\n'); // clear timeout
-    expect(reconnectSocket.written.filter(w => w === 'ssp.keepalive\n')).toHaveLength(2);
+    expect(reconnectSocket.written.filter((w) => w === 'ssp.keepalive\n')).toHaveLength(2);
   });
 
   it('QA-9: stopKeepalive when no timers active — no error thrown', () => {
@@ -3121,7 +3300,7 @@ describe('StormAudioClient — keepalive', () => {
   it('QA-10: data between keepalive sends does not reset the 30s interval', () => {
     connectClient();
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS / 2); // t=15s
-    mockSocket.simulateData('ssp.power.on\n');          // data at 15s
+    mockSocket.simulateData('ssp.power.on\n'); // data at 15s
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS / 2); // t=30s — interval fires
     // Interval is fixed, not reset by data — should still fire at 30s
     expect(mockSocket.written).toContain('ssp.keepalive\n');
@@ -3130,8 +3309,8 @@ describe('StormAudioClient — keepalive', () => {
   it('QA-11: keepalive echo response specifically clears the timeout', () => {
     connectClient();
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS); // fire interval, start timeout
-    mockSocket.simulateData('ssp.keepalive\n');     // ISP echoes keepalive
-    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS);   // would destroy if timeout not cleared
+    mockSocket.simulateData('ssp.keepalive\n'); // ISP echoes keepalive
+    vi.advanceTimersByTime(KEEPALIVE_TIMEOUT_MS); // would destroy if timeout not cleared
     expect(mockSocket.destroyed).toBe(false);
   });
 
@@ -3165,7 +3344,7 @@ describe('StormAudioClient — keepalive', () => {
     vi.advanceTimersByTime(KEEPALIVE_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS);
     // socket was destroyed by disconnect() — no extra destroys from keepalive
     // All timer-driven writes are gone: only 'ssp.close\n' from disconnect itself
-    const keepaliveWrites = mockSocket.written.filter(w => w === 'ssp.keepalive\n');
+    const keepaliveWrites = mockSocket.written.filter((w) => w === 'ssp.keepalive\n');
     expect(keepaliveWrites).toHaveLength(0);
   });
 
@@ -3232,10 +3411,12 @@ describe('StormAudioClient — [Command] Received: logging (Story 4.3, Task 1)',
   it('logs [Command] Received: BEFORE category-specific processing logs', () => {
     connectClient();
     const debugCalls: string[] = [];
-    log.debug.mockImplementation((msg: string) => { debugCalls.push(msg); });
+    log.debug.mockImplementation((msg: string) => {
+      debugCalls.push(msg);
+    });
     mockSocket.simulateData('garbage.data\n');
-    const receivedIdx = debugCalls.findIndex(m => m === '[Command] Received: garbage.data');
-    const unrecognizedIdx = debugCalls.findIndex(m => m === '[Command] Unrecognized message: garbage.data');
+    const receivedIdx = debugCalls.findIndex((m) => m === '[Command] Received: garbage.data');
+    const unrecognizedIdx = debugCalls.findIndex((m) => m === '[Command] Unrecognized message: garbage.data');
     expect(receivedIdx).toBeGreaterThanOrEqual(0);
     expect(unrecognizedIdx).toBeGreaterThan(receivedIdx);
   });
@@ -3388,22 +3569,57 @@ describe('StormAudioClient — parser fuzz safety (Story 4.3, Task 5)', () => {
   it('52 random garbage strings — no exceptions, all logged at debug', () => {
     connectClient();
     const fuzzInputs = [
-      '', '   ', 'x'.repeat(10240), '\x01\x02\xFF', '\x00',
-      'ssp.', 'ssp.unknown', 'ssp.vol.', 'ssp.a.b.c.d.e',
-      'error', 'ssp.keepalive', '日本語', 'ñ', '😀',
-      'just plain text', '12345', 'true', 'false', 'null',
-      '{}', '[]', '<xml/>', '!@#$%^&*()', 'ssp.power.maybe',
-      'ssp.vol.NaN', 'ssp.mute.perhaps', 'ssp.input.abc',
-      'ssp.procstate.99', 'ssp.procstate.-1', 'ssp.procstate.foo',
-      'ssp.brightness.abc', 'ssp.generator.maybe', 'ssp.lipsync.foo',
-      'ssp.stormxt.maybe', 'ssp.sphereaudioeffect.abc',
-      'ssp.dim.maybe', 'ssp.drc.invalid', 'ssp.dialogcontrol.bad',
-      'ssp.zones.start', 'ssp.zones.end',
-      'ssp.preset.start', 'ssp.preset.end',
-      'ssp.surroundmode.start', 'ssp.surroundmode.end',
-      'ssp.trigger.start', 'ssp.trigger.end',
-      'ssp.auropreset.start', 'ssp.auropreset.end',
-      'ssp.frontpanel.unknown.value', '\r\n', 'ssp..power.on',
+      '',
+      '   ',
+      'x'.repeat(10240),
+      '\x01\x02\xFF',
+      '\x00',
+      'ssp.',
+      'ssp.unknown',
+      'ssp.vol.',
+      'ssp.a.b.c.d.e',
+      'error',
+      'ssp.keepalive',
+      '日本語',
+      'ñ',
+      '😀',
+      'just plain text',
+      '12345',
+      'true',
+      'false',
+      'null',
+      '{}',
+      '[]',
+      '<xml/>',
+      '!@#$%^&*()',
+      'ssp.power.maybe',
+      'ssp.vol.NaN',
+      'ssp.mute.perhaps',
+      'ssp.input.abc',
+      'ssp.procstate.99',
+      'ssp.procstate.-1',
+      'ssp.procstate.foo',
+      'ssp.brightness.abc',
+      'ssp.generator.maybe',
+      'ssp.lipsync.foo',
+      'ssp.stormxt.maybe',
+      'ssp.sphereaudioeffect.abc',
+      'ssp.dim.maybe',
+      'ssp.drc.invalid',
+      'ssp.dialogcontrol.bad',
+      'ssp.zones.start',
+      'ssp.zones.end',
+      'ssp.preset.start',
+      'ssp.preset.end',
+      'ssp.surroundmode.start',
+      'ssp.surroundmode.end',
+      'ssp.trigger.start',
+      'ssp.trigger.end',
+      'ssp.auropreset.start',
+      'ssp.auropreset.end',
+      'ssp.frontpanel.unknown.value',
+      '\r\n',
+      'ssp..power.on',
       'SSP.POWER.ON', // case-sensitive check
     ];
     for (const input of fuzzInputs) {
@@ -3474,9 +3690,7 @@ describe('StormAudioClient — log level audit: [TCP] lifecycle (Story 4.3, Task
     vi.advanceTimersByTime(RECONNECT_INITIAL_DELAY_MS);
     // Reconnect attempt fails
     reconnectSocket.simulateError(new Error('still down'));
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('[TCP] Reconnection attempt'),
-    );
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[TCP] Reconnection attempt'));
   });
 
   it('[TCP] Keepalive sent → debug', () => {
@@ -3513,9 +3727,7 @@ describe('StormAudioClient — log level audit: [TCP] lifecycle (Story 4.3, Task
       retrySocket.simulateClose();
       delay = Math.min(delay * RECONNECT_MULTIPLIER, RECONNECT_MAX_DELAY_MS);
     }
-    expect(log.error).toHaveBeenCalledWith(
-      expect.stringContaining('[TCP] Max reconnection retries exhausted'),
-    );
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('[TCP] Max reconnection retries exhausted'));
   });
 
   // Note: [TCP] Connection closed gracefully → info is the 8th sibling in the QA spec Sibling Coverage.
@@ -3650,7 +3862,9 @@ describe('StormAudioClient — error classification audit (Story 4.3, Task 2)', 
   it('Transient: sendCommand when disconnected → debug, no error event emitted', () => {
     const client = new StormAudioClient(validConfig, log, socketFactory);
     const errors: unknown[] = [];
-    client.on('error', (err) => { errors.push(err); });
+    client.on('error', (err) => {
+      errors.push(err);
+    });
     client.setPower(true);
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('[Command] Cannot send'));
     expect(errors).toHaveLength(0);
@@ -3659,7 +3873,9 @@ describe('StormAudioClient — error classification audit (Story 4.3, Task 2)', 
   it('Recoverable: initial connection failure → error emitted with Recoverable category', () => {
     const client = new StormAudioClient(validConfig, log, socketFactory);
     const errors: { category: string }[] = [];
-    client.on('error', (err) => { errors.push(err); });
+    client.on('error', (err) => {
+      errors.push(err);
+    });
     client.connect();
     mockSocket.simulateError(new Error('ECONNREFUSED'));
     expect(errors).toHaveLength(1);
@@ -3678,7 +3894,9 @@ describe('StormAudioClient — error classification audit (Story 4.3, Task 2)', 
   it('Fatal: max retries exhausted → error emitted with Fatal category', () => {
     const client = new StormAudioClient(validConfig, log, socketFactory);
     const errors: { category: string }[] = [];
-    client.on('error', (err) => { errors.push(err); });
+    client.on('error', (err) => {
+      errors.push(err);
+    });
     client.connect();
     mockSocket.simulateConnect();
     // Drop and close
@@ -3694,11 +3912,9 @@ describe('StormAudioClient — error classification audit (Story 4.3, Task 2)', 
       retrySocket.simulateClose();
       delay = Math.min(delay * RECONNECT_MULTIPLIER, RECONNECT_MAX_DELAY_MS);
     }
-    const fatalErrors = errors.filter(e => e.category === ErrorCategory.Fatal);
+    const fatalErrors = errors.filter((e) => e.category === ErrorCategory.Fatal);
     expect(fatalErrors.length).toBeGreaterThanOrEqual(1);
-    expect(log.error).toHaveBeenCalledWith(
-      expect.stringContaining('[TCP] Max reconnection retries exhausted'),
-    );
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('[TCP] Max reconnection retries exhausted'));
   });
 });
 
@@ -3732,8 +3948,8 @@ describe('StormAudioClient — log level filtering simulation (Story 4.3, AC 4)'
     const infoCalls = log.info.mock.calls.map((args: unknown[]) => args[0] as string);
     expect(infoCalls.length).toBeGreaterThan(0);
     // Should include connection and state messages
-    expect(infoCalls.some(m => m.includes('[TCP]'))).toBe(true);
-    expect(infoCalls.some(m => m.includes('[State]'))).toBe(true);
+    expect(infoCalls.some((m) => m.includes('[TCP]'))).toBe(true);
+    expect(infoCalls.some((m) => m.includes('[State]'))).toBe(true);
   });
 
   it('warn/error logs show only actionable problems', () => {
@@ -3758,8 +3974,8 @@ describe('StormAudioClient — log level filtering simulation (Story 4.3, AC 4)'
 
     const debugCalls = log.debug.mock.calls.map((args: unknown[]) => args[0] as string);
     // Should include both sent and received messages
-    expect(debugCalls.some(m => m.includes('[Command] Sent:'))).toBe(true);
-    expect(debugCalls.some(m => m.includes('[Command] Received:'))).toBe(true);
+    expect(debugCalls.some((m) => m.includes('[Command] Sent:'))).toBe(true);
+    expect(debugCalls.some((m) => m.includes('[Command] Received:'))).toBe(true);
   });
 });
 
@@ -3928,7 +4144,9 @@ describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
   it('ssp.inputZone2.[6] — emits inputZone2 event with value 6 and updates state', () => {
     const client = connectClient();
     const received: number[] = [];
-    client.on('inputZone2', (id: number) => { received.push(id); });
+    client.on('inputZone2', (id: number) => {
+      received.push(id);
+    });
     mockSocket.simulateData('ssp.inputZone2.[6]\n');
     expect(received).toEqual([6]);
     expect(client.getInputZone2()).toBe(6);
@@ -3937,7 +4155,9 @@ describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
   it('ssp.inputZone2.[0] — emits inputZone2 event with value 0 and updates state', () => {
     const client = connectClient();
     const received: number[] = [];
-    client.on('inputZone2', (id: number) => { received.push(id); });
+    client.on('inputZone2', (id: number) => {
+      received.push(id);
+    });
     mockSocket.simulateData('ssp.inputZone2.[0]\n');
     expect(received).toEqual([0]);
     expect(client.getInputZone2()).toBe(0);
@@ -3947,7 +4167,9 @@ describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
     const log = makeLog();
     const client = connectClient(log);
     const received: number[] = [];
-    client.on('inputZone2', (id: number) => { received.push(id); });
+    client.on('inputZone2', (id: number) => {
+      received.push(id);
+    });
     mockSocket.simulateData('ssp.inputZone2.garbage\n');
     expect(received).toHaveLength(0);
     expect(client.getInputZone2()).toBe(0);
@@ -3981,14 +4203,52 @@ describe('StormAudioClient — Zone 2 state tracking (Story 5.1)', () => {
   it('setZoneMute uses integer 1 (not string "on") for muted=true', () => {
     const client = connectClient();
     client.setZoneMute(13, true);
-    expect(mockSocket.written.some(w => w.includes('[13, 1]'))).toBe(true);
-    expect(mockSocket.written.some(w => w.includes('"on"') || w.includes('.on'))).toBe(false);
+    expect(mockSocket.written.some((w) => w.includes('[13, 1]'))).toBe(true);
+    expect(mockSocket.written.some((w) => w.includes('"on"') || w.includes('.on'))).toBe(false);
   });
 
   it('setZoneMute uses integer 0 (not string "off") for muted=false', () => {
     const client = connectClient();
     client.setZoneMute(13, false);
-    expect(mockSocket.written.some(w => w.includes('[13, 0]'))).toBe(true);
-    expect(mockSocket.written.some(w => w.includes('"off"') || w.includes('.off'))).toBe(false);
+    expect(mockSocket.written.some((w) => w.includes('[13, 0]'))).toBe(true);
+    expect(mockSocket.written.some((w) => w.includes('"off"') || w.includes('.off'))).toBe(false);
+  });
+
+  // setPreset command method (Story 6.1)
+  it('setPreset(9) sends ssp.preset.[9]', () => {
+    const client = connectClient();
+    client.setPreset(9);
+    expect(mockSocket.written).toContain('ssp.preset.[9]\n');
+  });
+
+  it('setPreset(12) sends ssp.preset.[12]', () => {
+    const client = connectClient();
+    client.setPreset(12);
+    expect(mockSocket.written).toContain('ssp.preset.[12]\n');
+  });
+
+  // setTrigger command method (Story 6.2)
+  it('setTrigger(1, true) sends ssp.trig1.on', () => {
+    const client = connectClient();
+    client.setTrigger(1, true);
+    expect(mockSocket.written).toContain('ssp.trig1.on\n');
+  });
+
+  it('setTrigger(1, false) sends ssp.trig1.off', () => {
+    const client = connectClient();
+    client.setTrigger(1, false);
+    expect(mockSocket.written).toContain('ssp.trig1.off\n');
+  });
+
+  it('setTrigger(4, true) sends ssp.trig4.on', () => {
+    const client = connectClient();
+    client.setTrigger(4, true);
+    expect(mockSocket.written).toContain('ssp.trig4.on\n');
+  });
+
+  it('setTrigger(4, false) sends ssp.trig4.off', () => {
+    const client = connectClient();
+    client.setTrigger(4, false);
+    expect(mockSocket.written).toContain('ssp.trig4.off\n');
   });
 });

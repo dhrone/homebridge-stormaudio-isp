@@ -2,19 +2,56 @@
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-03-16
+## [1.0.0] - 2026-03-20
 
 Initial release.
 
-### Features
+### Power
 
-- **Power control** -- turn the processor on and off from the Home app or Siri, with automatic wake-from-sleep handling and configurable boot timeout
-- **Volume control** -- set volume to a specific level via a fan or lightbulb proxy service, with safety floor and ceiling limits to protect your speakers
-- **Mute/unmute** -- toggle mute via the volume proxy's on/off switch
-- **Volume buttons** -- use the iOS Control Center remote widget for relative volume up/down
-- **Input switching** -- switch between inputs in the Home app, with input names imported directly from the processor and optional aliases for Siri-friendly naming
-- **Bidirectional sync** -- changes made on the processor (remote, front panel, StormAudio app) are reflected in HomeKit in real time
-- **Connection resilience** -- automatic reconnection with exponential backoff, keepalive monitoring, and indefinite long-poll recovery
-- **Structured logging** -- categorized log prefixes ([Config], [TCP], [Command], [State], [HomeKit]) for easy troubleshooting
-- **Plugin Settings GUI** -- full configuration via the Homebridge UI settings form
-- **Child Bridge compatible** -- recommended configuration for isolation and stability
+- Turn the processor on and off from the Home app or Siri, with automatic wake-from-sleep handling and configurable boot timeout
+
+### Volume
+
+- Set volume to a specific level via a fan or lightbulb proxy service, with safety floor and ceiling limits to protect your speakers
+- Mute/unmute via the volume proxy's on/off switch
+- Use the iOS Control Center remote widget for relative volume up/down
+
+### Input Selection
+
+- Switch between inputs in the Home app, with input names imported directly from the processor and optional aliases for Siri-friendly naming
+
+### Zone 2
+
+- Control a second audio zone (e.g., patio speakers) as a separate Television accessory in HomeKit
+- Independent power (mute/unmute), volume, and mute control per zone
+- Zone 2 source selection: Follow Main mode or independent source switching (when zone has its own audio inputs)
+- Dynamic zone dropdown in the Homebridge Config UI -- select Zone 2 from available zones without reading log files
+
+### Presets
+
+- Expose theater presets as a dedicated Television accessory in HomeKit
+- Presets auto-imported from the processor at connection time
+- Alias support: override processor preset names for Siri-friendly display names
+- Bidirectional sync: preset changes from any source (front panel, web UI, HomeKit) reflected in real time
+
+### Triggers
+
+- Expose hardware relay outputs (triggers 1–4) as HomeKit accessories
+- Configurable per trigger: Switch (bidirectional on/off control) or Contact Sensor (read-only, usable as automation trigger)
+- Each trigger is a separate accessory -- assign to any HomeKit room
+- Bidirectional state sync: trigger changes from auto-switching, manual override, or HomeKit all stay in sync
+
+### Connection
+
+- Automatic reconnection with exponential backoff, keepalive monitoring, and indefinite long-poll recovery
+- Full state re-sync on reconnection (power, volume, mute, input, Zone 2, presets, triggers)
+
+### Configuration
+
+- Command interval throttle (`commandInterval`, default 100 ms) prevents dropped commands on rapid input
+- Zone 2 Config UI dropdown -- select zone from live processor zone list without manual ID entry
+- All configuration fields available via the Homebridge Config UI settings form
+
+### Logging & Diagnostics
+
+- Structured log prefixes ([Config], [TCP], [Command], [State], [HomeKit]) for easy troubleshooting

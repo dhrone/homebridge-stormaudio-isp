@@ -350,10 +350,10 @@ describe('validateConfig — zone2 (Story 5.1)', () => {
     expect(result!.zone2!.volumeFloor).toBe(-80);
   });
 
-  it('zone2 default volumeCeiling is 0 when omitted', () => {
+  it('zone2 default volumeCeiling is -20 when omitted', () => {
     const log = makeLog();
     const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5 } }, log);
-    expect(result!.zone2!.volumeCeiling).toBe(0);
+    expect(result!.zone2!.volumeCeiling).toBe(-20);
   });
 
   it('zone2 default volumeControl is "none" when omitted', () => {
@@ -410,5 +410,260 @@ describe('validateConfig — zone2 (Story 5.1)', () => {
     const log = makeLog();
     const result = validateConfig({ ...baseConfig, zone2: { zoneId: 5, volumeControl: 'lightbulb' } }, log);
     expect(result!.zone2!.volumeControl).toBe('lightbulb');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// validateConfig — presets (Story 6.1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('validateConfig — presets', () => {
+  it('presets absent → no error, presets undefined on config', () => {
+    const log = makeLog();
+    const result = validateConfig(baseConfig, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets).toBeUndefined();
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('presets present, enabled=true → config returned with enabled=true', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets?.enabled).toBe(true);
+  });
+
+  it('presets present, enabled=false → config returned with enabled=false', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: false } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets?.enabled).toBe(false);
+  });
+
+  it('presets present, enabled omitted → defaults to false', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: {} }, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets?.enabled).toBe(false);
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('presets.enabled'));
+  });
+
+  it('presets present, name specified → uses specified name', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true, name: 'Theater Presets' } }, log);
+    expect(result!.presets?.name).toBe('Theater Presets');
+  });
+
+  it('presets present, name omitted → defaults to "Presets"', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true } }, log);
+    expect(result!.presets?.name).toBe('Presets');
+  });
+
+  it('presets present, aliases is non-object → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true, aliases: 'bad' } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('presets.aliases'));
+  });
+
+  it('presets is non-object (string) → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: 'invalid' }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('"presets"'));
+  });
+
+  it('presets present, enabled is non-boolean (string) → defaults to false', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: 'yes' } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets?.enabled).toBe(false);
+  });
+
+  it('presets present, name is non-string (number) → defaults to "Presets"', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true, name: 123 } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.presets?.name).toBe('Presets');
+  });
+
+  it('presets aliases absent → defaults to {}', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true } }, log);
+    expect(result!.presets?.aliases).toEqual({});
+  });
+
+  it('presets aliases provided → uses provided aliases', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, presets: { enabled: true, aliases: { '9': 'Movie Night' } } }, log);
+    expect(result!.presets?.aliases).toEqual({ '9': 'Movie Night' });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// validateConfig — triggers (Story 6.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('validateConfig — triggers', () => {
+  it('triggers absent → no error, triggers undefined on config', () => {
+    const log = makeLog();
+    const result = validateConfig(baseConfig, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+  });
+
+  it('triggers present with valid switch → normal creation', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '1': { name: 'Amp Power', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers?.['1']).toEqual({ name: 'Amp Power', type: 'switch' });
+  });
+
+  it('triggers present with valid contact → normal creation', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '2': { name: 'Screen Down', type: 'contact' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers?.['2']).toEqual({ name: 'Screen Down', type: 'contact' });
+  });
+
+  it('triggers present with "none" short form → trigger skipped, no error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '3': 'none' } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('triggers present with "none" long form → trigger skipped, no error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '3': { type: 'none' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+  });
+
+  it('triggers present with invalid type → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '1': { name: 'Bad', type: 'invalid' } } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalled();
+  });
+
+  it('triggers present with invalid ID "5" → warning and skip', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '5': { name: 'Invalid', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"5"'));
+  });
+
+  it('triggers present with invalid ID "0" → warning and skip', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '0': { name: 'Invalid', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"0"'));
+  });
+
+  it('triggers present with invalid ID "-1" → warning and skip', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '-1': { name: 'Negative', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"-1"'));
+  });
+
+  it('triggers present with invalid ID "1.5" → warning and skip', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '1.5': { name: 'Fractional', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"1.5"'));
+  });
+
+  it('triggers present with non-numeric ID "abc" → warning and skip', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { abc: { name: 'Invalid', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"abc"'));
+  });
+
+  it('triggers present with valid ID "4" (upper boundary) → normal creation', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '4': { name: 'Trigger 4', type: 'switch' } } }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers?.['4']).toBeDefined();
+  });
+
+  it('triggers entry is non-string non-object → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '1': 42 } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalled();
+  });
+
+  it('triggers is not an object → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: 'invalid' }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('"triggers"'));
+  });
+
+  it('triggers is empty object {} → no error, triggers undefined on config', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: {} }, log);
+    expect(result).not.toBeNull();
+    expect(result!.triggers).toBeUndefined();
+  });
+
+  it('triggers short form non-"none" string → returns null with error', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '1': 'switch' } }, log);
+    expect(result).toBeNull();
+    expect(log.error).toHaveBeenCalled();
+  });
+
+  it('trigger name defaults when omitted → "Trigger N"', () => {
+    const log = makeLog();
+    const result = validateConfig({ ...baseConfig, triggers: { '2': { type: 'switch' } } }, log);
+    expect(result!.triggers?.['2']?.name).toBe('Trigger 2');
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('Trigger 2'));
+  });
+
+  it('mixed triggers — only switch/contact entries in returned config', () => {
+    const log = makeLog();
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: {
+          '1': { name: 'Amp', type: 'switch' },
+          '2': 'none',
+          '3': { name: 'Screen', type: 'contact' },
+        },
+      },
+      log,
+    );
+    expect(result).not.toBeNull();
+    expect(Object.keys(result!.triggers ?? {})).toEqual(expect.arrayContaining(['1', '3']));
+    expect(result!.triggers?.['2']).toBeUndefined();
+  });
+
+  it('all 4 triggers as switch → config has all 4 entries', () => {
+    const log = makeLog();
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: {
+          '1': { name: 'T1', type: 'switch' },
+          '2': { name: 'T2', type: 'switch' },
+          '3': { name: 'T3', type: 'switch' },
+          '4': { name: 'T4', type: 'switch' },
+        },
+      },
+      log,
+    );
+    expect(result).not.toBeNull();
+    expect(Object.keys(result!.triggers ?? {})).toHaveLength(4);
   });
 });

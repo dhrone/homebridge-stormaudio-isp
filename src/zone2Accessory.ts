@@ -137,8 +137,7 @@ export class StormAudioZone2Accessory {
       const volumeChar = isFan ? Characteristic.RotationSpeed : Characteristic.Brightness;
 
       const proxyService =
-        this.accessory.getService(ServiceType) ||
-        this.accessory.addService(ServiceType, `${name} Volume`, subtype);
+        this.accessory.getService(ServiceType) || this.accessory.addService(ServiceType, `${name} Volume`, subtype);
       this.volumeProxyService = proxyService;
       this.volumeProxyChar = volumeChar as unknown as string;
 
@@ -183,9 +182,7 @@ export class StormAudioZone2Accessory {
             this.state.mute ? Characteristic.Active.INACTIVE : Characteristic.Active.ACTIVE,
             EXTERNAL_CONTEXT,
           );
-        this.speakerService
-          .getCharacteristic(Characteristic.Mute)
-          .updateValue(this.state.mute, EXTERNAL_CONTEXT);
+        this.speakerService.getCharacteristic(Characteristic.Mute).updateValue(this.state.mute, EXTERNAL_CONTEXT);
         if (proxyService) {
           this.platform.log.debug(`[HomeKit] Zone 2 proxy On updated: ${!this.state.mute}`);
           proxyService.getCharacteristic(Characteristic.On).updateValue(!this.state.mute, EXTERNAL_CONTEXT);
@@ -194,9 +191,7 @@ export class StormAudioZone2Accessory {
         this.state.volume = value as number;
         const percentage = dBToPercentage(this.state.volume, volumeFloor, volumeCeiling);
         this.platform.log.debug(`[HomeKit] Zone 2 volume updated: ${this.state.volume}dB (${percentage}%)`);
-        this.speakerService
-          .getCharacteristic(Characteristic.Volume)
-          .updateValue(percentage, EXTERNAL_CONTEXT);
+        this.speakerService.getCharacteristic(Characteristic.Volume).updateValue(percentage, EXTERNAL_CONTEXT);
         if (proxyService && proxyVolumeChar) {
           proxyService.getCharacteristic(proxyVolumeChar)!.updateValue(percentage, EXTERNAL_CONTEXT);
         }
@@ -206,16 +201,14 @@ export class StormAudioZone2Accessory {
         if (!this.state.useZone2Source) {
           // Follow Main — push ActiveIdentifier=0
           this.platform.log.debug('[HomeKit] Zone 2 source mode: Follow Main');
-          this.tvService
-            .getCharacteristic(Characteristic.ActiveIdentifier)
-            .updateValue(0, EXTERNAL_CONTEXT);
+          this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(0, EXTERNAL_CONTEXT);
         } else {
           // Independent mode — push ActiveIdentifier to inputZone2 (with fallback)
           const targetId = this.zone2InputIds.has(this.state.inputZone2) ? this.state.inputZone2 : 0;
-          this.platform.log.debug(`[HomeKit] Zone 2 source mode: Independent (inputZone2=${this.state.inputZone2}, targetId=${targetId})`);
-          this.tvService
-            .getCharacteristic(Characteristic.ActiveIdentifier)
-            .updateValue(targetId, EXTERNAL_CONTEXT);
+          this.platform.log.debug(
+            `[HomeKit] Zone 2 source mode: Independent (inputZone2=${this.state.inputZone2}, targetId=${targetId})`,
+          );
+          this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(targetId, EXTERNAL_CONTEXT);
         }
       } else {
         this.platform.log.debug(`[HomeKit] Zone 2 zoneUpdate: unhandled field=${field}`);
@@ -225,12 +218,12 @@ export class StormAudioZone2Accessory {
     // Story 5.2 AC 10, 11: inputZone2 broadcast tracking
     this.client.on('inputZone2', (inputId: number) => {
       this.state.inputZone2 = inputId;
-      this.platform.log.debug(`[HomeKit] Zone 2 inputZone2 updated: ${inputId}, useZone2Source=${this.state.useZone2Source}`);
+      this.platform.log.debug(
+        `[HomeKit] Zone 2 inputZone2 updated: ${inputId}, useZone2Source=${this.state.useZone2Source}`,
+      );
       if (this.state.useZone2Source) {
         // Independent mode — push ActiveIdentifier to new input
-        this.tvService
-          .getCharacteristic(Characteristic.ActiveIdentifier)
-          .updateValue(inputId, EXTERNAL_CONTEXT);
+        this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(inputId, EXTERNAL_CONTEXT);
       }
       // Follow Main mode — update state only, no HomeKit push
     });
@@ -288,7 +281,7 @@ export class StormAudioZone2Accessory {
 
     // Filter to Zone 2-capable inputs, then reverse so HomeKit's LIFO
     // linked-service display order shows them in the original sequence
-    const zone2Inputs = inputs.filter(i => i.zone2AudioInId !== 0).reverse();
+    const zone2Inputs = inputs.filter((i) => i.zone2AudioInId !== 0).reverse();
 
     for (const input of zone2Inputs) {
       newZone2Ids.add(input.id);
@@ -317,21 +310,23 @@ export class StormAudioZone2Accessory {
           svc.setCharacteristic(Characteristic.CurrentVisibilityState, Characteristic.CurrentVisibilityState.HIDDEN);
         }
         if (this.state.useZone2Source && this.state.inputZone2 === oldId) {
-          this.tvService
-            .getCharacteristic(Characteristic.ActiveIdentifier)
-            .updateValue(0, EXTERNAL_CONTEXT);
+          this.tvService.getCharacteristic(Characteristic.ActiveIdentifier).updateValue(0, EXTERNAL_CONTEXT);
           this.client.setZoneUseZone2(zoneId, false);
         }
       }
     }
 
     this.zone2InputIds = newZone2Ids;
-    this.platform.log.debug(`[HomeKit] Zone 2 inputs registered: ${newZone2Ids.size} Zone 2-capable (IDs: ${[...newZone2Ids].join(', ')})`);
+    this.platform.log.debug(
+      `[HomeKit] Zone 2 inputs registered: ${newZone2Ids.size} Zone 2-capable (IDs: ${[...newZone2Ids].join(', ')})`,
+    );
   }
 
   private ensureConnected(): void {
     if (!this.connected) {
-      setImmediate(() => { this.revertToLastKnownState(); });
+      setImmediate(() => {
+        this.revertToLastKnownState();
+      });
       const { HapStatusError, HAPStatus } = this.platform.api.hap;
       throw new HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
@@ -345,9 +340,7 @@ export class StormAudioZone2Accessory {
     this.tvService
       .getCharacteristic(Characteristic.Active)
       .updateValue(Characteristic.Active.INACTIVE, EXTERNAL_CONTEXT);
-    this.speakerService
-      .getCharacteristic(Characteristic.Mute)
-      .updateValue(this.state.mute, EXTERNAL_CONTEXT);
+    this.speakerService.getCharacteristic(Characteristic.Mute).updateValue(this.state.mute, EXTERNAL_CONTEXT);
     this.speakerService
       .getCharacteristic(Characteristic.Volume)
       .updateValue(dBToPercentage(this.state.volume, volumeFloor, volumeCeiling), EXTERNAL_CONTEXT);
@@ -355,9 +348,7 @@ export class StormAudioZone2Accessory {
       this.volumeProxyService
         .getCharacteristic(this.volumeProxyChar)!
         .updateValue(dBToPercentage(this.state.volume, volumeFloor, volumeCeiling), EXTERNAL_CONTEXT);
-      this.volumeProxyService
-        .getCharacteristic(Characteristic.On)
-        .updateValue(!this.state.mute, EXTERNAL_CONTEXT);
+      this.volumeProxyService.getCharacteristic(Characteristic.On).updateValue(!this.state.mute, EXTERNAL_CONTEXT);
     }
   }
 }

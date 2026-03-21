@@ -303,14 +303,14 @@ describe('StormAudioAccessory — power on/off commands (Task 3 / Task 5)', () =
   it('onSet(Active.ACTIVE) logs warn when ensureActive returns false', async () => {
     client.ensureActive.mockResolvedValue(false);
     activeChar._triggerSet(ActiveEnum.ACTIVE);
-    await new Promise(r => setTimeout(r, 0)); // flush fire-and-forget promise chain
+    await new Promise((r) => setTimeout(r, 0)); // flush fire-and-forget promise chain
     expect(platform.log.warn).toHaveBeenCalledWith('[State] Power-on timed out — processor did not reach active state');
   });
 
   it('onSet(Active.ACTIVE) logs debug "Command dropped" when ensureActive returns false', async () => {
     client.ensureActive.mockResolvedValue(false);
     activeChar._triggerSet(ActiveEnum.ACTIVE);
-    await new Promise(r => setTimeout(r, 0)); // flush fire-and-forget promise chain
+    await new Promise((r) => setTimeout(r, 0)); // flush fire-and-forget promise chain
     expect(platform.log.debug).toHaveBeenCalledWith('[State] Command dropped — processor did not reach active state');
   });
 
@@ -420,9 +420,7 @@ describe('StormAudioAccessory — processorState event subscription (Task 6)', (
 
   it('processorState(Initializing) does not log any processor-related message', () => {
     client._emit('processorState', ProcessorState.Initializing);
-    expect(platform.log.debug).not.toHaveBeenCalledWith(
-      expect.stringContaining('[HomeKit] Processor'),
-    );
+    expect(platform.log.debug).not.toHaveBeenCalledWith(expect.stringContaining('[HomeKit] Processor'));
   });
 });
 
@@ -465,11 +463,7 @@ describe('StormAudioAccessory — TelevisionSpeaker service setup (Task 4)', () 
     );
     const client2 = createMockClient();
     new StormAudioAccessory(platform2, accessory2 as never, client2 as never);
-    expect(accessory2.addService).not.toHaveBeenCalledWith(
-      'TelevisionSpeaker',
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(accessory2.addService).not.toHaveBeenCalledWith('TelevisionSpeaker', expect.anything(), expect.anything());
   });
 
   it('sets Active characteristic to ACTIVE on TelevisionSpeaker', () => {
@@ -1193,7 +1187,10 @@ describe('StormAudioAccessory — inputList event → InputSource registration (
   });
 
   it('MP3: emitting inputList with 2 inputs creates 2 InputSource services', () => {
-    client._emit('inputList', [{ id: 1, name: 'Apple TV' }, { id: 2, name: 'PS5' }]);
+    client._emit('inputList', [
+      { id: 1, name: 'Apple TV' },
+      { id: 2, name: 'PS5' },
+    ]);
     expect(accessory.addService).toHaveBeenCalledWith('InputSource', 'Apple TV', 'input-1');
     expect(accessory.addService).toHaveBeenCalledWith('InputSource', 'PS5', 'input-2');
   });
@@ -1263,7 +1260,10 @@ describe('StormAudioAccessory — inputList event → InputSource registration (
   });
 
   it('EC13: logs [HomeKit] Registered InputSource: once per input (2 inputs → 2 debug logs)', () => {
-    client._emit('inputList', [{ id: 1, name: 'Apple TV' }, { id: 2, name: 'PS5' }]);
+    client._emit('inputList', [
+      { id: 1, name: 'Apple TV' },
+      { id: 2, name: 'PS5' },
+    ]);
     const debugCalls = (platform.log.debug as ReturnType<typeof vi.fn>).mock.calls;
     const registeredLogs = debugCalls.filter((c: unknown[]) =>
       String(c[0]).includes('[HomeKit] Registered InputSource:'),
@@ -1272,7 +1272,10 @@ describe('StormAudioAccessory — inputList event → InputSource registration (
   });
 
   it('EC14: logs [HomeKit] Input sources registered: N at info level', () => {
-    client._emit('inputList', [{ id: 1, name: 'Apple TV' }, { id: 2, name: 'PS5' }]);
+    client._emit('inputList', [
+      { id: 1, name: 'Apple TV' },
+      { id: 2, name: 'PS5' },
+    ]);
     expect(platform.log.info).toHaveBeenCalledWith('[HomeKit] Input sources registered: 2');
   });
 });
@@ -1361,7 +1364,10 @@ describe('StormAudioAccessory — IS1: inputList end-to-end integration (Story 3
     const client = createMockClient();
     new StormAudioAccessory(platform, accessory as never, client as never);
 
-    client._emit('inputList', [{ id: 1, name: 'TV' }, { id: 2, name: 'PS5' }]);
+    client._emit('inputList', [
+      { id: 1, name: 'TV' },
+      { id: 2, name: 'PS5' },
+    ]);
 
     const src1 = accessory._getInputSource(1)!;
     const src2 = accessory._getInputSource(2)!;
@@ -1451,7 +1457,7 @@ describe('StormAudioAccessory — ActiveIdentifier onSet handler (Story 3.2)', (
     client.getProcessorState.mockReturnValue(ProcessorState.Sleep);
     client.ensureActive.mockResolvedValue(false);
     await activeIdChar._triggerSet(3);
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
     expect(client.setInput).not.toHaveBeenCalled();
   });
 
@@ -1480,7 +1486,7 @@ describe('StormAudioAccessory — ActiveIdentifier onSet handler (Story 3.2)', (
     client.getProcessorState.mockReturnValue(ProcessorState.Initializing);
     client.ensureActive.mockResolvedValue(true);
     await activeIdChar._triggerSet(3);
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
     expect(client.ensureActive).toHaveBeenCalled();
   });
 });
@@ -1526,7 +1532,10 @@ describe('StormAudioAccessory — alias configuration (Story 3.2)', () => {
     const client = createMockClient();
     new StormAudioAccessory(platform, accessory as never, client as never);
 
-    client._emit('inputList', [{ id: 3, name: 'Blu-ray' }, { id: 5, name: 'Input 5' }]);
+    client._emit('inputList', [
+      { id: 3, name: 'Blu-ray' },
+      { id: 5, name: 'Input 5' },
+    ]);
     const src3 = accessory._getInputSource(3)!;
     const src5 = accessory._getInputSource(5)!;
     expect(src3.setCharacteristic).toHaveBeenCalledWith('ConfiguredName', 'Blu-ray');
@@ -1562,9 +1571,7 @@ describe('StormAudioAccessory — alias configuration (Story 3.2)', () => {
     new StormAudioAccessory(platform, accessory as never, client as never);
 
     client._emit('inputList', [{ id: 3, name: 'Default' }]);
-    expect(platform.log.debug).toHaveBeenCalledWith(
-      expect.stringContaining('[HomeKit] Input ID 3 alias:'),
-    );
+    expect(platform.log.debug).toHaveBeenCalledWith(expect.stringContaining('[HomeKit] Input ID 3 alias:'));
   });
 
   it('EC6: no alias debug log when inputs is empty', () => {
@@ -1798,9 +1805,16 @@ describe('StormAudioAccessory — HomeKit connection status (Story 4.2)', () => 
     const emitter = new EventEmitter();
     const client = {
       on: emitter.on.bind(emitter),
-      setPower: vi.fn(), setVolume: vi.fn(), setInput: vi.fn(), setMute: vi.fn(),
-      volumeUp: vi.fn(), volumeDown: vi.fn(), getVolume: vi.fn().mockReturnValue(-40),
-      getMute: vi.fn().mockReturnValue(false), disconnect: vi.fn(), connect: vi.fn(),
+      setPower: vi.fn(),
+      setVolume: vi.fn(),
+      setInput: vi.fn(),
+      setMute: vi.fn(),
+      volumeUp: vi.fn(),
+      volumeDown: vi.fn(),
+      getVolume: vi.fn().mockReturnValue(-40),
+      getMute: vi.fn().mockReturnValue(false),
+      disconnect: vi.fn(),
+      connect: vi.fn(),
       getProcessorState: vi.fn().mockReturnValue(ProcessorState.Sleep),
       ensureActive: vi.fn().mockResolvedValue(true),
       _emit: emitter.emit.bind(emitter),

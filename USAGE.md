@@ -1,193 +1,425 @@
 # Usage Guide
 
-This guide explains what you can do with your StormAudio processor through Apple HomeKit once the plugin is installed and configured. It covers voice commands, the Home app, scenes, automations, and practical tips learned from real-world use.
+Your StormAudio processor is connected and ready. This guide walks you through everything you can do with it -- from voice commands and the Home app to scenes and automations that make your theater fit seamlessly into your daily routine. For installation, configuration, and architecture details, see the [README](README.md).
 
-For installation and configuration, see the [README](README.md).
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Controlling Your Theater](#controlling-your-theater)
+- [Zone 2 (Multi-Room Audio)](#zone-2-multi-room-audio)
+- [Presets](#presets)
+- [Triggers](#triggers)
+- [Scenes and Automations](#scenes-and-automations)
+- [Siri Voice Commands](#siri-voice-commands)
+- [iOS Control Center Remote](#ios-control-center-remote)
+- [Tips and Tricks](#tips-and-tricks)
+- [Troubleshooting Quick Reference](#troubleshooting-quick-reference)
 
 ---
 
 ## Quick Start
 
-The only required configuration is your processor's IP address:
+The only required configuration is your processor's IP address — add the platform to your Homebridge `config.json` with `platform`, `name`, and `host` (see [Configuration](README.md#configuration)).
 
-```json
-{
-  "platforms": [
-    {
-      "platform": "StormAudioISP",
-      "name": "Theater",
-      "host": "192.168.1.100"
-    }
-  ]
-}
-```
+After starting Homebridge, the plugin connects to your processor, imports its input list, and publishes a Television accessory to HomeKit. Because the plugin runs on its own bridge process, you pair it separately:
 
-After starting Homebridge, the plugin connects to your processor, imports its input list, and publishes a Television accessory to HomeKit. Because the plugin runs on its own Child Bridge, you will need to add it to your Home app separately:
-
-1. In the Homebridge UI, go to the **Status** tab. You will see the StormAudio Child Bridge listed with its own pairing QR code and setup code.
+1. In the Homebridge UI, go to the **Status** tab. The StormAudio Child Bridge appears with its own pairing QR code.
 2. Open the **Home** app on your iPhone, tap **+**, then **Add Accessory**.
-3. Scan the QR code from the Homebridge UI, or tap **More Options** and enter the setup code manually.
-4. Once the bridge is added, HomeKit will ask you to configure the accessory (room assignment, name, etc.).
+3. Scan the QR code, or tap **More Options** and enter the setup code manually.
+4. HomeKit asks you to configure the accessory (room assignment, name, etc.).
 
-**What you will see in the Home app:**
+You are set. Try saying _"Hey Siri, turn on the Theater"_ to confirm the connection -- you should see the processor wake up within a few seconds.
 
-- A **Television tile** named whatever you set as `name` (default: "StormAudio"). This controls power and input selection.
-- A **Fan tile** (default) or **Lightbulb tile** for volume control. This is your primary way to set volume by percentage and to mute/unmute.
-- An **input picker** inside the Television tile's detail view, listing all inputs imported from your processor.
+**What appears in the Home app:**
 
-**First-time tip:** Inputs are imported automatically from your processor every time Homebridge starts, and they update in real time whenever you rename inputs in the StormAudio installer UI. If input names appear generic, the best fix is to rename them directly in your StormAudio's configuration — the plugin will pick up the changes automatically.
+<!-- TODO: Add screenshot of Home app main zone tiles -->
+
+_[Screenshot: Home app showing Television tile and volume fan tile -- coming soon]_
+
+- A **Television tile** for power and input selection (named after your configured `name`)
+- A **Fan tile** (default) or **Lightbulb tile** for volume control and mute
+- An **input picker** inside the Television tile's detail view
+
+> [!TIP]
+> Inputs are imported automatically from your processor and update in real time when renamed. If names appear generic, rename them directly in your processor's configuration -- the plugin picks up changes automatically.
 
 ---
 
 ## Controlling Your Theater
 
+All controls are bidirectional -- changes made on the processor (remote, front panel, web interface) are reflected in the Home app within about a second, and the plugin re-syncs automatically after any network interruption.
+
 ### Power
 
 **Turn on:**
+
 > "Hey Siri, turn on the Theater"
 
 **Turn off:**
+
 > "Hey Siri, turn off the Theater"
 
 You can also tap the Television tile in the Home app.
 
-**What happens when your processor is sleeping:** If the processor is in standby/sleep mode when you send a power-on command, the plugin automatically wakes it. The Home app tile shows "on" immediately, but the processor takes roughly 30 to 75 seconds to fully boot (depending on your model and whether it needs to load room calibration). During this time the processor is warming up -- just like a projector. Siri will not report an error; it simply takes a moment.
+**What happens when your processor is sleeping:** The plugin automatically wakes the processor. The Home app tile shows "on" immediately, but the processor takes time to fully boot and load its room calibration. Siri does not report an error -- it simply takes a moment.
 
-**What "Not Responding" means:** If the plugin loses its network connection to the processor (network outage, processor unplugged, etc.), the Home app tile will show the accessory as off or unresponsive. Once the connection is restored -- which the plugin handles automatically -- the tile returns to normal. You do not need to restart Homebridge. The plugin retries the connection on its own and will recover even if the processor was unreachable for an extended period.
+**What "Not Responding" means:** If the plugin loses its network connection to the processor, the Home app tile shows the accessory as off or unresponsive. The plugin handles reconnection automatically -- you do not need to restart Homebridge. The plugin recovers even after extended outages.
 
 ---
 
 ### Volume
 
-Volume is controlled through a **fan** (default) or **lightbulb** proxy service. This proxy appears as a separate tile in the Home app and gives you a slider for setting volume to a specific percentage.
+Control volume through a **fan** (default) or **lightbulb** proxy service that appears as a separate tile in the Home app.
 
 **Set volume to a specific level:**
+
 > "Hey Siri, set Theater to 50%"
 
-This sets the volume to 50% of your configured range. Replace "Theater" with whatever you named your accessory.
+Replace "Theater" with your accessory name.
 
-**Why fan is recommended over lightbulb:** If you use the lightbulb option and someone says "Hey Siri, turn off all the lights" or activates a Goodnight scene that turns off lights, it will mute your processor. The fan option avoids this problem entirely.
+#### How Percentage Maps to Decibels
 
-**Why relative volume commands may not work reliably:**
-Siri commands like "turn up the Theater" or "turn down the volume" are unreliable. This is a limitation of Apple's HomeKit platform, not the plugin. HomeKit has difficulty routing relative volume commands to the correct service. The workaround is to use absolute commands:
+The plugin maps 0--100% linearly between your configured `volumeFloor` and `volumeCeiling`:
 
-> "Hey Siri, set Theater to 60%"
+```mermaid
+flowchart LR
+    A["HomeKit\n0% ↔ 100%"] -->|"Linear Mapping"| B["Processor\nfloor ↔ ceiling"]
+```
 
-This always works. Pick a few volume levels you use regularly (30% for background, 50% for normal, 70% for movies) and they become second nature.
+**Example with floor = -80 dB and ceiling = -20 dB:**
 
-**Volume ceiling safety feature:** The plugin includes a safety ceiling that prevents volume from ever exceeding a maximum level you configure. Even if someone asks Siri to "set Theater to 100%", the volume will only go as high as your ceiling setting (default: -20 dB). This protects your ears and your speakers.
+| You say               | Volume set to                    |
+| --------------------- | -------------------------------- |
+| "Set Theater to 0%"   | -80 dB (floor -- silence)        |
+| "Set Theater to 25%"  | -65 dB                           |
+| "Set Theater to 50%"  | -50 dB                           |
+| "Set Theater to 75%"  | -35 dB                           |
+| "Set Theater to 100%" | -20 dB (ceiling -- never higher) |
 
-**How percentage maps to decibels:** The plugin maps 0% to 100% across the range between your configured `volumeFloor` (default: -100 dB) and `volumeCeiling` (default: -20 dB). With defaults:
+Narrowing the range gives you finer control per percentage step. Pick a few levels you use regularly (30% for background, 50% for normal, 70% for movies) — they become second nature.
 
-| You say | Volume set to |
-|---------|---------------|
-| "Set Theater to 0%" | -100 dB (silence) |
-| "Set Theater to 25%" | -80 dB |
-| "Set Theater to 50%" | -60 dB |
-| "Set Theater to 75%" | -40 dB |
-| "Set Theater to 100%" | -20 dB (your ceiling -- never higher) |
+#### Volume Ceiling Safety
 
-If you narrow the range (for example, `volumeFloor: -80` and `volumeCeiling: -20`), each percentage step covers a smaller decibel change, giving you finer control. With this example range, 50% would map to -50 dB.
+Even if someone asks Siri to "set Theater to 100%", the volume only reaches your configured ceiling (default: -20 dB). Your speakers and ears are protected, no matter who picks up the phone.
 
-**Volume buttons on the iOS Control Center remote:** The volume up/down buttons on the iOS Control Center remote widget do work. Each press changes the volume by 1 dB. These buttons are available even if you set `volumeControl` to `"none"`.
+> [!TIP]
+> **Align with your processor's Max Volume.** Your StormAudio installer may have configured a Max Volume limit in the processor's web UI (Settings page). Set `volumeCeiling` to match or stay below that value. If your ceiling exceeds the processor's Max Volume, the top portion of the HomeKit slider will have no audible effect because the processor clamps at its own limit. Note that other control surfaces (front panel, iOS remote, StormAudio web remote) are not constrained by this plugin's ceiling — they follow the processor's own Max Volume setting.
+
+> [!WARNING]
+> The lightbulb proxy mutes when "turn off all the lights" is triggered. Fan is recommended. See [Volume Control Options](README.md#volume-control-options).
+
+#### Volume Buttons
+
+The iOS Control Center remote's volume buttons send relative up/down commands (1 dB per press). These work even with `volumeControl` set to `"none"`.
+
+> [!NOTE]
+> **Why relative volume commands may not work:** Siri commands like "turn up the Theater" are unreliable. This is a HomeKit platform limitation. Use absolute commands ("set Theater to 50%") instead -- they always work.
 
 ---
 
 ### Mute
 
 **Mute by turning off the volume proxy:**
+
 > "Hey Siri, turn off the Theater"
 
-When the fan (or lightbulb) proxy is turned off, the processor mutes. When it is turned on, the processor unmutes and returns to the previous volume level.
+When the fan (or lightbulb) is turned off, the processor mutes. Turning it on unmutes and restores the previous volume.
 
-You can also mute by tapping the fan/lightbulb tile in the Home app to toggle it off.
+You can also tap the fan/lightbulb tile in the Home app to toggle.
 
-**Note:** Saying "Hey Siri, mute the Theater" does not work reliably. This is the same HomeKit platform limitation that affects relative volume. Use "turn off" and "turn on" instead -- it accomplishes the same thing.
+> [!NOTE]
+> "Hey Siri, mute the Theater" does not work reliably (same HomeKit limitation as relative volume). Use "turn off" and "turn on" instead.
 
-**How mute interacts with volume display:** When the processor is muted, the fan/lightbulb tile shows as off. When unmuted, it shows as on and the slider reflects the current volume percentage. If someone mutes or unmutes using the processor's own remote or front panel, the Home app updates to match within about a second.
+When the processor is muted, the tile shows as off. When unmuted, it shows as on with the slider reflecting current volume. The Home app reflects changes from the processor remote or front panel within about a second.
 
 ---
 
 ### Input Switching
 
-**Switch inputs from the Home app:**
-1. Long-press the Television tile to open its detail view
+**From the Home app:**
+
+<!-- TODO: Add screenshot of Home app input picker -->
+
+_[Screenshot: Television tile detail view with input picker -- coming soon]_
+
+1. Tap the Television tile to open its detail view
 2. Tap the input selector
 3. Choose the input you want
 
 The processor switches immediately and the Home app confirms the selection.
 
-**Switch inputs with Siri:**
+**With Siri:**
+
 > "Hey Siri, switch to TV on Theater"
 
-Replace "TV" with the name of the input and "Theater" with your accessory name. Siri input switching works but can be sensitive to naming -- see the tips below.
+Replace "TV" with the input name and "Theater" with your accessory name.
 
-**Naming your inputs:** The best way to get Siri-friendly input names is to **rename them directly in your StormAudio's configuration** (via the StormAudio web interface or remote app). The plugin reads input names from the processor and automatically updates HomeKit when you rename them. This keeps a single source of truth on the processor.
+**Input names:** The best way to get Siri-friendly names is to rename inputs directly in your processor's configuration (via the web interface or remote app). The plugin reads names from the processor and updates HomeKit automatically.
 
-If you cannot change names on the processor, you can override individual inputs using aliases in the plugin configuration:
-
-```json
-{
-  "inputs": {
-    "1": "TV",
-    "4": "PS5"
-  }
-}
-```
-
-The keys are the input IDs (visible in the Homebridge log on startup), and the values are the names you want to see in HomeKit. Aliases override the processor's names for those inputs only.
+If you cannot change names on the processor, override individual inputs using [input aliases](README.md#input-aliases) in the plugin configuration. Input IDs are visible in the Homebridge log on startup.
 
 **Tips for input names:**
 
-- **Short and distinctive names work best with Siri.** "TV", "PS5", "Roon" are better than "Living Room Television", "PlayStation 5 Console", "Roon Music Server".
-- **Avoid names that overlap with other accessories.** If you have a smart TV accessory also named "TV", Siri may get confused. Use something like "Apple TV" or "Shield" instead.
-- **You can also rename inputs directly in the Home app** by long-pressing the Television tile and editing input names. However, these Home app renames are cosmetic only -- they do not persist across re-pairings. Renaming on the processor is the most durable approach.
+- Short, distinctive names work best with Siri: "TV", "PS5", "Roon" -- not "Living Room Television"
+- Avoid names that overlap with other accessories
+- You can rename inputs in the Home app, but those renames are cosmetic only and do not persist across re-pairings
 
-**Input switching from sleep:** HomeKit does not allow input switching when the Television accessory is shown as off. To switch inputs when the processor is sleeping, first turn it on ("Hey Siri, turn on the Theater"), wait for it to boot, then switch inputs.
+**Input switching from sleep:** HomeKit does not allow input switching when the Television accessory is off. First turn it on, wait for it to boot, then switch inputs.
+
+---
+
+## Zone 2 (Multi-Room Audio)
+
+If you have a second audio zone configured (e.g., patio speakers, outdoor zone), it appears as a separate Television accessory.
+
+```mermaid
+flowchart TD
+    ISP["StormAudio ISP Processor"] --> MZ["Main Zone"]
+    ISP --> Z2["Zone 2"]
+
+    MZ --> MP["Power On/Off"]
+    MZ --> MV["Volume & Mute"]
+    MZ --> MI["Input Selection"]
+    MZ --> PR["Presets"]
+    MZ --> TR["Triggers 1-4"]
+
+    Z2 --> ZP["Power = Mute/Unmute"]
+    Z2 --> ZV["Volume & Mute\n(independent range)"]
+    Z2 --> ZS{"Source Mode"}
+    ZS -->|Follow Main| FM["Mirrors main\nzone input"]
+    ZS -->|Independent| IS["Own input\nselection"]
+```
+
+### Power
+
+Zone 2 does not have independent power -- the main processor controls that. The Zone 2 accessory uses **mute/unmute to simulate power**:
+
+- **"Turn on" Zone 2** = unmute (audio plays)
+- **"Turn off" Zone 2** = mute (audio silenced)
+
+> "Hey Siri, turn on the Patio"
+
+> "Hey Siri, turn off the Patio"
+
+Replace "Patio" with your Zone 2 accessory name.
+
+### Volume
+
+Zone 2 volume works like the main zone -- through a volume proxy (if configured) and the Control Center remote buttons.
+
+> "Hey Siri, set Patio to 40%"
+
+Zone 2 has its own volume floor and ceiling configured independently. As with the main zone, set these to match your amplifier's usable range.
+
+### Mute
+
+> "Hey Siri, turn off the Patio" _(mute)_
+
+> "Hey Siri, turn on the Patio" _(unmute)_
+
+### Source Selection
+
+Zone 2 source selection depends on your processor configuration:
+
+- **Follow Main** -- Zone 2 plays whatever the main zone is playing. Source cannot be changed independently.
+- **Independent** -- if Zone 2 has its own audio inputs assigned in the StormAudio configuration, you can switch them using the Zone 2 input picker (same as the main zone).
+
+To switch Zone 2 sources in independent mode, tap the Zone 2 Television tile and tap the input selector.
+
+---
+
+## Presets
+
+Theater presets are saved configurations on the processor (audio processing, room correction, surround mode) that switch the entire sound profile with one action.
+
+### Selecting a Preset
+
+<!-- TODO: Add screenshot of preset accessory tile -->
+
+_[Screenshot: Presets Television tile with preset list -- coming soon]_
+
+The preset accessory appears as a Television tile. Its "inputs" are your available presets:
+
+1. Tap the Presets tile to open its detail view
+2. Tap the input selector
+3. Choose the preset you want
+
+The processor switches immediately. The preset list is imported automatically at connection time.
+
+### Presets in Scenes and Automations
+
+Presets work especially well in HomeKit Scenes:
+
+> **Scene: "Movie Night"**
+>
+> - Presets accessory set to "Movie Night" preset
+> - Theater fan set to 40% volume
+> - Amp Power switch on
+
+Then say:
+
+> "Hey Siri, Movie Night"
+
+### Preset Aliases
+
+If processor preset names are not Siri-friendly, override them with [preset aliases](README.md#presets-configuration) in the plugin configuration. Preset IDs appear in the Homebridge log when presets are imported.
+
+> [!NOTE]
+> If you are inside the preset tile's detail view and the preset changes externally (from the processor remote, web UI, etc.), the selection does not update in real time. Navigate out and back in to see the update. This is a HomeKit platform behavior affecting all Television accessories.
+
+---
+
+## Triggers
+
+Hardware triggers are relay outputs on the processor that control external equipment (amplifiers, projectors, screens, curtains). The plugin can expose them as switches or contact sensors.
+
+### Switch Mode (Bidirectional Control)
+
+Configure a trigger as a Switch to control it from HomeKit. It appears as a **toggle tile** in the Home app -- tap to turn on or off, just like a smart plug or light switch. State changes from any source (auto-switching on wake/preset, manual override, front panel) sync to HomeKit in real time, so the tile always reflects the actual relay state.
+
+Switches are fully controllable:
+
+- **Tap the tile** in the Home app to toggle on/off
+- **Voice control:** "Hey Siri, turn on Amp Power"
+- **Scenes:** include in a scene alongside other accessories (e.g., "Movie Night" turns on amp, projector, and processor together)
+- **Automations:** use as both a trigger ("when Amp Power turns on...") and an action ("...then turn on Projector")
+
+### Contact Sensor Mode (Read-Only)
+
+A trigger configured as a Contact Sensor is **read-only** -- it cannot be controlled from HomeKit. The sensor reflects the relay state: when the trigger activates, the sensor reports "contact detected"; when it deactivates, "no contact". This makes it useful as an automation input when you want HomeKit to react to processor-driven trigger changes without giving HomeKit the ability to control the relay directly.
+
+> [!NOTE]
+> Contact sensors **do not appear as visible tiles** in the Home app by default. You won't see them on your room's main screen. They are accessible when creating automations (as a condition or trigger) and in the accessory detail list under the room settings. If you want a visible, tappable tile, use Switch mode instead.
+
+**Example automation:** When "Screen Down" sensor detects contact, dim the lights to 20%.
+
+Contact sensors retain their last known state during brief network disconnections.
+
+#### Which Mode Should I Choose?
+
+|                                  | Switch                                           | Contact Sensor                                                                               |
+| -------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Visible tile in Home app         | Yes -- toggle on/off                             | No -- hidden by default                                                                      |
+| Controllable from HomeKit        | Yes -- tap, Siri, scenes                         | No -- read-only                                                                              |
+| Usable as automation trigger     | Yes                                              | Yes                                                                                          |
+| Reflects processor state changes | Yes                                              | Yes                                                                                          |
+| Best for                         | Equipment you want to control (amps, projectors) | Equipment managed by the processor that you want to react to (screen relays, status signals) |
 
 ---
 
 ## Scenes and Automations
 
-HomeKit Scenes and Automations let you combine multiple actions into a single command or trigger. The plugin supports all the building blocks you need. For general instructions on creating scenes and automations, see Apple's guide: [Create scenes and automations with the Home app](https://support.apple.com/en-us/102313).
+This is where individual controls become orchestrated experiences. A single voice command or scheduled trigger sets your entire theater exactly the way you want it -- power, volume, input, preset, and equipment all at once. For general instructions on creating scenes and automations, see Apple's guide: [Create scenes and automations with the Home app](https://support.apple.com/en-us/102313).
 
 ### Example: "Movie Night" Scene
 
-Create a Scene in the Home app called "Movie Night" that:
+Create a Scene that:
+
 - Turns on the Television accessory (powers on the processor)
-- Sets the fan/lightbulb proxy to 40% (sets volume to your preferred movie level)
+- Sets the fan proxy to 40% (volume)
 - Sets the input to Apple TV
+- Sets the Presets accessory to "Movie Night"
+- Turns on the Amp Power switch
+- Turns on the Projector switch
 
 Then say:
+
 > "Hey Siri, Movie Night"
 
-Everything happens at once. If the processor is sleeping, it wakes automatically.
+Everything happens at once. If the processor is sleeping, it wakes automatically. No remotes to juggle, no apps to open, no walking to the rack.
 
 ### Example: "Goodnight" Automation
 
 Create a time-based Automation that runs at 11:00 PM:
-- Turns off the Television accessory (powers off the processor)
 
-Or use a presence-based Automation:
-- When the last person leaves the house, turn off the Television accessory
+- Turns off the Television accessory (processor off)
+- Turns off the Amp Power switch
+- Turns off Zone 2 (mutes patio)
 
-### What can be included in scenes and automations
+Or use presence-based:
 
-| Action | How to set it |
-|--------|---------------|
-| Power on/off | Television accessory on/off |
-| Volume level | Fan or lightbulb proxy brightness/speed percentage |
-| Mute/unmute | Fan or lightbulb proxy on/off |
-| Input selection | Television accessory active input |
+- When the last person leaves, turn off the Television accessory
 
-### What cannot be automated (today)
+No more lying in bed wondering if you left the theater on.
+
+### Example: Screen Automation
+
+If your screen trigger is a Contact Sensor:
+
+> When "Screen Down" sensor detects contact, dim the lights to 20% and set temperature to movie mode
+
+### What Can Be Included
+
+| Action                  | How to set it                                     |
+| ----------------------- | ------------------------------------------------- |
+| Power on/off            | Television accessory on/off                       |
+| Volume level            | Fan or lightbulb proxy percentage                 |
+| Mute/unmute             | Fan or lightbulb proxy on/off                     |
+| Input selection         | Television accessory active input                 |
+| Zone 2 on/off           | Zone 2 Television on/off (mute/unmute)            |
+| Zone 2 volume           | Zone 2 fan or lightbulb proxy                     |
+| Zone 2 source           | Zone 2 Television active input (independent mode) |
+| Preset selection        | Presets Television active input                   |
+| Trigger on/off          | Trigger Switch on/off                             |
+| Automation from trigger | Trigger Contact Sensor state                      |
+
+### What Cannot Be Automated
 
 - **Surround mode switching** -- not yet exposed to HomeKit
-- **Preset activation** -- not yet exposed to HomeKit
-- **Dynamic range compression (night mode)** -- not yet exposed to HomeKit
-- **Trigger outputs** (screen, curtains) -- not yet exposed to HomeKit
+- **Dynamic range compression (night mode)** -- not yet exposed
 
-These capabilities are recognized as future enhancements. The processor already reports this information to the plugin; it just has not been wired into HomeKit controls yet.
+---
+
+## Siri Voice Commands
+
+### Commands That Work
+
+| Command                                     | Action                                                |
+| ------------------------------------------- | ----------------------------------------------------- |
+| "Set **Theater** to 50%"                    | Sets volume to 50% of your configured range           |
+| "Turn off **Theater**"                      | Powers off the processor (or mutes the volume proxy)  |
+| "Turn on **Theater**"                       | Powers on the processor (or unmutes the volume proxy) |
+| "Hey Siri, switch to **TV** on **Theater**" | Switches to the named input                           |
+| "Hey Siri, **Movie Night**"                 | Activates a scene by name                             |
+
+Replace **Theater** with your configured `name`.
+
+### Commands That Do Not Work (Apple Limitations)
+
+| Command                         | Why                                      |
+| ------------------------------- | ---------------------------------------- |
+| "Set **Theater** volume to 50%" | Siri does not support TV volume commands |
+| "Mute **Theater**"              | No HomeKit mute voice command exists     |
+| "Turn up/down **Theater**"      | Relative volume routing is unreliable    |
+
+> [!TIP]
+> **Workaround for input switching:** Create a HomeKit Scene that sets the desired input, then activate it by name: "Hey Siri, Movie Night."
+
+---
+
+## iOS Control Center Remote
+
+Your processor appears in the iOS Control Center remote widget automatically.
+
+<!-- TODO: Add screenshot of iOS Control Center remote -->
+
+_[Screenshot: iOS Control Center remote connected to StormAudio -- coming soon]_
+
+### Setup
+
+1. Open **Control Center** (swipe down from the top-right corner)
+2. Tap the **Remote** widget (remote control icon)
+3. The first time, tap **"Choose a TV"** at the top and select your processor
+4. You may need to reselect your processor each time you open the remote
+
+### Controls
+
+- **Volume buttons** (physical side buttons) -- send volume up/down to the processor
+- **Mute button** (speaker icon) -- toggles mute
+
+The remote provides relative volume control only. For absolute volume, use Siri or the fan/lightbulb slider.
 
 ---
 
@@ -195,22 +427,34 @@ These capabilities are recognized as future enhancements. The processor already 
 
 ### Naming for Siri
 
-The name you give your accessory in the plugin configuration is the name Siri uses to find it. Choose carefully:
+Choosing good accessory names makes Siri more reliable:
 
-- **"Theater"** works well -- it is short, unique, and unlikely to conflict with other accessories or apps.
-- **Avoid "StormAudio"** -- if the StormAudio iOS app is installed on your device, Siri may try to open the app instead of controlling the HomeKit accessory.
-- **Avoid generic words** like "volume", "brightness", or "speaker" in the name. These can confuse Siri's intent parsing.
-- **The fan/lightbulb proxy uses the same name.** When you say "set Theater to 50%", Siri targets the fan/lightbulb proxy (because the Television service does not support Siri volume commands). This is by design.
+- **"Theater"** works well -- short, unique, and unlikely to conflict with other accessories or apps
+- **Avoid app name conflicts** -- if the StormAudio iOS app is installed, Siri may try to open the app instead of controlling HomeKit. Use a unique name like "Theater" or "Processor".
+- **Avoid reserved words** -- "volume", "brightness", "speaker", and "temperature" in the name can confuse Siri's intent parsing
+- **Keep it short** -- one or two words works best for Siri recognition
+- **Use rooms** -- assign the accessory to a room in HomeKit. Siri uses room context for disambiguation, so you do not need the room name in the accessory name
+- **The volume proxy uses the same name** -- when you say "set Theater to 50%", Siri targets the fan/lightbulb proxy. This is by design.
+
+### Dedicated HomeKit Room
+
+As you add Zone 2, presets, and triggers, your Home app fills up fast. A dedicated room keeps everything organized:
+
+1. Open the **Home** app, tap **+** then **Add Room**
+2. Name it "Theater Controls" or "StormAudio"
+3. Move all plugin accessories into it
+
+Room assignment also helps Siri find the right accessory.
 
 ### Child Bridge: Recommended for Stability
 
-The plugin registers as an External Platform Accessory, which means it runs on its own Child Bridge. This is already the default behavior. Running on a Child Bridge means:
+The plugin runs on its own Child Bridge by default. This means:
 
-- If the plugin encounters an issue, it does not affect your other Homebridge accessories.
-- The plugin can restart independently without disrupting your entire Homebridge setup.
-- You can see the plugin's status separately in the Homebridge UI.
+- Plugin issues do not affect other Homebridge accessories
+- The plugin restarts independently
+- Plugin status is visible separately in the Homebridge UI
 
-To enable a Child Bridge explicitly via `config.json`, add a `_bridge` section inside your platform entry (alongside `platform`, `name`, and `host`):
+To enable a Child Bridge explicitly via `config.json`:
 
 ```json
 {
@@ -228,63 +472,79 @@ To enable a Child Bridge explicitly via `config.json`, add a `_bridge` section i
 }
 ```
 
-The `username` must be a unique MAC-style address (six pairs of hexadecimal characters separated by colons) not used by your main bridge or other Child Bridges. You can generate a random one at [miniwebtool.com/mac-address-generator](https://miniwebtool.com/mac-address-generator/). The `port` must be a unique port number not used by other bridges.
-
-### First Connection
-
-When you first install the plugin and connect to your processor, the input list is imported automatically and should appear in the Home app's input picker right away. Input names are read directly from the processor and update in real time whenever you rename them in the StormAudio installer UI.
-
-If input names appear generic, you can:
-1. Rename inputs in your StormAudio's configuration (recommended -- the plugin picks up changes automatically), or
-2. Configure input aliases in the plugin settings as an override
+The `username` must be a unique MAC-style address not used by other bridges. The `port` must be a unique port number.
 
 ### Multiple Rooms
 
-After pairing the accessory, you can assign it to any room in the Home app. If your theater is in a specific room:
+After pairing, assign the accessory to any room in the Home app (long-press tile, tap gear icon, change room). This helps with Siri disambiguation.
 
-1. Open the Home app
-2. Long-press the Television tile
-3. Tap the gear icon (settings)
-4. Change the room assignment
+### StormAudio Remote App
 
-This helps with Siri disambiguation. If you say "Hey Siri, turn on the Theater" and Siri asks which one, specifying the room resolves it.
+Your StormAudio processor also has a web-based remote interface accessible from any browser on your network:
 
-### Bidirectional Sync
+![StormAudio Remote UI](docs/StormAudio%20Remote%20UI%20Screenshot.png)
 
-Any change made on the processor itself -- using the physical remote, front panel, web interface, or another control app -- is reflected in the Home app within about a second. You do not need to worry about the Home app getting out of sync. This works for power, volume, mute, and input selection.
-
-If the network connection drops and you make changes on the processor while it is disconnected, the plugin re-syncs all state automatically when the connection is restored. The Home app will show the correct current state after reconnection.
-
----
-
-## What's Not Supported (Yet)
-
-The following features are recognized as potential future enhancements. The processor already communicates this information to the plugin over the network, but it has not been connected to HomeKit controls yet:
-
-| Feature | Status |
-|---------|--------|
-| **Surround mode switching** | Processor reports available modes; not yet exposed as HomeKit controls |
-| **Preset activation** | Processor reports preset list; not yet exposed as HomeKit switches |
-| **Trigger outputs** (screen, curtains, lighting relays) | Processor reports trigger states; not yet exposed as HomeKit switches |
-| **Zone 2 control** | Processor reports zone data; not yet exposed as a separate accessory |
-| **Dynamic range compression (night mode)** | Processor reports DRC state; not yet exposed as a HomeKit switch |
-| **Dialog enhancement** | Processor reports availability and level; not yet exposed |
-| **Relative volume via Siri** | HomeKit platform limitation -- use absolute percentages instead |
+_The StormAudio web remote provides direct access to all processor controls. HomeKit reflects changes made here in real time._
 
 ---
 
 ## Troubleshooting Quick Reference
 
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| Accessory shows "Not Responding" or appears off | Network connection lost between Homebridge and the processor | Check that the processor is powered on and reachable on your network. The plugin retries automatically -- it should recover on its own once the network is restored. |
-| Inputs not showing in the Home app | Accessory may need to be re-paired | Remove the accessory from the Home app and re-pair it. Check the Homebridge log for `[HomeKit] Input sources registered` to confirm inputs were imported. |
-| Siri says "I can't do that" for volume | Using relative command ("turn it up") instead of absolute | Use "Hey Siri, set Theater to 50%" instead. Relative volume via Siri is a HomeKit platform limitation. |
-| Volume changes are not audible | Configured volume range is too low or too narrow | Check `volumeFloor` and `volumeCeiling` in your configuration. With defaults (-100 to -20), low percentages may be inaudible on some speaker systems. Raise the floor (e.g., -80) for a more usable range. |
-| "Hey Siri, mute the Theater" does not work | Siri cannot route mute commands to the volume proxy | Use "Hey Siri, turn off Theater" to mute, and "Hey Siri, turn on Theater" to unmute. |
-| Processor takes 30-75 seconds to respond after power on | Normal boot time for StormAudio processors | This is expected. The processor is loading its configuration and room calibration. The plugin waits up to `wakeTimeout` seconds (default: 90, configurable up to 300). If your processor takes longer, increase `wakeTimeout` in the plugin settings. |
-| "Hey Siri" opens the StormAudio app instead of controlling HomeKit | Accessory name conflicts with an installed iOS app | Rename your accessory to something unique like "Theater" or "Processor" to avoid the conflict. |
-| Home app shows wrong volume/input after a network outage | State was not re-synced yet | Wait a few seconds after the connection is restored. The plugin automatically re-syncs all state from the processor on reconnection. |
-| Plugin appears to stop working after initial startup failure | Processor was not reachable when Homebridge started | The plugin retries automatically every 20 seconds indefinitely. Once the processor becomes reachable, the plugin will connect and begin working. No restart needed. |
+Something not working as expected? Most issues have straightforward fixes.
 
-For full installation instructions, configuration options, and developer information, see the [README](README.md).
+| Symptom                                  | Likely Cause                    | Fix                                                                                                 |
+| ---------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Accessory shows "Not Responding"         | Network connection lost         | Check that the processor is powered on and reachable. The plugin retries automatically.             |
+| Inputs not showing                       | Accessory needs re-pairing      | Remove the accessory from Home app and re-pair. Check log for `[HomeKit] Input sources registered`. |
+| Siri says "I can't do that" for volume   | Using relative command          | Use "set Theater to 50%" instead of "turn it up".                                                   |
+| Volume changes not audible               | Volume range too low or narrow  | Raise `volumeFloor` (e.g., -80) for a more usable range.                                            |
+| "Mute the Theater" does not work         | Siri limitation                 | Use "turn off Theater" to mute, "turn on Theater" to unmute.                                        |
+| Processor slow to respond after power-on | Normal boot time                | Expected behavior while loading room calibration. Increase `wakeTimeout` if needed.                 |
+| Siri opens the StormAudio app            | Name conflicts with iOS app     | Rename accessory to "Theater" or "Processor".                                                       |
+| Wrong state after network outage         | State not re-synced yet         | Wait a few seconds -- the plugin re-syncs automatically on reconnection.                            |
+| Plugin stops after startup failure       | Processor unreachable at launch | The plugin retries every 20s indefinitely. No restart needed.                                       |
+| Zone 2 not appearing                     | `zone2.zoneId` missing or wrong | Use Config UI dropdown to select the correct zone ID.                                               |
+| Zone 2 source cannot be changed          | Zone 2 in "Follow Main" mode    | Assign independent audio inputs in the StormAudio configuration.                                    |
+| Presets not appearing                    | `presets.enabled` is false      | Set `presets.enabled: true` and restart Homebridge.                                                 |
+| Preset list is empty                     | No saved presets on processor   | Create presets in StormAudio configuration, then restart Homebridge.                                |
+| Triggers not appearing                   | No triggers configured          | Add triggers with `"type": "switch"` or `"type": "contact"`.                                        |
+
+### Understanding Log Messages
+
+The plugin uses structured log prefixes to help you identify issues:
+
+| Prefix      | Category        | What to look for                                 |
+| ----------- | --------------- | ------------------------------------------------ |
+| `[Config]`  | Configuration   | Validation errors on startup                     |
+| `[TCP]`     | Connection      | Connect/disconnect events, reconnection attempts |
+| `[Command]` | Protocol        | Commands sent and received (debug level)         |
+| `[State]`   | Processor state | Power transitions, wake timeouts, input imports  |
+| `[HomeKit]` | Accessory       | Service registration, characteristic updates     |
+
+To see debug-level messages, start Homebridge with the `-D` flag or enable debug mode in the Homebridge UI.
+
+### Capturing a Debug Log
+
+```sh
+homebridge -CD 2>&1 | tee homebridge-debug.log
+```
+
+To extract only this plugin's messages:
+
+```sh
+grep "Theater" homebridge-debug.log > stormaudio-debug.log
+```
+
+Replace `Theater` with your configured accessory name.
+
+### Getting Help
+
+If troubleshooting does not resolve your issue, [open a GitHub issue](https://github.com/dhrone/homebridge-stormaudio-isp/issues) with:
+
+- Your Homebridge and Node.js versions
+- Your plugin configuration (redact your IP address if desired)
+- The relevant portion of your debug log
+
+---
+
+For full configuration options and technical details, see the [README](README.md).

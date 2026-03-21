@@ -79,7 +79,9 @@ function createMockClient() {
     setInputZone2: vi.fn(),
     getInputZone2: vi.fn(() => inputZone2),
     getInputList: vi.fn((): Array<{ id: number; name: string; zone2AudioInId: number }> => []),
-    _setInputZone2State: (id: number) => { inputZone2 = id; },
+    _setInputZone2State: (id: number) => {
+      inputZone2 = id;
+    },
     _emit: emitter.emit.bind(emitter),
   };
 }
@@ -208,7 +210,10 @@ function buildZone2Accessory(zone2Override?: Partial<Zone2Config>, inputsOverrid
 }
 
 // Helper to simulate inputList with Zone 2-capable inputs
-function simulateInputList(client: ReturnType<typeof createMockClient>, inputs: Array<{ id: number; name: string; zone2AudioInId: number }>) {
+function simulateInputList(
+  client: ReturnType<typeof createMockClient>,
+  inputs: Array<{ id: number; name: string; zone2AudioInId: number }>,
+) {
   client._emit('inputList', inputs);
 }
 
@@ -380,7 +385,11 @@ describe('StormAudioZone2Accessory — Volume proxy: Lightbulb', () => {
   });
 
   it('Zone 2 volume set via Lightbulb proxy — 50% maps to -40dB', () => {
-    const { accessory, client } = buildZone2Accessory({ volumeControl: 'lightbulb', volumeFloor: -80, volumeCeiling: 0 });
+    const { accessory, client } = buildZone2Accessory({
+      volumeControl: 'lightbulb',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+    });
     const brightnessChar = accessory._lightbulbService._getChar('Brightness')!;
     brightnessChar._triggerSet(50);
     expect(client.setZoneVolume).toHaveBeenCalledWith(13, -40);
@@ -401,7 +410,11 @@ describe('StormAudioZone2Accessory — Volume proxy: Lightbulb', () => {
   });
 
   it('Lightbulb Brightness onGet returns correct percentage from state', () => {
-    const { accessory, client } = buildZone2Accessory({ volumeControl: 'lightbulb', volumeFloor: -80, volumeCeiling: 0 });
+    const { accessory, client } = buildZone2Accessory({
+      volumeControl: 'lightbulb',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+    });
     client._emit('zoneUpdate', 13, 'volume', -40);
     const brightnessChar = accessory._lightbulbService._getChar('Brightness')!;
     expect(brightnessChar._triggerGet()).toBe(50); // dBToPercentage(-40, -80, 0) = 50%
@@ -424,7 +437,7 @@ describe('StormAudioZone2Accessory — Volume proxy: none (AC 26)', () => {
   it('no Fan or Lightbulb service created when volumeControl="none"', () => {
     const { accessory } = buildZone2Accessory({ volumeControl: 'none' });
     const addCalls = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls;
-    const serviceTypes = addCalls.map(c => String(c[0]));
+    const serviceTypes = addCalls.map((c) => String(c[0]));
     expect(serviceTypes).not.toContain('Fan');
     expect(serviceTypes).not.toContain('Lightbulb');
   });
@@ -687,7 +700,13 @@ describe('StormAudioZone2Accessory — listener cleanup (listenerCount)', () => 
     const baseline = client.listenerCount('zoneUpdate');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('zoneUpdate')).toBe(baseline + 1);
   });
@@ -697,7 +716,13 @@ describe('StormAudioZone2Accessory — listener cleanup (listenerCount)', () => 
     const baseline = client.listenerCount('processorState');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('processorState')).toBe(baseline + 1);
   });
@@ -707,7 +732,13 @@ describe('StormAudioZone2Accessory — listener cleanup (listenerCount)', () => 
     const baseline = client.listenerCount('disconnected');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('disconnected')).toBe(baseline + 1);
   });
@@ -717,7 +748,13 @@ describe('StormAudioZone2Accessory — listener cleanup (listenerCount)', () => 
     const baseline = client.listenerCount('connected');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('connected')).toBe(baseline + 1);
   });
@@ -775,9 +812,7 @@ describe('StormAudioZone2Accessory — Zone 2 InputSource registration (Story 5.
   // QA #3: Zone 2-capable InputSources registered
   it('QA3: registers InputSource with correct subtype, Identifier, IsConfigured, InputSourceType, and SHOWN visibility', () => {
     const { accessory, client } = buildZone2Accessory();
-    simulateInputList(client, [
-      { id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 },
-    ]);
+    simulateInputList(client, [{ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 }]);
     const svc = accessory._inputSourceServices.get('zone2-input-6')!;
     expect(svc).toBeDefined();
     expect(svc.setCharacteristic).toHaveBeenCalledWith('Identifier', 6);
@@ -798,9 +833,7 @@ describe('StormAudioZone2Accessory — Zone 2 InputSource registration (Story 5.
   // QA #4: InputSource ConfiguredName from alias map
   it('QA4: alias from config.inputs overrides processor name', () => {
     const { accessory, client } = buildZone2Accessory(undefined, { '6': 'Patio Music' });
-    simulateInputList(client, [
-      { id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 },
-    ]);
+    simulateInputList(client, [{ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 }]);
     const svc = accessory._inputSourceServices.get('zone2-input-6')!;
     expect(svc.setCharacteristic).toHaveBeenCalledWith('ConfiguredName', 'Patio Music');
   });
@@ -837,8 +870,9 @@ describe('StormAudioZone2Accessory — Zone 2 InputSource registration (Story 5.
     simulateInputList(client, inputs);
     simulateInputList(client, inputs);
     // addService for zone2-input-6 must be called exactly once (idempotent getService || addService)
-    const zone2Input6Calls = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c: unknown[]) => String(c[2]) === 'zone2-input-6');
+    const zone2Input6Calls = (accessory.addService as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) => String(c[2]) === 'zone2-input-6',
+    );
     expect(zone2Input6Calls).toHaveLength(1);
     const svc = accessory._inputSourceServices.get('zone2-input-6')!;
     expect(svc).toBeDefined();
@@ -905,8 +939,12 @@ describe('StormAudioZone2Accessory — ActiveIdentifier onSet (Story 5.2)', () =
   it('QA26: useZone2 called BEFORE inputZone2 (ordering matters)', () => {
     const { accessory, client } = buildZone2Accessory();
     const callOrder: string[] = [];
-    (client.setZoneUseZone2 as ReturnType<typeof vi.fn>).mockImplementation(() => { callOrder.push('useZone2'); });
-    (client.setInputZone2 as ReturnType<typeof vi.fn>).mockImplementation(() => { callOrder.push('inputZone2'); });
+    (client.setZoneUseZone2 as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      callOrder.push('useZone2');
+    });
+    (client.setInputZone2 as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      callOrder.push('inputZone2');
+    });
     const aiChar = accessory._tvService._getChar('ActiveIdentifier')!;
     aiChar._triggerSet(6);
     expect(callOrder).toEqual(['useZone2', 'inputZone2']);
@@ -1119,7 +1157,13 @@ describe('StormAudioZone2Accessory — processor wake source state (Story 5.2)',
       { id: 7, name: 'Z2-RCA2', zone2AudioInId: 19 },
     ];
     (client.getInputList as ReturnType<typeof vi.fn>).mockReturnValue(cachedInputs);
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     const zone2 = new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     zone2.replayCachedInputs();
     // Should have registered 2 Zone 2-capable inputs (IDs 6, 7) plus Follow Main (zone2-input-0)
@@ -1134,7 +1178,13 @@ describe('StormAudioZone2Accessory — processor wake source state (Story 5.2)',
     const accessory = createMockAccessory();
     const client = createMockClient();
     (client.getInputList as ReturnType<typeof vi.fn>).mockReturnValue([]);
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     const zone2 = new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     zone2.replayCachedInputs();
     // Only Follow Main should be added, no Zone 2-capable inputs
@@ -1145,11 +1195,15 @@ describe('StormAudioZone2Accessory — processor wake source state (Story 5.2)',
     const platform = createMockPlatform(undefined, { '6': 'Patio Music' });
     const accessory = createMockAccessory();
     const client = createMockClient();
-    const cachedInputs = [
-      { id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 },
-    ];
+    const cachedInputs = [{ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 }];
     (client.getInputList as ReturnType<typeof vi.fn>).mockReturnValue(cachedInputs);
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     const zone2 = new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     zone2.replayCachedInputs();
     expect(accessory.addService).toHaveBeenCalledWith('InputSource', 'Patio Music', 'zone2-input-6');
@@ -1161,7 +1215,13 @@ describe('StormAudioZone2Accessory — processor wake source state (Story 5.2)',
     const accessory = createMockAccessory();
     const client = createMockClient();
     client._setInputZone2State(6);
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     // Register inputs so 6 is in the set
     simulateInputList(client, [{ id: 6, name: 'Z2-RCA1', zone2AudioInId: 18 }]);
@@ -1238,7 +1298,13 @@ describe('StormAudioZone2Accessory — Story 5.2 listener cleanup', () => {
     const baseline = client.listenerCount('inputList');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('inputList')).toBe(baseline + 1);
   });
@@ -1248,7 +1314,13 @@ describe('StormAudioZone2Accessory — Story 5.2 listener cleanup', () => {
     const baseline = client.listenerCount('inputZone2');
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('inputZone2')).toBe(baseline + 1);
   });
@@ -1263,7 +1335,13 @@ describe('StormAudioZone2Accessory — Story 5.2 listener cleanup', () => {
     };
     const platform = createMockPlatform();
     const accessory = createMockAccessory();
-    const zone2Config: Zone2Config = { zoneId: 13, name: 'Patio', volumeFloor: -80, volumeCeiling: 0, volumeControl: 'none' };
+    const zone2Config: Zone2Config = {
+      zoneId: 13,
+      name: 'Patio',
+      volumeFloor: -80,
+      volumeCeiling: 0,
+      volumeControl: 'none',
+    };
     new StormAudioZone2Accessory(platform, accessory as never, client as never, zone2Config);
     expect(client.listenerCount('zoneUpdate')).toBe(baselines.zoneUpdate + 1);
     expect(client.listenerCount('processorState')).toBe(baselines.processorState + 1);

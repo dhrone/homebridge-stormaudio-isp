@@ -103,10 +103,135 @@
           "volumeCeiling": {
             "title": "Zone 2 Volume Ceiling (dB)",
             "type": "number",
-            "default": 0,
+            "default": -20,
             "minimum": -100,
             "maximum": 0,
-            "description": "Maximum dB for Zone 2 volume mapping (maps to 100%). Default: 0"
+            "description": "Maximum dB for Zone 2 volume mapping (maps to 100%). Default: -20"
+          }
+        }
+      },
+      "presets": {
+        "title": "Presets",
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "title": "Enable Presets Accessory",
+            "type": "boolean",
+            "default": false,
+            "description": "Create a separate HomeKit accessory for theater preset selection. Presets are imported from the processor at connection time."
+          },
+          "name": {
+            "title": "Preset Accessory Name",
+            "type": "string",
+            "default": "Presets",
+            "description": "Display name for the preset accessory in HomeKit (e.g., 'Theater Presets')"
+          },
+          "aliases": {
+            "title": "Preset Name Aliases",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Override preset names from the processor. Keys are preset IDs (as strings), values are display names. Example: { \"9\": \"Movie Night\", \"12\": \"Music\" }"
+          }
+        }
+      },
+      "triggers": {
+        "title": "Triggers",
+        "type": "object",
+        "description": "Configure hardware triggers (1-4) as HomeKit accessories. Each trigger can be a Switch (bidirectional control) or Contact Sensor (read-only state).",
+        "properties": {
+          "1": {
+            "title": "Trigger 1",
+            "type": "object",
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "default": "Trigger 1",
+                "description": "Display name for this trigger in HomeKit"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string",
+                "default": "none",
+                "oneOf": [
+                  { "title": "None (not exposed)", "enum": ["none"] },
+                  { "title": "Switch (on/off control)", "enum": ["switch"] },
+                  { "title": "Contact Sensor (read-only)", "enum": ["contact"] }
+                ],
+                "description": "How this trigger appears in HomeKit. Switch allows control; Contact Sensor is read-only but usable as an automation trigger."
+              }
+            }
+          },
+          "2": {
+            "title": "Trigger 2",
+            "type": "object",
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "default": "Trigger 2",
+                "description": "Display name for this trigger in HomeKit"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string",
+                "default": "none",
+                "oneOf": [
+                  { "title": "None (not exposed)", "enum": ["none"] },
+                  { "title": "Switch (on/off control)", "enum": ["switch"] },
+                  { "title": "Contact Sensor (read-only)", "enum": ["contact"] }
+                ],
+                "description": "How this trigger appears in HomeKit. Switch allows control; Contact Sensor is read-only but usable as an automation trigger."
+              }
+            }
+          },
+          "3": {
+            "title": "Trigger 3",
+            "type": "object",
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "default": "Trigger 3",
+                "description": "Display name for this trigger in HomeKit"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string",
+                "default": "none",
+                "oneOf": [
+                  { "title": "None (not exposed)", "enum": ["none"] },
+                  { "title": "Switch (on/off control)", "enum": ["switch"] },
+                  { "title": "Contact Sensor (read-only)", "enum": ["contact"] }
+                ],
+                "description": "How this trigger appears in HomeKit. Switch allows control; Contact Sensor is read-only but usable as an automation trigger."
+              }
+            }
+          },
+          "4": {
+            "title": "Trigger 4",
+            "type": "object",
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "default": "Trigger 4",
+                "description": "Display name for this trigger in HomeKit"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string",
+                "default": "none",
+                "oneOf": [
+                  { "title": "None (not exposed)", "enum": ["none"] },
+                  { "title": "Switch (on/off control)", "enum": ["switch"] },
+                  { "title": "Contact Sensor (read-only)", "enum": ["contact"] }
+                ],
+                "description": "How this trigger appears in HomeKit. Switch allows control; Contact Sensor is read-only but usable as an automation trigger."
+              }
+            }
           }
         }
       }
@@ -125,11 +250,27 @@
       "key": "zone2",
       "title": "Zone 2",
       "type": "fieldset",
+      "items": ["zone2.name", "zone2.volumeControl", "zone2.volumeFloor", "zone2.volumeCeiling"]
+    },
+    {
+      "key": "presets",
+      "title": "Presets",
+      "type": "fieldset",
+      "items": ["presets.enabled", "presets.name", "presets.aliases"]
+    },
+    {
+      "key": "triggers",
+      "title": "Triggers",
+      "type": "fieldset",
       "items": [
-        "zone2.name",
-        "zone2.volumeControl",
-        "zone2.volumeFloor",
-        "zone2.volumeCeiling"
+        "triggers.1.type",
+        "triggers.1.name",
+        "triggers.2.type",
+        "triggers.2.name",
+        "triggers.3.type",
+        "triggers.3.name",
+        "triggers.4.type",
+        "triggers.4.name"
       ]
     }
   ]

@@ -10,5 +10,7 @@
   "zone2ZoneId": null,
   "testZone2InputId": null,
   "zone2VolumeFloor": -80,
-  "zone2VolumeCeiling": 0
+  "zone2VolumeCeiling": -20,
+  "testPresetId": null,
+  "testTriggerId": null
 }
