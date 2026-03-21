@@ -1,5 +1,5 @@
 <p align="center">
-<img src="images/plugin-icon.png" width="150">
+<img src="images/hero.png" width="600" alt="iPhone Home app → Homebridge → StormAudio processor">
 </p>
 
 <h1 align="center">homebridge-stormaudio-isp</h1>
