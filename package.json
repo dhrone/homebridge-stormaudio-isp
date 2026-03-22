@@ -20,6 +20,15 @@
     "homekit"
   ],
   "main": "dist/index.js",
+  "files": [
+    "dist/",
+    "config.schema.json",
+    "homebridge-ui/",
+    "images/hero.png",
+    "LICENSE",
+    "CHANGELOG.md",
+    "USAGE.md"
+  ],
   "customUiPath": "homebridge-ui",
   "engines": {
     "node": ">=20.0.0",
