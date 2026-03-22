@@ -79,12 +79,12 @@ flowchart LR
 
 The plugin publishes these HomeKit accessories:
 
-| Accessory | Service Type | Controls | Purpose |
-|-----------|-------------|----------|---------|
-| Main Zone | Television + Fan/Lightbulb | Power, volume, mute, input selection | Primary theater control — always created |
-| Zone 2 | Television (+ optional volume proxy) | Volume, mute, source selection | Independent multi-room audio zone (if configured) |
-| Presets | Television | Preset selection | Switch sound profiles — room correction, surround mode (if configured) |
-| Triggers (1--4) | Switch or Contact Sensor | On/off or state sensing | Control amplifiers, projectors, screens via hardware relays (if configured) |
+| Accessory       | Service Type                         | Controls                             | Purpose                                                                     |
+| --------------- | ------------------------------------ | ------------------------------------ | --------------------------------------------------------------------------- |
+| Main Zone       | Television + Fan/Lightbulb           | Power, volume, mute, input selection | Primary theater control — always created                                    |
+| Zone 2          | Television (+ optional volume proxy) | Volume, mute, source selection       | Independent multi-room audio zone (if configured)                           |
+| Presets         | Television                           | Preset selection                     | Switch sound profiles — room correction, surround mode (if configured)      |
+| Triggers (1--4) | Switch or Contact Sensor             | On/off or state sensing              | Control amplifiers, projectors, screens via hardware relays (if configured) |
 
 The connection is resilient — automatic reconnection with exponential backoff, indefinite long-poll recovery, and full state re-sync on reconnect. During disconnection, accessories show as **Off** in HomeKit.
 
@@ -143,18 +143,18 @@ Add the platform to the `platforms` array in your Homebridge `config.json`:
 
 ### Configuration Reference
 
-| Option            | Required | Default        | Description                                                                                        |
-| ----------------- | -------- | -------------- | -------------------------------------------------------------------------------------------------- |
-| `platform`        | Yes      | --             | Must be `"StormAudioISP"`                                                                          |
-| `name`            | No       | `"StormAudio"` | Display name for the accessory in HomeKit                                                          |
-| `host`            | **Yes**  | --             | IP address or hostname of your processor                                                           |
-| `port`            | No       | `23`           | TCP port for the control API (1--65535)                                                            |
-| `volumeCeiling`   | No       | `-20`          | Loudest volume in dB — maps to 100% in HomeKit. Range: -100 to 0. |
+| Option            | Required | Default        | Description                                                                                         |
+| ----------------- | -------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| `platform`        | Yes      | --             | Must be `"StormAudioISP"`                                                                           |
+| `name`            | No       | `"StormAudio"` | Display name for the accessory in HomeKit                                                           |
+| `host`            | **Yes**  | --             | IP address or hostname of your processor                                                            |
+| `port`            | No       | `23`           | TCP port for the control API (1--65535)                                                             |
+| `volumeCeiling`   | No       | `-20`          | Loudest volume in dB — maps to 100% in HomeKit. Range: -100 to 0.                                   |
 | `volumeFloor`     | No       | `-100`         | Quietest volume in dB — maps to 0% in HomeKit. Range: -100 to 0. Must be less than `volumeCeiling`. |
-| `volumeControl`   | No       | `"fan"`        | Volume proxy type: `"fan"`, `"lightbulb"`, or `"none"`                                             |
-| `wakeTimeout`     | No       | `90`           | Seconds to wait for processor boot after power-on (30--300)                                        |
-| `commandInterval` | No       | `100`          | Minimum ms between commands. Values below 85 may cause dropped commands.                           |
-| `inputs`          | No       | `{}`           | Input name aliases (see [Input Aliases](#input-aliases))                                           |
+| `volumeControl`   | No       | `"fan"`        | Volume proxy type: `"fan"`, `"lightbulb"`, or `"none"`                                              |
+| `wakeTimeout`     | No       | `90`           | Seconds to wait for processor boot after power-on (30--300)                                         |
+| `commandInterval` | No       | `100`          | Minimum ms between commands. Values below 85 may cause dropped commands.                            |
+| `inputs`          | No       | `{}`           | Input name aliases (see [Input Aliases](#input-aliases))                                            |
 
 #### Volume Range Mapping
 
