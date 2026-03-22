@@ -79,30 +79,14 @@ flowchart LR
 
 The plugin publishes these HomeKit accessories:
 
-| Accessory       | Service Type                         | Controls                             |
-| --------------- | ------------------------------------ | ------------------------------------ |
-| Main Zone       | Television + Fan/Lightbulb           | Power, volume, mute, input selection |
-| Zone 2          | Television (+ optional volume proxy) | Volume, mute, source selection       |
-| Presets         | Television                           | Theater configuration switching      |
-| Triggers (1--4) | Switch or Contact Sensor             | Amp power, projector, screen, etc.   |
+| Accessory | Service Type | Controls | Purpose |
+|-----------|-------------|----------|---------|
+| Main Zone | Television + Fan/Lightbulb | Power, volume, mute, input selection | Primary theater control — always created |
+| Zone 2 | Television (+ optional volume proxy) | Volume, mute, source selection | Independent multi-room audio zone (if configured) |
+| Presets | Television | Preset selection | Switch sound profiles — room correction, surround mode (if configured) |
+| Triggers (1--4) | Switch or Contact Sensor | On/off or state sensing | Control amplifiers, projectors, screens via hardware relays (if configured) |
 
-### Connection Resilience
-
-```mermaid
-stateDiagram-v2
-    [*] --> Disconnected
-    Disconnected --> Connecting : connect()
-    Connecting --> Connected : TCP established
-    Connecting --> Reconnecting : timeout 10s
-    Connected --> Connected : keepalive every 30s
-    Connected --> Reconnecting : stale / error
-    Reconnecting --> Connecting : backoff 1s → 2s → 4s → 8s → 16s
-    Reconnecting --> LongPoll : 6 attempts failed
-    LongPoll --> Connecting : retry every 20s
-    Connected --> Disconnected : intentional disconnect
-```
-
-On reconnection, the processor broadcasts its complete state, so the plugin is always up to date. During disconnection, accessories show as **Off** in HomeKit.
+The connection is resilient — automatic reconnection with exponential backoff, indefinite long-poll recovery, and full state re-sync on reconnect. During disconnection, accessories show as **Off** in HomeKit.
 
 ## Requirements
 
@@ -165,16 +149,16 @@ Add the platform to the `platforms` array in your Homebridge `config.json`:
 | `name`            | No       | `"StormAudio"` | Display name for the accessory in HomeKit                                                          |
 | `host`            | **Yes**  | --             | IP address or hostname of your processor                                                           |
 | `port`            | No       | `23`           | TCP port for the control API (1--65535)                                                            |
-| `volumeCeiling`   | No       | `-20`          | Maximum volume in dB (maps to 100% in HomeKit). Range: -100 to 0.                                  |
-| `volumeFloor`     | No       | `-100`         | Minimum volume in dB (maps to 0% in HomeKit). Range: -100 to 0. Must be less than `volumeCeiling`. |
+| `volumeCeiling`   | No       | `-20`          | Loudest volume in dB — maps to 100% in HomeKit. Range: -100 to 0. |
+| `volumeFloor`     | No       | `-100`         | Quietest volume in dB — maps to 0% in HomeKit. Range: -100 to 0. Must be less than `volumeCeiling`. |
 | `volumeControl`   | No       | `"fan"`        | Volume proxy type: `"fan"`, `"lightbulb"`, or `"none"`                                             |
 | `wakeTimeout`     | No       | `90`           | Seconds to wait for processor boot after power-on (30--300)                                        |
 | `commandInterval` | No       | `100`          | Minimum ms between commands. Values below 85 may cause dropped commands.                           |
 | `inputs`          | No       | `{}`           | Input name aliases (see [Input Aliases](#input-aliases))                                           |
 
-#### Volume Ceiling and Floor
+#### Volume Range Mapping
 
-The `volumeCeiling` and `volumeFloor` define the usable volume range in dB. HomeKit's 0--100% scale maps linearly to this range. Even at 100%, the processor never exceeds your ceiling. See the [Usage Guide](USAGE.md#volume) for a detailed mapping table.
+Your processor uses decibel values (e.g., -80 dB to -20 dB), but HomeKit only understands 0--100%. The `volumeFloor` and `volumeCeiling` settings define the dB range that maps to that percentage scale — 0% equals your floor, 100% equals your ceiling. The processor never exceeds your ceiling, even at 100%. See the [Usage Guide](USAGE.md#volume) for a detailed mapping table.
 
 > [!TIP]
 > Your StormAudio processor has its own **Max Volume** setting configured by the installer in the web UI (Settings page). Set `volumeCeiling` to match or stay below that value — otherwise the top of your HomeKit slider will have no effect. Check your processor's Max Volume in the StormAudio web interface under Settings.
