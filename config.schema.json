@@ -66,6 +66,14 @@
         "default": 100,
         "description": "Minimum milliseconds between commands sent to the processor (default: 100). Values below 85 may cause dropped commands."
       },
+      "inputs": {
+        "title": "Input Name Aliases",
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Override input names from the processor for Siri-friendly naming. Keys are input ID numbers (visible in the Homebridge log on startup), values are display names. Example: { \"3\": \"Apple TV\", \"5\": \"PS5\" }"
+      },
       "zone2": {
         "title": "Zone 2",
         "type": "object",
@@ -246,6 +254,7 @@
     "volumeControl",
     "wakeTimeout",
     "commandInterval",
+    "inputs",
     {
       "key": "zone2",
       "title": "Zone 2",

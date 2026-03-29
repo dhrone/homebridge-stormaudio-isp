@@ -44,7 +44,6 @@ _"Hey Siri, Movie Night."_ The processor wakes. Amplifiers power on. The screen 
 - **Power control** -- turn your theater on from the couch, the car, or anywhere in the house with automatic wake-from-sleep
 - **Volume control** -- set volume to a specific level with Siri or a slider — configurable safety limits protect your speakers
 - **Mute/unmute** -- mute and unmute by toggling the volume proxy on and off
-- **Volume buttons** -- step volume up or down with the iOS Control Center remote
 - **Input switching** -- switch inputs by voice or from the Home app, with names imported directly from your processor
 - **Zone 2 multi-room audio** -- control a second zone as a separate accessory with independent power, volume, mute, and source
 - **Theater presets** -- switch your entire sound profile with a single command or automation
@@ -60,7 +59,7 @@ The plugin talks directly to your processor over your local network -- no cloud 
 ```mermaid
 flowchart LR
     subgraph apple ["Apple Devices"]
-        HA["Home App · Siri\nControl Center Remote"]
+        HA["Home App · Siri"]
     end
 
     subgraph hb ["Homebridge Server"]
@@ -302,7 +301,6 @@ To [open a GitHub issue](https://github.com/dhrone/homebridge-stormaudio-isp/iss
 - **Siri relative volume** -- "turn it up/down" commands are unreliable. Use absolute commands like "set Theater to 50%".
 - **Single processor** -- one processor per platform instance. For multiple processors, add separate `StormAudioISP` entries.
 - **Volume step granularity** -- HomeKit uses integer percentages. With wide volume ranges, some adjacent percentages may map to the same dB level.
-- **Mute icon in Control Center** -- the mute button icon may not always reflect the current state (iOS limitation).
 - **Zone 2 "Follow Main"** -- when following the main zone, Zone 2 source cannot be changed independently.
 - **Trigger auto-switching** -- trigger states that change during input or preset switches are reflected in HomeKit, but the switching logic is configured on the processor.
 - **Detail view refresh** -- the Television tile detail view does not live-refresh on external changes. Navigate out and back in to see updates. This is a HomeKit platform behavior.

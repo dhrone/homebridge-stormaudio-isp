@@ -13,7 +13,6 @@ Your StormAudio processor is connected and ready. This guide walks you through e
 - [Triggers](#triggers)
 - [Scenes and Automations](#scenes-and-automations)
 - [Siri Voice Commands](#siri-voice-commands)
-- [iOS Control Center Remote](#ios-control-center-remote)
 - [Tips and Tricks](#tips-and-tricks)
 - [Troubleshooting Quick Reference](#troubleshooting-quick-reference)
 
@@ -34,9 +33,9 @@ You are set. Try saying _"Hey Siri, turn on the Theater"_ to confirm the connect
 
 **What appears in the Home app:**
 
-<!-- TODO: Add screenshot of Home app main zone tiles -->
-
-_[Screenshot: Home app showing Television tile and volume fan tile -- coming soon]_
+|              Room View               |                      Detail View                      |
+| :----------------------------------: | :---------------------------------------------------: |
+| ![Room View](images/Room%20View.png) | ![Theater Detail](images/Theater%20Detail%20Tile.png) |
 
 - A **Television tile** for power and input selection (named after your configured `name`)
 - A **Fan tile** (default) or **Lightbulb tile** for volume control and mute
@@ -71,7 +70,7 @@ You can also tap the Television tile in the Home app.
 
 ### Volume
 
-Control volume through a **fan** (default) or **lightbulb** proxy service that appears as a separate tile in the Home app.
+Control volume through a **fan** (default) or **lightbulb** proxy service. By default, the volume slider appears inside the Television tile's detail view. If you configure the Television accessory to use separate tiles, the volume proxy appears as its own tile in the room view.
 
 **Set volume to a specific level:**
 
@@ -110,10 +109,6 @@ Even if someone asks Siri to "set Theater to 100%", the volume only reaches your
 > [!WARNING]
 > The lightbulb proxy mutes when "turn off all the lights" is triggered. Fan is recommended. See [Volume Control Options](README.md#volume-control-options).
 
-#### Volume Buttons
-
-The iOS Control Center remote's volume buttons send relative up/down commands (1 dB per press). These work even with `volumeControl` set to `"none"`.
-
 > [!NOTE]
 > **Why relative volume commands may not work:** Siri commands like "turn up the Theater" are unreliable. This is a HomeKit platform limitation. Use absolute commands ("set Theater to 50%") instead -- they always work.
 
@@ -139,10 +134,6 @@ When the processor is muted, the tile shows as off. When unmuted, it shows as on
 ### Input Switching
 
 **From the Home app:**
-
-<!-- TODO: Add screenshot of Home app input picker -->
-
-_[Screenshot: Television tile detail view with input picker -- coming soon]_
 
 1. Tap the Television tile to open its detail view
 2. Tap the input selector
@@ -173,6 +164,10 @@ If you cannot change names on the processor, override individual inputs using [i
 ## Zone 2 (Multi-Room Audio)
 
 If you have a second audio zone configured (e.g., patio speakers, outdoor zone), it appears as a separate Television accessory.
+
+|                             Room View                              |                Zone 2 Detail                |
+| :----------------------------------------------------------------: | :-----------------------------------------: |
+| ![Room View with Zone 2](images/StormAudio_Presets_Zone2_Room.png) | ![Zone 2 Detail](images/Zone2%20Detail.png) |
 
 ```mermaid
 flowchart TD
@@ -207,7 +202,7 @@ Replace "Patio" with your Zone 2 accessory name.
 
 ### Volume
 
-Zone 2 volume works like the main zone -- through a volume proxy (if configured) and the Control Center remote buttons.
+Zone 2 volume works like the main zone -- through a volume proxy (if configured).
 
 > "Hey Siri, set Patio to 40%"
 
@@ -236,9 +231,9 @@ Theater presets are saved configurations on the processor (audio processing, roo
 
 ### Selecting a Preset
 
-<!-- TODO: Add screenshot of preset accessory tile -->
-
-_[Screenshot: Presets Television tile with preset list -- coming soon]_
+|                                   Room View                                   |                Preset Detail                 |
+| :---------------------------------------------------------------------------: | :------------------------------------------: |
+| ![Room View with Presets](images/StormAudio%20and%20Preset%20Room%20View.png) | ![Preset Detail](images/Preset%20Detail.png) |
 
 The preset accessory appears as a Television tile. Its "inputs" are your available presets:
 
@@ -275,6 +270,10 @@ If processor preset names are not Siri-friendly, override them with [preset alia
 
 Hardware triggers are relay outputs on the processor that control external equipment (amplifiers, projectors, screens, curtains). The plugin can expose them as switches or contact sensors.
 
+|                       Room View                        |                 Trigger Detail                 |
+| :----------------------------------------------------: | :--------------------------------------------: |
+| ![Room with Trigger](images/Room%20with%20Trigger.png) | ![Trigger Detail](images/Trigger%20Detail.png) |
+
 ### Switch Mode (Bidirectional Control)
 
 Configure a trigger as a Switch to control it from HomeKit. It appears as a **toggle tile** in the Home app -- tap to turn on or off, just like a smart plug or light switch. State changes from any source (auto-switching on wake/preset, manual override, front panel) sync to HomeKit in real time, so the tile always reflects the actual relay state.
@@ -294,6 +293,16 @@ A trigger configured as a Contact Sensor is **read-only** -- it cannot be contro
 > Contact sensors **do not appear as visible tiles** in the Home app by default. You won't see them on your room's main screen. They are accessible when creating automations (as a condition or trigger) and in the accessory detail list under the room settings. If you want a visible, tappable tile, use Switch mode instead.
 
 **Example automation:** When "Screen Down" sensor detects contact, dim the lights to 20%.
+
+To create an automation from a contact sensor:
+
+|               1. New Automation                |                       2. Select Sensor                       |                             3. Configure Trigger                              |
+| :--------------------------------------------: | :----------------------------------------------------------: | :---------------------------------------------------------------------------: |
+| ![New Automation](images/New%20Automation.png) | ![Select Sensor](images/Automation%20Trigger%20Selected.png) | ![Configure Trigger](images/Automation%20Triggers%20Amp%20Power%20Closed.png) |
+
+1. Tap **Automation** → **+** → **New Automation**
+2. Select **"A Sensor Detects Something"**, then choose your trigger (e.g., "Amp Power") from the Triggers section
+3. Choose **Opens** or **Closes** to set when the automation fires, then add your desired actions
 
 Contact sensors retain their last known state during brief network disconnections.
 
@@ -396,30 +405,6 @@ Replace **Theater** with your configured `name`.
 
 > [!TIP]
 > **Workaround for input switching:** Create a HomeKit Scene that sets the desired input, then activate it by name: "Hey Siri, Movie Night."
-
----
-
-## iOS Control Center Remote
-
-Your processor appears in the iOS Control Center remote widget automatically.
-
-<!-- TODO: Add screenshot of iOS Control Center remote -->
-
-_[Screenshot: iOS Control Center remote connected to StormAudio -- coming soon]_
-
-### Setup
-
-1. Open **Control Center** (swipe down from the top-right corner)
-2. Tap the **Remote** widget (remote control icon)
-3. The first time, tap **"Choose a TV"** at the top and select your processor
-4. You may need to reselect your processor each time you open the remote
-
-### Controls
-
-- **Volume buttons** (physical side buttons) -- send volume up/down to the processor
-- **Mute button** (speaker icon) -- toggles mute
-
-The remote provides relative volume control only. For absolute volume, use Siri or the fan/lightbulb slider.
 
 ---
 

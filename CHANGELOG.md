@@ -14,7 +14,7 @@ Initial release.
 
 - Set volume to a specific level via a fan or lightbulb proxy service, with safety floor and ceiling limits to protect your speakers
 - Mute/unmute via the volume proxy's on/off switch
-- Use the iOS Control Center remote widget for relative volume up/down
+- ~~Relative volume via iOS Control Center remote~~ — removed due to HomeKit reliability limitations; use absolute volume (slider or "set Theater to 50%") instead
 
 ### Input Selection
 
