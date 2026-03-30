@@ -16,6 +16,7 @@ homebridge-stormaudio-isp
 <a href="https://github.com/dhrone/homebridge-stormaudio-isp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/dhrone/homebridge-stormaudio-isp?style=flat-square" alt="license"></a>
 <a href="https://github.com/homebridge/homebridge/wiki"><img src="https://img.shields.io/badge/homebridge-%E2%89%A51.8.0-purple?style=flat-square" alt="homebridge"></a>
 <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520.0.0-green?style=flat-square" alt="node"></a>
+<a href="https://github.com/homebridge/homebridge/wiki/Verified-Plugins"><img src="https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=flat-square" alt="verified by homebridge"></a>
 </p>
 
 ---
