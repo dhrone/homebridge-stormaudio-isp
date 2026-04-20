@@ -407,6 +407,21 @@ export class StormAudioPlatform implements DynamicPlatformPlugin {
             this.log.info(`[State] Preset ${p.id}: "${p.name}"`);
           }
 
+          // Persist preset list so the custom UI can show a per-preset alias editor
+          const presetsArray = presets.map(p => ({ id: p.id, name: p.name }));
+          if (this.storagePath) {
+            void fs.promises.writeFile(
+              path.join(this.storagePath, 'presets'),
+              JSON.stringify(presetsArray),
+              'utf-8',
+            ).then(() => {
+              this.log.debug(`[Config] Persisted ${presetsArray.length} presets to plugin storage`);
+            }).catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              this.log.warn(`[Config] Failed to persist presets: ${message}`);
+            });
+          }
+
           // Preset accessory creation — only once
           if (presetPublished || !this.validatedConfig?.presets?.enabled) return;
 
