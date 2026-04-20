@@ -220,11 +220,23 @@ export function validateConfig(config: RawConfig, log: ConfigLogger): StormAudio
   // Triggers config validation
   let resolvedTriggers: Record<string, TriggerConfig> | undefined;
   if (config.triggers !== undefined) {
-    if (typeof config.triggers !== 'object' || config.triggers === null || Array.isArray(config.triggers)) {
+    if (typeof config.triggers !== 'object' || config.triggers === null) {
       log.error('[Config] Error: "triggers" must be an object if provided.');
       return null;
     }
-    const rawTriggers = config.triggers as Record<string, unknown>;
+    // Homebridge Config UI serializes triggers.1.type/.2.type/... as a sparse array
+    // (null at index 0, entries at 1-4). Normalize to the object form using index as ID.
+    let rawTriggers: Record<string, unknown>;
+    if (Array.isArray(config.triggers)) {
+      rawTriggers = {};
+      for (let i = 0; i < config.triggers.length; i++) {
+        const entry = config.triggers[i];
+        if (entry === null || entry === undefined) continue;
+        rawTriggers[String(i)] = entry;
+      }
+    } else {
+      rawTriggers = config.triggers as Record<string, unknown>;
+    }
     const validTriggers: Record<string, TriggerConfig> = {};
     const validIds = new Set(['1', '2', '3', '4']);
     for (const [key, value] of Object.entries(rawTriggers)) {
