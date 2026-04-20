@@ -670,16 +670,19 @@ describe('validateConfig — triggers', () => {
   // Homebridge Config UI serializes numeric-keyed sub-objects as sparse arrays.
   it('triggers as sparse array (UI form) → normalized to object by index', () => {
     const log = makeLog();
-    const result = validateConfig({
-      ...baseConfig,
-      triggers: [
-        null,
-        { name: 'Amp', type: 'switch' },
-        { name: 'Screen', type: 'contact' },
-        { name: 'Trigger 3', type: 'none' },
-        { name: 'Trigger 4', type: 'none' },
-      ],
-    }, log);
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: [
+          null,
+          { name: 'Amp', type: 'switch' },
+          { name: 'Screen', type: 'contact' },
+          { name: 'Trigger 3', type: 'none' },
+          { name: 'Trigger 4', type: 'none' },
+        ],
+      },
+      log,
+    );
     expect(result).not.toBeNull();
     expect(log.error).not.toHaveBeenCalled();
     expect(result!.triggers?.['1']).toEqual({ name: 'Amp', type: 'switch' });
@@ -690,16 +693,19 @@ describe('validateConfig — triggers', () => {
 
   it('triggers as array of all "none" entries → triggers undefined, no error', () => {
     const log = makeLog();
-    const result = validateConfig({
-      ...baseConfig,
-      triggers: [
-        null,
-        { name: 'Trigger 1', type: 'none' },
-        { name: 'Trigger 2', type: 'none' },
-        { name: 'Trigger 3', type: 'none' },
-        { name: 'Trigger 4', type: 'none' },
-      ],
-    }, log);
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: [
+          null,
+          { name: 'Trigger 1', type: 'none' },
+          { name: 'Trigger 2', type: 'none' },
+          { name: 'Trigger 3', type: 'none' },
+          { name: 'Trigger 4', type: 'none' },
+        ],
+      },
+      log,
+    );
     expect(result).not.toBeNull();
     expect(result!.triggers).toBeUndefined();
     expect(log.error).not.toHaveBeenCalled();
@@ -707,13 +713,16 @@ describe('validateConfig — triggers', () => {
 
   it('triggers as array with index 0 entry → ignored (out of range)', () => {
     const log = makeLog();
-    const result = validateConfig({
-      ...baseConfig,
-      triggers: [
-        { name: 'Bogus', type: 'switch' },
-        { name: 'T1', type: 'switch' },
-      ],
-    }, log);
+    const result = validateConfig(
+      {
+        ...baseConfig,
+        triggers: [
+          { name: 'Bogus', type: 'switch' },
+          { name: 'T1', type: 'switch' },
+        ],
+      },
+      log,
+    );
     expect(result).not.toBeNull();
     expect(result!.triggers?.['1']).toEqual({ name: 'T1', type: 'switch' });
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('"0"'));

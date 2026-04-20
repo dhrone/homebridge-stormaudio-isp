@@ -193,13 +193,13 @@ Keys are input ID numbers (visible in the Homebridge log on startup). Aliases ov
 
 Zone 2 exposes a second audio zone as a separate Television accessory. See the [Usage Guide](USAGE.md#zone-2-multi-room-audio) for operational details.
 
-| Option                | Default    | Description                                                                                        |
-| --------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| Option                | Default    | Description                                                                                          |
+| --------------------- | ---------- | ---------------------------------------------------------------------------------------------------- |
 | `zone2.zoneId`        | --         | Zone ID from your processor (use the Config UI dropdown, or enter manually once the plugin connects) |
-| `zone2.name`          | `"Zone 2"` | Display name (e.g., `"Patio"`)                                                                     |
-| `zone2.volumeControl` | `"none"`   | Volume proxy: `"none"`, `"fan"`, or `"lightbulb"`                                                  |
-| `zone2.volumeFloor`   | `-80`      | Minimum dB for volume mapping (0%)                                                                 |
-| `zone2.volumeCeiling` | `-20`      | Maximum dB for volume mapping (100%)                                                               |
+| `zone2.name`          | `"Zone 2"` | Display name (e.g., `"Patio"`)                                                                       |
+| `zone2.volumeControl` | `"none"`   | Volume proxy: `"none"`, `"fan"`, or `"lightbulb"`                                                    |
+| `zone2.volumeFloor`   | `-80`      | Minimum dB for volume mapping (0%)                                                                   |
+| `zone2.volumeCeiling` | `-20`      | Maximum dB for volume mapping (100%)                                                                 |
 
 On a fresh install — before the plugin has connected — the Config UI shows a guidance message in place of the Zone ID control. Set the Processor Host, save, and reload the settings page to populate the dropdown.
 

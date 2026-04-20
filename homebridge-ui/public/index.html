@@ -69,10 +69,7 @@
 
           input.addEventListener('change', async () => {
             const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
-            const nextAliases = Object.assign(
-              {},
-              (currentConfig.presets && currentConfig.presets.aliases) || {},
-            );
+            const nextAliases = Object.assign({}, (currentConfig.presets && currentConfig.presets.aliases) || {});
             const trimmed = input.value.trim();
             if (trimmed === '' || trimmed === p.name) {
               delete nextAliases[idKey];
