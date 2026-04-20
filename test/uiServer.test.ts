@@ -13,9 +13,14 @@ import * as path from 'path';
 const { readZones } = require('../homebridge-ui/zonesHandler.js') as {
   readZones: (storagePath: string, readFileFn?: (p: string, enc: string) => string) => unknown[];
 };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { readPresets } = require('../homebridge-ui/presetsHandler.js') as {
+  readPresets: (storagePath: string, readFileFn?: (p: string, enc: string) => string) => unknown[];
+};
 
 const MOCK_STORAGE = '/mock-storage';
 const EXPECTED_ZONES_PATH = path.join(MOCK_STORAGE, 'homebridge-stormaudio-isp', 'zones');
+const EXPECTED_PRESETS_PATH = path.join(MOCK_STORAGE, 'homebridge-stormaudio-isp', 'presets');
 
 describe('readZones — /zones endpoint handler logic (Story 5.3)', () => {
   let readFileMock: ReturnType<typeof vi.fn>;
@@ -72,5 +77,51 @@ describe('readZones — /zones endpoint handler logic (Story 5.3)', () => {
     readFileMock.mockReturnValue('[]');
     readZones(MOCK_STORAGE, readFileMock);
     expect(readFileMock).toHaveBeenCalledWith(EXPECTED_ZONES_PATH, 'utf-8');
+  });
+});
+
+describe('readPresets — /presets endpoint handler logic', () => {
+  let readFileMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    readFileMock = vi.fn();
+  });
+
+  it('returns preset array when storage file exists', () => {
+    const presets = [
+      { id: 9, name: 'Theater 1' },
+      { id: 11, name: 'Preset 1' },
+    ];
+    readFileMock.mockReturnValue(JSON.stringify(presets));
+    expect(readPresets(MOCK_STORAGE, readFileMock)).toEqual(presets);
+  });
+
+  it('returns [] when storage file is missing (ENOENT)', () => {
+    const err = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+    readFileMock.mockImplementation(() => {
+      throw err;
+    });
+    expect(readPresets(MOCK_STORAGE, readFileMock)).toEqual([]);
+  });
+
+  it('returns [] when storage contains non-array JSON object', () => {
+    readFileMock.mockReturnValue('{"not": "an array"}');
+    expect(readPresets(MOCK_STORAGE, readFileMock)).toEqual([]);
+  });
+
+  it('returns [] when storage contains invalid JSON', () => {
+    readFileMock.mockReturnValue('not valid json');
+    expect(readPresets(MOCK_STORAGE, readFileMock)).toEqual([]);
+  });
+
+  it('returns [] when storage file is empty', () => {
+    readFileMock.mockReturnValue('');
+    expect(readPresets(MOCK_STORAGE, readFileMock)).toEqual([]);
+  });
+
+  it('reads from the correct storage path', () => {
+    readFileMock.mockReturnValue('[]');
+    readPresets(MOCK_STORAGE, readFileMock);
+    expect(readFileMock).toHaveBeenCalledWith(EXPECTED_PRESETS_PATH, 'utf-8');
   });
 });

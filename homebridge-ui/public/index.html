@@ -1,6 +1,9 @@
 <div id="zone-control" class="mb-3">
   <div id="zone-dropdown-section"></div>
 </div>
+<div id="preset-control" class="mb-3">
+  <div id="preset-alias-section"></div>
+</div>
 
 <script>
   (async () => {
@@ -13,15 +16,92 @@
       zones = [];
     }
 
+    let presets = [];
+    try {
+      presets = await homebridge.request('/presets');
+    } catch (e) {
+      presets = [];
+    }
+
     const pluginConfig = (await homebridge.getPluginConfig())[0] ?? {};
     const currentZoneId = pluginConfig.zone2 != null ? pluginConfig.zone2.zoneId : undefined;
+    const hasZones = Array.isArray(zones) && zones.length > 0;
+    const presetsEnabled = pluginConfig.presets != null && pluginConfig.presets.enabled === true;
+    const hasPresets = Array.isArray(presets) && presets.length > 0;
+    const currentAliases = (pluginConfig.presets && pluginConfig.presets.aliases) || {};
 
     homebridge.hideSpinner();
     homebridge.showSchemaForm();
 
     const section = document.getElementById('zone-dropdown-section');
+    const presetSection = document.getElementById('preset-alias-section');
 
-    if (Array.isArray(zones) && zones.length > 0) {
+    if (presetsEnabled) {
+      const heading = document.createElement('label');
+      heading.className = 'form-label fw-bold';
+      heading.textContent = 'Preset Names';
+      presetSection.appendChild(heading);
+
+      if (hasPresets) {
+        const help = document.createElement('p');
+        help.className = 'text-muted small';
+        help.textContent =
+          'Override how each preset appears in HomeKit. Leave blank to use the name from the processor.';
+        presetSection.appendChild(help);
+
+        for (const p of presets) {
+          const row = document.createElement('div');
+          row.className = 'input-group mb-2';
+
+          const idLabel = document.createElement('span');
+          idLabel.className = 'input-group-text';
+          idLabel.style.minWidth = '8rem';
+          idLabel.textContent = 'ID ' + p.id + ': ' + p.name;
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'form-control';
+          input.placeholder = p.name;
+          const idKey = String(p.id);
+          if (currentAliases[idKey] !== undefined) {
+            input.value = currentAliases[idKey];
+          }
+
+          input.addEventListener('change', async () => {
+            const currentConfig = (await homebridge.getPluginConfig())[0] ?? {};
+            const nextAliases = Object.assign({}, (currentConfig.presets && currentConfig.presets.aliases) || {});
+            const trimmed = input.value.trim();
+            if (trimmed === '' || trimmed === p.name) {
+              delete nextAliases[idKey];
+            } else {
+              nextAliases[idKey] = trimmed;
+            }
+            const updatedConfig = Object.assign({}, currentConfig, {
+              presets: Object.assign({}, currentConfig.presets || {}, { aliases: nextAliases }),
+            });
+            await homebridge.updatePluginConfig([updatedConfig]);
+          });
+
+          row.appendChild(idLabel);
+          row.appendChild(input);
+          presetSection.appendChild(row);
+        }
+      } else {
+        const msg = document.createElement('p');
+        msg.className = 'text-muted small';
+        msg.textContent =
+          'Preset list will appear here after the plugin connects to your processor. Save this page and reload once the plugin is running.';
+        presetSection.appendChild(msg);
+      }
+    }
+
+    if (!hasZones && currentZoneId === undefined) {
+      const msg = document.createElement('p');
+      msg.className = 'text-muted small';
+      msg.textContent =
+        'Zone 2 setup will appear here after the plugin connects to your processor. Set the Processor Host below, save, and reload this page.';
+      section.appendChild(msg);
+    } else if (hasZones) {
       const label = document.createElement('label');
       label.className = 'form-label fw-bold';
       label.textContent = 'Zone 2 Zone ID';
