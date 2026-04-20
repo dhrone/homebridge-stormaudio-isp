@@ -259,7 +259,7 @@ Then say:
 
 ### Preset Aliases
 
-If processor preset names are not Siri-friendly, override them with [preset aliases](README.md#presets-configuration) in the plugin configuration. Preset IDs appear in the Homebridge log when presets are imported.
+If processor preset names are not Siri-friendly, override them with [preset aliases](README.md#presets-configuration). The easiest way is the Homebridge Config UI: once Presets are enabled and the plugin has connected, the settings page shows a text field per preset where you can type a Siri-friendly override. Preset IDs also appear in the Homebridge log when presets are imported, for users editing `config.json` directly.
 
 > [!NOTE]
 > If you are inside the preset tile's detail view and the preset changes externally (from the processor remote, web UI, etc.), the selection does not update in real time. Navigate out and back in to see the update. This is a HomeKit platform behavior affecting all Television accessories.

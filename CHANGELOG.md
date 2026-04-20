@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Per-preset alias editor in the Homebridge Config UI, auto-populated from the processor's preset list — type a Siri-friendly name per preset without touching JSON or looking up IDs in the log
+
+### Changed
+
+- Zone 2 Zone ID control in the Config UI is now hidden on fresh installs (before the plugin has connected), replaced with a guidance message directing the user to set the Processor Host first
+
+### Fixed
+
+- Accept the array form of `triggers` that the Homebridge Config UI generates from numeric-keyed schema fields; previously the plugin refused to start after configuring triggers through the UI
+
 ## [1.0.0] - 2026-03-20
 
 Initial release.
